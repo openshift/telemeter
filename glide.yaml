@@ -1,0 +1,6 @@
+package: github.com/smarterclayton/telemeter
+import:
+- package: github.com/prometheus/client_golang
+  subpackages:
+  - prometheus
+- package: github.com/spf13/cobra
