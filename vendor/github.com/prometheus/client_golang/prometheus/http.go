@@ -85,8 +85,8 @@ func UninstrumentedHandler() http.Handler {
 		writer, encoding := decorateWriter(req, buf)
 		enc := expfmt.NewEncoder(writer, contentType)
 		var lastErr error
-		for _, mf := range mfs {
-			if err := enc.Encode(mf); err != nil {
+		for _, families := range mfs {
+			if err := enc.Encode(families); err != nil {
 				lastErr = err
 				http.Error(w, "An error has occurred during metrics encoding:\n\n"+err.Error(), http.StatusInternalServerError)
 				return

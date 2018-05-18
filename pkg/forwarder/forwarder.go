@@ -99,10 +99,10 @@ func (w *Worker) LastMetrics() []*clientmodel.MetricFamily {
 	return w.lastMetrics
 }
 
-func (w *Worker) setLastMetrics(mf []*clientmodel.MetricFamily) {
+func (w *Worker) setLastMetrics(families []*clientmodel.MetricFamily) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
-	w.lastMetrics = mf
+	w.lastMetrics = families
 }
 
 func (w *Worker) Run() {

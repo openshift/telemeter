@@ -15,8 +15,8 @@ import (
 )
 
 type Store interface {
-	ReadMetrics(ctx context.Context, fn func(partitionKey string, mf []*clientmodel.MetricFamily) error) error
-	WriteMetrics(ctx context.Context, partitionKey string, mf []*clientmodel.MetricFamily) error
+	ReadMetrics(ctx context.Context, fn func(partitionKey string, families []*clientmodel.MetricFamily) error) error
+	WriteMetrics(ctx context.Context, partitionKey string, families []*clientmodel.MetricFamily) error
 }
 
 type UploadValidator interface {
@@ -43,8 +43,8 @@ func (s *Server) Get(w http.ResponseWriter, req *http.Request) {
 	format := expfmt.Negotiate(req.Header)
 	encoder := expfmt.NewEncoder(w, format)
 	ctx := context.Background()
-	err := s.store.ReadMetrics(ctx, func(partitionKey string, mf []*clientmodel.MetricFamily) error {
-		for _, family := range mf {
+	err := s.store.ReadMetrics(ctx, func(partitionKey string, families []*clientmodel.MetricFamily) error {
+		for _, family := range families {
 			if family == nil {
 				continue
 			}

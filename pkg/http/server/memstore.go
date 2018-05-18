@@ -8,7 +8,6 @@ import (
 )
 
 type clusterMetricSlice struct {
-	newest   int64
 	families []*clientmodel.MetricFamily
 }
 
@@ -23,7 +22,7 @@ func NewMemoryStore() Store {
 	}
 }
 
-func (s *memoryStore) ReadMetrics(ctx context.Context, fn func(partitionKey string, mf []*clientmodel.MetricFamily) error) error {
+func (s *memoryStore) ReadMetrics(ctx context.Context, fn func(partitionKey string, families []*clientmodel.MetricFamily) error) error {
 	s.lock.Lock()
 	store := s.store
 	s.store = make(map[string]*clusterMetricSlice)
@@ -37,7 +36,7 @@ func (s *memoryStore) ReadMetrics(ctx context.Context, fn func(partitionKey stri
 	return nil
 }
 
-func (s *memoryStore) WriteMetrics(ctx context.Context, partitionKey string, mf []*clientmodel.MetricFamily) error {
+func (s *memoryStore) WriteMetrics(ctx context.Context, partitionKey string, families []*clientmodel.MetricFamily) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -47,25 +46,6 @@ func (s *memoryStore) WriteMetrics(ctx context.Context, partitionKey string, mf 
 		s.store[partitionKey] = m
 	}
 
-	// TODO: this should probably be a transformer
-	previous := m.newest - 5000
-	next := previous
-	for _, family := range mf {
-		for j, metric := range family.Metric {
-			if metric.TimestampMs == nil {
-				continue
-			}
-			t := *metric.TimestampMs
-			if t < previous {
-				family.Metric[j] = nil
-				continue
-			}
-			if t > next {
-				next = t
-			}
-		}
-	}
-
-	m.families = append(m.families, mf...)
+	m.families = families
 	return nil
 }

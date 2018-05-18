@@ -84,18 +84,18 @@ func testPost(t *testing.T, validator server.UploadValidator, send, expect []*cl
 
 	mustPost(s.URL, expfmt.FmtProtoDelim, send)
 
-	var families []*clientmodel.MetricFamily
-	err := store.ReadMetrics(context.Background(), func(partitionKey string, mf []*clientmodel.MetricFamily) error {
+	var actual []*clientmodel.MetricFamily
+	err := store.ReadMetrics(context.Background(), func(partitionKey string, families []*clientmodel.MetricFamily) error {
 		if partitionKey != "test" {
 			t.Fatalf("unexpected partition key: %s", partitionKey)
 		}
-		families = mf
+		actual = families
 		return nil
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if e, a := metricsAsStringOrDie(expect), metricsAsStringOrDie(families); e != a {
+	if e, a := metricsAsStringOrDie(expect), metricsAsStringOrDie(actual); e != a {
 		t.Errorf("expected:\n%s\nactual:\n%s", e, a)
 	}
 }
@@ -117,20 +117,20 @@ func TestGet(t *testing.T) {
 	}
 }
 
-func sort(mf []*clientmodel.MetricFamily) []*clientmodel.MetricFamily {
-	transform.Filter(mf, transform.SortMetrics)
-	return transform.Pack(mf)
+func sort(families []*clientmodel.MetricFamily) []*clientmodel.MetricFamily {
+	transform.Filter(families, transform.SortMetrics)
+	return transform.Pack(families)
 }
 
-func withLabels(mf []*clientmodel.MetricFamily, labels map[string]string) []*clientmodel.MetricFamily {
-	transform.Filter(mf, transform.NewLabel(labels, nil))
-	return mf
+func withLabels(families []*clientmodel.MetricFamily, labels map[string]string) []*clientmodel.MetricFamily {
+	transform.Filter(families, transform.NewLabel(labels, nil))
+	return families
 }
 
-func metricsAsStringOrDie(mf []*clientmodel.MetricFamily) string {
+func metricsAsStringOrDie(families []*clientmodel.MetricFamily) string {
 	buf := &bytes.Buffer{}
 	encoder := expfmt.NewEncoder(buf, expfmt.FmtText)
-	for _, family := range mf {
+	for _, family := range families {
 		if family == nil {
 			continue
 		}
@@ -164,10 +164,10 @@ func mustRead(r io.Reader, format expfmt.Format) []*clientmodel.MetricFamily {
 	return families
 }
 
-func mustPostError(addr string, format expfmt.Format, mf []*clientmodel.MetricFamily) (int, string) {
+func mustPostError(addr string, format expfmt.Format, families []*clientmodel.MetricFamily) (int, string) {
 	buf := &bytes.Buffer{}
 	encoder := expfmt.NewEncoder(buf, format)
-	for _, family := range mf {
+	for _, family := range families {
 		if err := encoder.Encode(family); err != nil {
 			panic(err)
 		}
@@ -190,10 +190,10 @@ func mustPostError(addr string, format expfmt.Format, mf []*clientmodel.MetricFa
 	return resp.StatusCode, string(body)
 }
 
-func mustPost(addr string, format expfmt.Format, mf []*clientmodel.MetricFamily) {
+func mustPost(addr string, format expfmt.Format, families []*clientmodel.MetricFamily) {
 	buf := &bytes.Buffer{}
 	encoder := expfmt.NewEncoder(buf, format)
-	for _, family := range mf {
+	for _, family := range families {
 		if err := encoder.Encode(family); err != nil {
 			panic(err)
 		}

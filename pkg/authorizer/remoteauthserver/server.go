@@ -109,7 +109,7 @@ func (a *Authorizer) AuthorizeHTTP(w http.ResponseWriter, req *http.Request) {
 }
 
 func fnvHash(text string) string {
-	h := fnv.New64()
+	h := fnv.New64a()
 	h.Write([]byte(text))
 	return strconv.FormatUint(h.Sum64(), 32)
 }

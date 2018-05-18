@@ -24,7 +24,7 @@ func main() {
 		Listen:             "0.0.0.0:9003",
 		ListenInternal:     "localhost:9004",
 		LimitBytes:         500 * 1024,
-		TokenExpireSeconds: 60,
+		TokenExpireSeconds: 24 * 60 * 60,
 		PartitionKey:       "cluster",
 	}
 	cmd := &cobra.Command{
@@ -41,6 +41,7 @@ func main() {
 	cmd.Flags().StringVar(&opt.ListenInternal, "listen-internal", opt.ListenInternal, "A host:port to listen on for health and metrics.")
 	cmd.Flags().StringSliceVar(&opt.LabelFlag, "label", opt.LabelFlag, "Labels to add to each outgoing metric, in key=value form.")
 	cmd.Flags().StringVar(&opt.PartitionKey, "partition-label", opt.PartitionKey, "The label to separate incoming data on. This label will be required for callers to include.")
+	cmd.Flags().StringVar(&opt.StorageDir, "storage-dir", opt.StorageDir, "The directory to persist incoming metrics. If not specified metrics will only live in memory.")
 
 	if err := cmd.Execute(); err != nil {
 		os.Exit(1)
@@ -55,6 +56,8 @@ type Options struct {
 	PartitionKey string
 	LabelFlag    []string
 	Labels       map[string]string
+
+	StorageDir string
 
 	TokenExpireSeconds int64
 }
@@ -82,7 +85,12 @@ func (o *Options) Run() error {
 
 	auth := remoteauthserver.New(o.PartitionKey, nil, nil, o.TokenExpireSeconds, signer, o.Labels)
 	validator := untrusted.NewValidator(o.PartitionKey, o.Labels, o.LimitBytes, 24*time.Hour)
-	store := server.NewMemoryStore()
+	var store server.Store
+	if len(o.StorageDir) > 0 {
+		store = server.NewDiskStore(o.StorageDir)
+	} else {
+		store = server.NewMemoryStore()
+	}
 	server := server.New(store, validator)
 
 	internalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/federate", "/metrics", "/debug/pprof", "/healthz", "/healthz/ready"}}, "", "  ")

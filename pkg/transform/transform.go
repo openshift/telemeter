@@ -8,6 +8,34 @@ import (
 	clientmodel "github.com/prometheus/client_model/go"
 )
 
+// PackedFamilyWithTimestampsByName sorts a packed slice of metrics
+// (no nils, all families have at least one metric, and all metrics
+// have timestamps) in order of metric name and then oldest sample
+type PackedFamilyWithTimestampsByName []*clientmodel.MetricFamily
+
+func (families PackedFamilyWithTimestampsByName) Len() int {
+	return len(families)
+}
+
+func (families PackedFamilyWithTimestampsByName) Less(i int, j int) bool {
+	a, b := families[i].GetName(), families[j].GetName()
+	if a < b {
+		return true
+	}
+	if a > b {
+		return false
+	}
+	tA, tB := *families[i].Metric[0].TimestampMs, *families[j].Metric[0].TimestampMs
+	if tA < tB {
+		return true
+	}
+	return false
+}
+
+func (families PackedFamilyWithTimestampsByName) Swap(i int, j int) {
+	families[i], families[j] = families[j], families[i]
+}
+
 // Metrics returns the number of unique metrics in the given families. It skips
 // nil families but does not skip nil metrics.
 func Metrics(families []*clientmodel.MetricFamily) int {
@@ -34,12 +62,15 @@ func Filter(families []*clientmodel.MetricFamily, filter Interface) error {
 	return nil
 }
 
+// Pack returns only families with metrics in the returned array, preserving the
+// order of the original slice. Nil entries are removed from the slice. The returned
+// slice may be empty.
 func Pack(families []*clientmodel.MetricFamily) []*clientmodel.MetricFamily {
 	j := len(families)
 	next := 0
 Found:
 	for i := 0; i < j; i++ {
-		if families[i] != nil {
+		if families[i] != nil && len(families[i].Metric) > 0 {
 			continue
 		}
 		// scan for the next non-nil family
@@ -47,7 +78,7 @@ Found:
 			next = i + 1
 		}
 		for k := next; k < j; k++ {
-			if families[k] == nil {
+			if families[k] == nil || len(families[k].Metric) == 0 {
 				continue
 			}
 			// fill the current i with a non-nil family
@@ -61,6 +92,70 @@ Found:
 	return families
 }
 
+// MergeSortedWithTimestamps collapses metrics families with the same name into a single family,
+// preserving the order of the metrics. Families must be dense (no nils for families or metrics),
+// all metrics must be sorted, and all metrics must have timestamps.
+func MergeSortedWithTimestamps(families []*clientmodel.MetricFamily) []*clientmodel.MetricFamily {
+	var dst *clientmodel.MetricFamily
+	for pos, src := range families {
+		if dst == nil {
+			dst = src
+			continue
+		}
+		if dst.GetName() != src.GetName() {
+			dst = nil
+			continue
+		}
+
+		lenI, lenJ := len(dst.Metric), len(src.Metric)
+
+		// if the ranges don't overlap, we can block merge
+		dstBegin, dstEnd := *dst.Metric[0].TimestampMs, *dst.Metric[lenI-1].TimestampMs
+		srcBegin, srcEnd := *src.Metric[0].TimestampMs, *src.Metric[lenJ-1].TimestampMs
+		if dstEnd < srcBegin {
+			dst.Metric = append(dst.Metric, src.Metric...)
+			families[pos] = nil
+			continue
+		}
+		if srcEnd < dstBegin {
+			dst.Metric = append(src.Metric, dst.Metric...)
+			families[pos] = nil
+			continue
+		}
+
+		// zip merge
+		i, j := 0, 0
+		result := make([]*clientmodel.Metric, 0, lenI+lenJ)
+	Merge:
+		for {
+			switch {
+			case j >= lenJ:
+				for ; i < lenI; i++ {
+					result = append(result, dst.Metric[i])
+				}
+				break Merge
+			case i >= lenI:
+				for ; j < lenJ; j++ {
+					result = append(result, src.Metric[j])
+				}
+				break Merge
+			default:
+				a, b := *dst.Metric[i].TimestampMs, *src.Metric[j].TimestampMs
+				if a <= b {
+					result = append(result, dst.Metric[i])
+					i++
+				} else {
+					result = append(result, src.Metric[j])
+					j++
+				}
+			}
+		}
+		dst.Metric = result
+		families[pos] = nil
+	}
+	return Pack(families)
+}
+
 type Interface interface {
 	Transform(*clientmodel.MetricFamily) (ok bool, err error)
 }
@@ -69,13 +164,13 @@ type none struct{}
 
 var None Interface = none{}
 
-func (_ none) Transform(mf *clientmodel.MetricFamily) (bool, error) { return true, nil }
+func (_ none) Transform(families *clientmodel.MetricFamily) (bool, error) { return true, nil }
 
 type All []Interface
 
-func (transformers All) Transform(mf *clientmodel.MetricFamily) (bool, error) {
+func (transformers All) Transform(families *clientmodel.MetricFamily) (bool, error) {
 	for _, t := range transformers {
-		ok, err := t.Transform(mf)
+		ok, err := t.Transform(families)
 		if err != nil {
 			return false, err
 		}
@@ -96,19 +191,19 @@ func NewDropInvalidFederateSamples(min time.Time) Interface {
 	}
 }
 
-func (t *dropInvalidFederateSamples) Transform(mf *clientmodel.MetricFamily) (bool, error) {
-	if len(mf.GetName()) == 0 {
+func (t *dropInvalidFederateSamples) Transform(families *clientmodel.MetricFamily) (bool, error) {
+	if len(families.GetName()) == 0 {
 		return false, nil
 	}
-	if mf.Type == nil {
+	if families.Type == nil {
 		return false, nil
 	}
-	for i, m := range mf.Metric {
+	for i, m := range families.Metric {
 		if m == nil {
 			continue
 		}
 		if m.TimestampMs == nil || *m.TimestampMs < t.min {
-			mf.Metric[i] = nil
+			families.Metric[i] = nil
 			continue
 		}
 	}
@@ -125,14 +220,14 @@ func NewErrorInvalidFederateSamples(min time.Time) Interface {
 	}
 }
 
-func (t *errorInvalidFederateSamples) Transform(mf *clientmodel.MetricFamily) (bool, error) {
-	if len(mf.GetName()) == 0 {
+func (t *errorInvalidFederateSamples) Transform(families *clientmodel.MetricFamily) (bool, error) {
+	if len(families.GetName()) == 0 {
 		return false, nil
 	}
-	if mf.Type == nil {
+	if families.Type == nil {
 		return false, nil
 	}
-	for _, m := range mf.Metric {
+	for _, m := range families.Metric {
 		if m == nil {
 			continue
 		}
@@ -150,8 +245,8 @@ var DropEmptyFamilies = dropEmptyFamilies{}
 
 type dropEmptyFamilies struct{}
 
-func (_ dropEmptyFamilies) Transform(mf *clientmodel.MetricFamily) (bool, error) {
-	for _, m := range mf.Metric {
+func (_ dropEmptyFamilies) Transform(families *clientmodel.MetricFamily) (bool, error) {
+	for _, m := range families.Metric {
 		if m != nil {
 			return true, nil
 		}
@@ -163,8 +258,8 @@ var PackMetrics = packMetrics{}
 
 type packMetrics struct{}
 
-func (_ packMetrics) Transform(mf *clientmodel.MetricFamily) (bool, error) {
-	metrics := mf.Metric
+func (_ packMetrics) Transform(families *clientmodel.MetricFamily) (bool, error) {
+	metrics := families.Metric
 	j := len(metrics)
 	next := 0
 Found:
@@ -186,18 +281,18 @@ Found:
 			continue Found
 		}
 		// no more valid families
-		mf.Metric = metrics[:i]
+		families.Metric = metrics[:i]
 		break
 	}
-	return len(mf.Metric) > 0, nil
+	return len(families.Metric) > 0, nil
 }
 
 var SortMetrics = sortMetrics{}
 
 type sortMetrics struct{}
 
-func (_ sortMetrics) Transform(mf *clientmodel.MetricFamily) (bool, error) {
-	sort.Sort(MetricsByTimestamp(mf.Metric))
+func (_ sortMetrics) Transform(families *clientmodel.MetricFamily) (bool, error) {
+	sort.Sort(MetricsByTimestamp(families.Metric))
 	return true, nil
 }
 
@@ -232,8 +327,8 @@ type DropUnsorted struct {
 	timestamp int64
 }
 
-func (o *DropUnsorted) Transform(mf *clientmodel.MetricFamily) (bool, error) {
-	for i, m := range mf.Metric {
+func (o *DropUnsorted) Transform(families *clientmodel.MetricFamily) (bool, error) {
+	for i, m := range families.Metric {
 		if m == nil {
 			continue
 		}
@@ -242,7 +337,7 @@ func (o *DropUnsorted) Transform(mf *clientmodel.MetricFamily) (bool, error) {
 			ts = *m.TimestampMs
 		}
 		if ts < o.timestamp {
-			mf.Metric[i] = nil
+			families.Metric[i] = nil
 			continue
 		}
 		o.timestamp = ts
@@ -268,9 +363,9 @@ func NewErrorOnUnsorted(requireTimestamp bool) Interface {
 	}
 }
 
-func (t *errorOnUnsorted) Transform(mf *clientmodel.MetricFamily) (bool, error) {
+func (t *errorOnUnsorted) Transform(families *clientmodel.MetricFamily) (bool, error) {
 	t.timestamp = 0
-	for _, m := range mf.Metric {
+	for _, m := range families.Metric {
 		if m == nil {
 			continue
 		}
@@ -295,9 +390,9 @@ type Count struct {
 
 func (t *Count) Metrics() int { return t.metrics }
 
-func (t *Count) Transform(mf *clientmodel.MetricFamily) (bool, error) {
+func (t *Count) Transform(families *clientmodel.MetricFamily) (bool, error) {
 	t.families++
-	t.metrics += len(mf.Metric)
+	t.metrics += len(families.Metric)
 	return true, nil
 }
 
@@ -314,10 +409,10 @@ var (
 	ErrRequiredLabelMissing       = fmt.Errorf("a required label is missing from the metric")
 )
 
-func (t requireLabel) Transform(mf *clientmodel.MetricFamily) (bool, error) {
+func (t requireLabel) Transform(families *clientmodel.MetricFamily) (bool, error) {
 	for k, v := range t.labels {
 	Metrics:
-		for _, m := range mf.Metric {
+		for _, m := range families.Metric {
 			if m == nil {
 				continue
 			}
@@ -359,9 +454,9 @@ func NewLabel(labels map[string]string, retriever LabelRetriever) Interface {
 	}
 }
 
-func (t *label) Transform(mf *clientmodel.MetricFamily) (bool, error) {
+func (t *label) Transform(families *clientmodel.MetricFamily) (bool, error) {
 	// lazily resolve the label retriever as needed
-	if t.retriever != nil && len(mf.Metric) > 0 {
+	if t.retriever != nil && len(families.Metric) > 0 {
 		added, err := t.retriever.Labels()
 		if err != nil {
 			return false, err
@@ -372,7 +467,7 @@ func (t *label) Transform(mf *clientmodel.MetricFamily) (bool, error) {
 			t.labels[k] = &clientmodel.LabelPair{Name: &name, Value: &value}
 		}
 	}
-	for _, m := range mf.Metric {
+	for _, m := range families.Metric {
 		m.Label = appendLabels(m.Label, t.labels)
 	}
 	return true, nil

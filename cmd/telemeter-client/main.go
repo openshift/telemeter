@@ -22,7 +22,8 @@ func main() {
 	opt := &Options{
 		Listen:     "localhost:9002",
 		LimitBytes: 200 * 1024,
-		Rules:      []string{`{__name__="openshift_build_info"}`},
+		Rules:      []string{`{__name__="up"}`},
+		Interval:   4*time.Minute + 30*time.Second,
 	}
 	cmd := &cobra.Command{
 		Short: "Federate Prometheus via push",
@@ -39,8 +40,9 @@ func main() {
 	cmd.Flags().StringVar(&opt.To, "to", opt.To, "A telemeter server endpoint to push metrics to.")
 	cmd.Flags().StringVar(&opt.ToAuthorize, "to-auth", opt.ToAuthorize, "A telemeter server endpoint to exchange the bearer token for an access token.")
 	cmd.Flags().StringVar(&opt.ToToken, "to-token", opt.ToToken, "A bearer token to use when authenticating to the destination telemeter server.")
-	cmd.Flags().StringSliceVar(&opt.LabelFlag, "label", opt.LabelFlag, "Labels to add to each outgoing metric, in key=value form.")
-	cmd.Flags().StringSliceVar(&opt.Rules, "match", opt.Rules, "Match rules to federate.")
+	cmd.Flags().StringArrayVar(&opt.LabelFlag, "label", opt.LabelFlag, "Labels to add to each outgoing metric, in key=value form.")
+	cmd.Flags().StringArrayVar(&opt.Rules, "match", opt.Rules, "Match rules to federate.")
+	cmd.Flags().DurationVar(&opt.Interval, "interval", opt.Interval, "The interval between scrapes. Prometheus returns the last 5 minutes of metrics when invoking the federation endpoint.")
 
 	if err := cmd.Execute(); err != nil {
 		os.Exit(1)
@@ -61,6 +63,8 @@ type Options struct {
 
 	LabelFlag []string
 	Labels    map[string]string
+
+	Interval time.Duration
 
 	LabelRetriever transform.LabelRetriever
 }
@@ -137,6 +141,7 @@ func (o *Options) Run() error {
 	worker.ToClient = toClient
 	worker.FromClient = fromClient
 	worker.MaxBytes = o.LimitBytes
+	worker.Interval = o.Interval
 
 	go worker.Run()
 
@@ -164,10 +169,10 @@ func serveLastMetrics(worker *forwarder.Worker) http.Handler {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
-		mf := worker.LastMetrics()
+		families := worker.LastMetrics()
 		w.Header().Set("Content-Type", string(expfmt.FmtText))
 		encoder := expfmt.NewEncoder(w, expfmt.FmtText)
-		for _, family := range mf {
+		for _, family := range families {
 			if family == nil {
 				continue
 			}

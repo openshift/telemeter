@@ -31,8 +31,8 @@ func TestProcessCollector(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	for _, mf := range mfs {
-		if _, err := expfmt.MetricFamilyToText(&buf, mf); err != nil {
+	for _, families := range mfs {
+		if _, err := expfmt.MetricFamilyToText(&buf, families); err != nil {
 			t.Fatal(err)
 		}
 	}
