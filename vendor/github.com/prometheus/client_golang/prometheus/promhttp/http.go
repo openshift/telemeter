@@ -107,8 +107,8 @@ func HandlerFor(reg prometheus.Gatherer, opts HandlerOpts) http.Handler {
 		writer, encoding := decorateWriter(req, buf, opts.DisableCompression)
 		enc := expfmt.NewEncoder(writer, contentType)
 		var lastErr error
-		for _, families := range mfs {
-			if err := enc.Encode(families); err != nil {
+		for _, mf := range mfs {
+			if err := enc.Encode(mf); err != nil {
 				lastErr = err
 				if opts.ErrorLog != nil {
 					opts.ErrorLog.Println("error encoding metric family:", err)

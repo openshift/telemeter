@@ -103,8 +103,8 @@ func (p *TextParser) TextToMetricFamilies(in io.Reader) (map[string]*dto.MetricF
 		// Magic happens here...
 	}
 	// Get rid of empty metric families.
-	for k, families := range p.metricFamiliesByName {
-		if len(families.GetMetric()) == 0 {
+	for k, mf := range p.metricFamiliesByName {
+		if len(mf.GetMetric()) == 0 {
 			delete(p.metricFamiliesByName, k)
 		}
 	}

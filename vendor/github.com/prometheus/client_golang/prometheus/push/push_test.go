@@ -91,8 +91,8 @@ func TestPush(t *testing.T) {
 	buf := &bytes.Buffer{}
 	enc := expfmt.NewEncoder(buf, expfmt.FmtProtoDelim)
 
-	for _, families := range mfs {
-		if err := enc.Encode(families); err != nil {
+	for _, mf := range mfs {
+		if err := enc.Encode(mf); err != nil {
 			t.Fatal(err)
 		}
 	}

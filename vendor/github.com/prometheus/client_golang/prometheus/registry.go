@@ -552,31 +552,31 @@ func (gs Gatherers) Gather() ([]*dto.MetricFamily, error) {
 				errs = append(errs, fmt.Errorf("[from Gatherer #%d] %s", i+1, err))
 			}
 		}
-		for _, families := range mfs {
-			existingMF, exists := metricFamiliesByName[families.GetName()]
+		for _, mf := range mfs {
+			existingMF, exists := metricFamiliesByName[mf.GetName()]
 			if exists {
-				if existingMF.GetHelp() != families.GetHelp() {
+				if existingMF.GetHelp() != mf.GetHelp() {
 					errs = append(errs, fmt.Errorf(
 						"gathered metric family %s has help %q but should have %q",
-						families.GetName(), families.GetHelp(), existingMF.GetHelp(),
+						mf.GetName(), mf.GetHelp(), existingMF.GetHelp(),
 					))
 					continue
 				}
-				if existingMF.GetType() != families.GetType() {
+				if existingMF.GetType() != mf.GetType() {
 					errs = append(errs, fmt.Errorf(
 						"gathered metric family %s has type %s but should have %s",
-						families.GetName(), families.GetType(), existingMF.GetType(),
+						mf.GetName(), mf.GetType(), existingMF.GetType(),
 					))
 					continue
 				}
 			} else {
 				existingMF = &dto.MetricFamily{}
-				existingMF.Name = families.Name
-				existingMF.Help = families.Help
-				existingMF.Type = families.Type
-				metricFamiliesByName[families.GetName()] = existingMF
+				existingMF.Name = mf.Name
+				existingMF.Help = mf.Help
+				existingMF.Type = mf.Type
+				metricFamiliesByName[mf.GetName()] = existingMF
 			}
-			for _, m := range families.Metric {
+			for _, m := range mf.Metric {
 				if err := checkMetricConsistency(existingMF, m, metricHashes, dimHashes); err != nil {
 					errs = append(errs, err)
 					continue
@@ -636,12 +636,12 @@ func (s metricSorter) Less(i, j int) bool {
 // MetricFamilies pruned and the remaining MetricFamilies sorted by name within
 // the slice, with the contained Metrics sorted within each MetricFamily.
 func normalizeMetricFamilies(metricFamiliesByName map[string]*dto.MetricFamily) []*dto.MetricFamily {
-	for _, families := range metricFamiliesByName {
-		sort.Sort(metricSorter(families.Metric))
+	for _, mf := range metricFamiliesByName {
+		sort.Sort(metricSorter(mf.Metric))
 	}
 	names := make([]string, 0, len(metricFamiliesByName))
-	for name, families := range metricFamiliesByName {
-		if len(families.Metric) > 0 {
+	for name, mf := range metricFamiliesByName {
+		if len(mf.Metric) > 0 {
 			names = append(names, name)
 		}
 	}

@@ -4,3 +4,5 @@ import:
   subpackages:
   - prometheus
 - package: github.com/spf13/cobra
+- package: github.com/spf13/pflag
+  version: 4c012f6dcd9546820e378d0bdda4d8fc772cdfea

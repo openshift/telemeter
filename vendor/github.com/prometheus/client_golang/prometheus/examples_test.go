@@ -676,8 +676,8 @@ temperature_kelvin{location="somewhere else"} 4.5
 			return nil, err
 		}
 		var result []*dto.MetricFamily
-		for _, families := range parsed {
-			result = append(result, families)
+		for _, mf := range parsed {
+			result = append(result, mf)
 		}
 		return result, nil
 	}
@@ -693,8 +693,8 @@ temperature_kelvin{location="somewhere else"} 4.5
 	}
 
 	out := &bytes.Buffer{}
-	for _, families := range gathering {
-		if _, err := expfmt.MetricFamilyToText(out, families); err != nil {
+	for _, mf := range gathering {
+		if _, err := expfmt.MetricFamilyToText(out, mf); err != nil {
 			panic(err)
 		}
 	}
@@ -722,8 +722,8 @@ temperature_kelvin 4.5
 	}
 	// Note that still as many metrics as possible are returned:
 	out.Reset()
-	for _, families := range gathering {
-		if _, err := expfmt.MetricFamilyToText(out, families); err != nil {
+	for _, mf := range gathering {
+		if _, err := expfmt.MetricFamilyToText(out, mf); err != nil {
 			panic(err)
 		}
 	}

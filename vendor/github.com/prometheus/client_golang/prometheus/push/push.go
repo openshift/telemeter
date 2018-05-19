@@ -101,21 +101,21 @@ func push(job string, grouping map[string]string, pushURL string, g prometheus.G
 	buf := &bytes.Buffer{}
 	enc := expfmt.NewEncoder(buf, expfmt.FmtProtoDelim)
 	// Check for pre-existing grouping labels:
-	for _, families := range mfs {
-		for _, m := range families.GetMetric() {
+	for _, mf := range mfs {
+		for _, m := range mf.GetMetric() {
 			for _, l := range m.GetLabel() {
 				if l.GetName() == "job" {
-					return fmt.Errorf("pushed metric %s (%s) already contains a job label", families.GetName(), m)
+					return fmt.Errorf("pushed metric %s (%s) already contains a job label", mf.GetName(), m)
 				}
 				if _, ok := grouping[l.GetName()]; ok {
 					return fmt.Errorf(
 						"pushed metric %s (%s) already contains grouping label %s",
-						families.GetName(), m, l.GetName(),
+						mf.GetName(), m, l.GetName(),
 					)
 				}
 			}
 		}
-		enc.Encode(families)
+		enc.Encode(mf)
 	}
 	req, err := http.NewRequest(method, pushURL, buf)
 	if err != nil {

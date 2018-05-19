@@ -1,6 +1,8 @@
-hash: 139c0485735e93fc31775814b445c30458400705e925bd7675b0bacafb69dfec
-updated: 2018-05-14T15:37:15.606308103-04:00
+hash: 57b78995c161f468019e49f0389277308d6daf749af707ff3f32a86e73a20146
+updated: 2018-05-19T16:04:49.588074329-04:00
 imports:
+- name: github.com/armon/go-metrics
+  version: 783273d703149aaeb9897cf58613d5af48861c25
 - name: github.com/beorn7/perks
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
   subpackages:
@@ -10,13 +12,33 @@ imports:
   subpackages:
   - proto
 - name: github.com/golang/snappy
-  version: 553a641470496b2327abcac10b36396bd98e45c9
+  version: 2e65f85255dbc3072edf28d6b5b8efc472979f5a
+- name: github.com/hashicorp/errwrap
+  version: 7554cd9344cec97297fa6649b055a8c98c2a1e55
+- name: github.com/hashicorp/go-immutable-radix
+  version: 7f3cd4390caab3250a57f30efdb2a65dd7649ecf
+- name: github.com/hashicorp/go-msgpack
+  version: fa3f63826f7c23912c15263591e65d54d080b458
+  subpackages:
+  - codec
+- name: github.com/hashicorp/go-multierror
+  version: b7773ae218740a7be65057fc60b366a49b538a44
+- name: github.com/hashicorp/go-sockaddr
+  version: 6d291a969b86c4b633730bfc6b8b9d64c3aafed9
+- name: github.com/hashicorp/golang-lru
+  version: a0d98a5f288019575c6d1f4bb1573fef2d1fcdc4
+  subpackages:
+  - simplelru
+- name: github.com/hashicorp/memberlist
+  version: 2288bf30e9c8d7b5f6549bf62e07120d72fd4b6c
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/matttproud/golang_protobuf_extensions
   version: fc2b8d3a73c4867e51861bbdd5ae3c1f0869dd6a
   subpackages:
   - pbutil
+- name: github.com/miekg/dns
+  version: 83c435cc65d2862736428b9b4d07d0ab10ad3e4d
 - name: github.com/prometheus/client_golang
   version: e7e903064f5e9eb5da98208bae10b475d4db0f8c
   subpackages:
@@ -35,6 +57,10 @@ imports:
   version: 65c1f6f8f0fc1e2185eb9863a3bc751496404259
   subpackages:
   - xfs
+- name: github.com/sean-/seed
+  version: e2103e2c35297fb7e17febb81e49b312087a2372
+- name: github.com/serialx/hashring
+  version: 49a4782e9908fe098c907022a1bd7519c79803d6
 - name: github.com/spf13/cobra
   version: 6644d46b81fa1831979c4cded0106e774e0ef0ab
 - name: github.com/spf13/pflag
@@ -44,6 +70,14 @@ imports:
   subpackages:
   - ed25519
   - ed25519/internal/edwards25519
+- name: golang.org/x/net
+  version: 1c05540f6879653db88113bc4a2b70aec4bd491f
+  subpackages:
+  - bpf
+  - internal/iana
+  - internal/socket
+  - ipv4
+  - ipv6
 - name: gopkg.in/square/go-jose.v2
   version: f8f38de21b4dcd69d0413faf231983f5fd6634b1
   subpackages:

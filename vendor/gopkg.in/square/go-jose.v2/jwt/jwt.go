@@ -40,6 +40,7 @@ func (t *JSONWebToken) Claims(key interface{}, dest ...interface{}) error {
 	if err != nil {
 		return err
 	}
+
 	for _, d := range dest {
 		if err := json.Unmarshal(b, d); err != nil {
 			return err
