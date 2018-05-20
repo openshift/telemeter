@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
-	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -12,17 +11,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang/snappy"
 	clientmodel "github.com/prometheus/client_model/go"
-	"github.com/prometheus/common/expfmt"
+
+	"github.com/smarterclayton/telemeter/pkg/metricsclient"
 )
 
-type diskStore struct {
+type DiskStore struct {
 	path string
 }
 
 func NewDiskStore(path string) Store {
-	return &diskStore{
+	return &DiskStore{
 		path: path,
 	}
 }
@@ -37,7 +36,7 @@ func lastFile(files []os.FileInfo) os.FileInfo {
 	return nil
 }
 
-func (s *diskStore) ReadMetrics(ctx context.Context, fn func(partitionKey string, families []*clientmodel.MetricFamily) error) error {
+func (s *DiskStore) ReadMetrics(ctx context.Context, fn func(partitionKey string, families []*clientmodel.MetricFamily) error) error {
 	return filepath.Walk(s.path, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -81,9 +80,9 @@ func (s *diskStore) ReadMetrics(ctx context.Context, fn func(partitionKey string
 			return err
 		}
 		defer f.Close()
-		families, err := read(f)
+		families, err := metricsclient.Read(f)
 		if err != nil {
-			return err
+			return fmt.Errorf("unable to read data for %s from %s: %v", partitionKey, lastFile.Name(), err)
 		}
 
 		if err := fn(partitionKey, families); err != nil {
@@ -94,18 +93,13 @@ func (s *diskStore) ReadMetrics(ctx context.Context, fn func(partitionKey string
 	})
 }
 
-func (s *diskStore) WriteMetrics(ctx context.Context, partitionKey string, families []*clientmodel.MetricFamily) error {
-	newestTs := newestTimestamp(families)
-	t := time.Unix(newestTs/1000, (newestTs%1000)*int64(time.Millisecond))
-	filename := t.UTC().Format("2006-01-02T15-04-05.999Z")
+func (s *DiskStore) WriteMetrics(ctx context.Context, partitionKey string, families []*clientmodel.MetricFamily) error {
+	storageKey := filenameForFamilies(families)
 
-	keyHash := fnvHash(partitionKey)
-	segment := []string{s.path, keyHash[0:2], keyHash[2:4], partitionKey}
-	dir := filepath.Join(segment...)
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return fmt.Errorf("unable to create directory for partition: %v", err)
+	path, err := pathForPartitionAndStorageKey(s.path, partitionKey, storageKey)
+	if err != nil {
+		return err
 	}
-	path := filepath.Join(dir, filename)
 
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0640)
 	if err != nil {
@@ -116,7 +110,7 @@ func (s *diskStore) WriteMetrics(ctx context.Context, partitionKey string, famil
 		// TODO: retry
 		return fmt.Errorf("unable to open file for exclusive writing: %v", err)
 	}
-	if err := write(f, families); err != nil {
+	if err := metricsclient.Write(f, families); err != nil {
 		return fmt.Errorf("unable to write metrics to %s: %v", path, err)
 	}
 	if err := f.Close(); err != nil {
@@ -125,9 +119,29 @@ func (s *diskStore) WriteMetrics(ctx context.Context, partitionKey string, famil
 	return nil
 }
 
+func pathForPartitionAndStorageKey(base, partitionKey, storageKey string) (string, error) {
+	keyHash := fnvHash(partitionKey)
+	segment := []string{base, keyHash[0:2], keyHash[2:4], partitionKey}
+	dir := filepath.Join(segment...)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return "", fmt.Errorf("unable to create directory for partition: %v", err)
+	}
+	return filepath.Join(dir, storageKey), nil
+}
+
+func filenameForFamilies(families []*clientmodel.MetricFamily) string {
+	newestTs := newestTimestamp(families)
+	t := time.Unix(newestTs/1000, (newestTs%1000)*int64(time.Millisecond))
+	filename := t.UTC().Format("2006-01-02T15-04-05.999Z")
+	return filename
+}
+
 func newestTimestamp(families []*clientmodel.MetricFamily) int64 {
 	var newest int64
 	for _, family := range families {
+		if len(family.Metric) == 0 {
+			continue
+		}
 		t := *family.Metric[len(family.Metric)-1].TimestampMs
 		if t > newest {
 			newest = t
@@ -140,41 +154,4 @@ func fnvHash(text string) string {
 	h := fnv.New64a()
 	h.Write([]byte(text))
 	return strconv.FormatUint(h.Sum64(), 32)
-}
-
-func write(w io.Writer, families []*clientmodel.MetricFamily) error {
-	// output the filtered set
-	compress := snappy.NewWriter(w)
-	encoder := expfmt.NewEncoder(compress, expfmt.FmtProtoDelim)
-	for _, family := range families {
-		if family == nil {
-			continue
-		}
-		if err := encoder.Encode(family); err != nil {
-			return err
-		}
-	}
-
-	if err := compress.Flush(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func read(r io.Reader) ([]*clientmodel.MetricFamily, error) {
-	// output the filtered set
-	families := make([]*clientmodel.MetricFamily, 0, 20)
-	decompress := snappy.NewReader(r)
-	decoder := expfmt.NewDecoder(decompress, expfmt.FmtProtoDelim)
-	for {
-		var family clientmodel.MetricFamily
-		if err := decoder.Decode(&family); err != nil {
-			if err == io.EOF {
-				break
-			}
-			return nil, err
-		}
-		families = append(families, &family)
-	}
-	return families, nil
 }

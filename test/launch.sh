@@ -5,7 +5,8 @@
 trap 'kill $(jobs -p); exit 0' EXIT
 
 ( ./telemeter-client --to "http://localhost:9003/upload" --to-auth "http://localhost:9003/authorize?cluster=b" --to-token=b --from "$1" --from-token="${2-}" --interval 30s --match '{__name__="up"}' --match '{__name__="openshift_build_info"}' --match '{__name__="machine_cpu_cores"}' --match '{__name__="machine_memory_bytes"}' ) &
-( ./telemeter-server "--storage-dir=$(mktemp -d)" --listen localhost:9003 --listen-internal localhost:9004 ) &
+( ./telemeter-server --name instance-0 "--storage-dir=$(mktemp -d)" --shared-key=test/test.key --listen localhost:9003 --listen-internal localhost:9004 --listen-cluster 127.0.0.1:9006 --join 127.0.0.1:9016 ) &
+( ./telemeter-server --name instance-1 "--storage-dir=$(mktemp -d)" --shared-key=test/test.key --listen localhost:9013 --listen-internal localhost:9014 --listen-cluster 127.0.0.1:9016 --join 127.0.0.1:9006 ) &
 
 ( prometheus --config.file=./test/prom-local.conf --web.listen-address=localhost:9005 "--storage.tsdb.path=$(mktemp -d)" --log.level=debug ) &
 

@@ -15,6 +15,7 @@ import (
 	"github.com/smarterclayton/telemeter/pkg/authorizer/remote"
 	"github.com/smarterclayton/telemeter/pkg/forwarder"
 	telemeterhttp "github.com/smarterclayton/telemeter/pkg/http"
+	"github.com/smarterclayton/telemeter/pkg/metricsclient"
 	"github.com/smarterclayton/telemeter/pkg/transform"
 )
 
@@ -124,11 +125,11 @@ func (o *Options) Run() error {
 		}
 	}
 
-	fromClient := &http.Client{Transport: forwarder.DefaultTransport()}
+	fromClient := &http.Client{Transport: metricsclient.DefaultTransport()}
 	if len(o.FromToken) > 0 {
 		fromClient.Transport = telemeterhttp.NewBearerRoundTripper(o.FromToken, fromClient.Transport)
 	}
-	toClient := &http.Client{Transport: forwarder.DefaultTransport()}
+	toClient := &http.Client{Transport: metricsclient.DefaultTransport()}
 	if len(o.ToToken) > 0 {
 		// exchange our token for a token from the authorize endpoint, which also gives us a
 		// set of expected labels we must include
@@ -138,9 +139,8 @@ func (o *Options) Run() error {
 	}
 
 	worker := forwarder.New(*from, to, o)
-	worker.ToClient = toClient
-	worker.FromClient = fromClient
-	worker.MaxBytes = o.LimitBytes
+	worker.ToClient = metricsclient.New(toClient, o.LimitBytes, o.Interval, "federate_to")
+	worker.FromClient = metricsclient.New(fromClient, o.LimitBytes, o.Interval, "federate_from")
 	worker.Interval = o.Interval
 
 	go worker.Run()
@@ -177,7 +177,7 @@ func serveLastMetrics(worker *forwarder.Worker) http.Handler {
 				continue
 			}
 			if err := encoder.Encode(family); err != nil {
-				log.Printf("Unable to write metrics for family: %v", err)
+				log.Printf("error: unable to write metrics for family: %v", err)
 				break
 			}
 		}

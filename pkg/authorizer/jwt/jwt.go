@@ -1,6 +1,7 @@
 package jwt
 
 import (
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -19,10 +20,21 @@ import (
 	"github.com/smarterclayton/telemeter/pkg/authorizer"
 )
 
-func New(audience string) (*Signer, *Authorizer, error) {
+func NewForKey(audience string, private crypto.PrivateKey, public crypto.PublicKey) (*Signer, *Authorizer, error) {
+	return &Signer{
+			iss:        "telemeter.selfsigned",
+			privateKey: private,
+		}, &Authorizer{
+			iss:       "telemeter.selfsigned",
+			keys:      []interface{}{public},
+			validator: NewValidator([]string{audience}),
+		}, nil
+}
+
+func New(audience string) (*Signer, *Authorizer, *ecdsa.PublicKey, *ecdsa.PrivateKey, error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, nil, err
 	}
 	return &Signer{
 			iss:        "telemeter.selfsigned",
@@ -31,17 +43,7 @@ func New(audience string) (*Signer, *Authorizer, error) {
 			iss:       "telemeter.selfsigned",
 			keys:      []interface{}{key.Public()},
 			validator: NewValidator([]string{audience}),
-		}, nil
-}
-
-// JWTTokenGenerator returns a TokenGenerator that generates signed JWT tokens, using the given privateKey.
-// privateKey is a PEM-encoded byte array of a private RSA key.
-// JWTTokenAuthenticator()
-func JWTTokenGenerator(iss string, privateKey interface{}) *Signer {
-	return &Signer{
-		iss:        iss,
-		privateKey: privateKey,
-	}
+		}, &key.PublicKey, key, nil
 }
 
 type Signer struct {
