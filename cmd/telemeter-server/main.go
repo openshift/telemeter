@@ -274,6 +274,8 @@ func (o *Options) Run() error {
 	telemeterhttp.AddHealth(external)
 	external.Handle("/authorize", http.HandlerFunc(auth.AuthorizeHTTP))
 
+	log.Printf("Starting telemeter-server %s on %s (internal=%s, cluster=%s)", o.Name, o.Listen, o.ListenInternal, o.ListenCluster)
+
 	internalListener, err := net.Listen("tcp", o.ListenInternal)
 	if err != nil {
 		return err

@@ -247,6 +247,8 @@ func (c *DynamicCluster) handleMessage(data []byte) error {
 		if len(header.PartitionKey) == 0 {
 			return fmt.Errorf("metric message must have a partition key")
 		}
+		// TODO: possible optimization opportunity - don't decode the bytes and
+		// pass them down to the underlying storage directly.
 		families, err := metricsclient.Read(buf)
 		if err != nil {
 			return err

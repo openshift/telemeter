@@ -143,6 +143,8 @@ func (o *Options) Run() error {
 	worker.FromClient = metricsclient.New(fromClient, o.LimitBytes, o.Interval, "federate_from")
 	worker.Interval = o.Interval
 
+	log.Printf("Starting telemeter-client reading from %s and sending to %s (listen=%s)", o.From, o.To, o.Listen)
+
 	go worker.Run()
 
 	if len(o.Listen) > 0 {
