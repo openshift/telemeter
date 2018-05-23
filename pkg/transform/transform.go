@@ -164,13 +164,13 @@ type none struct{}
 
 var None Interface = none{}
 
-func (_ none) Transform(families *clientmodel.MetricFamily) (bool, error) { return true, nil }
+func (_ none) Transform(family *clientmodel.MetricFamily) (bool, error) { return true, nil }
 
 type All []Interface
 
-func (transformers All) Transform(families *clientmodel.MetricFamily) (bool, error) {
+func (transformers All) Transform(family *clientmodel.MetricFamily) (bool, error) {
 	for _, t := range transformers {
-		ok, err := t.Transform(families)
+		ok, err := t.Transform(family)
 		if err != nil {
 			return false, err
 		}
@@ -180,6 +180,12 @@ func (transformers All) Transform(families *clientmodel.MetricFamily) (bool, err
 	}
 	return true, nil
 }
+
+const (
+	maxLabelName  = 255
+	maxLabelValue = 255
+	maxMetricName = 255
+)
 
 type dropInvalidFederateSamples struct {
 	min int64
@@ -191,20 +197,64 @@ func NewDropInvalidFederateSamples(min time.Time) Interface {
 	}
 }
 
-func (t *dropInvalidFederateSamples) Transform(families *clientmodel.MetricFamily) (bool, error) {
-	if len(families.GetName()) == 0 {
+func (t *dropInvalidFederateSamples) Transform(family *clientmodel.MetricFamily) (bool, error) {
+	name := family.GetName()
+	if len(name) == 0 {
 		return false, nil
 	}
-	if families.Type == nil {
+	if len(name) > 255 {
 		return false, nil
 	}
-	for i, m := range families.Metric {
+	if family.Type == nil {
+		return false, nil
+	}
+	switch t := *family.Type; t {
+	case clientmodel.MetricType_COUNTER:
+	case clientmodel.MetricType_GAUGE:
+	case clientmodel.MetricType_HISTOGRAM:
+	case clientmodel.MetricType_SUMMARY:
+	case clientmodel.MetricType_UNTYPED:
+	default:
+		return false, nil
+	}
+
+	for i, m := range family.Metric {
 		if m == nil {
 			continue
 		}
+		for j, label := range m.Label {
+			if label.Name == nil || len(*label.Name) == 0 || len(*label.Name) > 255 {
+				m.Label[j] = nil
+			}
+			if label.Value == nil || len(*label.Value) == 0 || len(*label.Value) > 255 {
+				m.Label[j] = nil
+			}
+		}
 		if m.TimestampMs == nil || *m.TimestampMs < t.min {
-			families.Metric[i] = nil
+			family.Metric[i] = nil
 			continue
+		}
+		switch t := *family.Type; t {
+		case clientmodel.MetricType_COUNTER:
+			if m.Counter == nil || m.Gauge != nil || m.Histogram != nil || m.Summary != nil || m.Untyped != nil {
+				family.Metric[i] = nil
+			}
+		case clientmodel.MetricType_GAUGE:
+			if m.Counter != nil || m.Gauge == nil || m.Histogram != nil || m.Summary != nil || m.Untyped != nil {
+				family.Metric[i] = nil
+			}
+		case clientmodel.MetricType_HISTOGRAM:
+			if m.Counter != nil || m.Gauge != nil || m.Histogram == nil || m.Summary != nil || m.Untyped != nil {
+				family.Metric[i] = nil
+			}
+		case clientmodel.MetricType_SUMMARY:
+			if m.Counter != nil || m.Gauge != nil || m.Histogram != nil || m.Summary == nil || m.Untyped != nil {
+				family.Metric[i] = nil
+			}
+		case clientmodel.MetricType_UNTYPED:
+			if m.Counter != nil || m.Gauge != nil || m.Histogram != nil || m.Summary != nil || m.Untyped == nil {
+				family.Metric[i] = nil
+			}
 		}
 	}
 	return true, nil
@@ -220,22 +270,66 @@ func NewErrorInvalidFederateSamples(min time.Time) Interface {
 	}
 }
 
-func (t *errorInvalidFederateSamples) Transform(families *clientmodel.MetricFamily) (bool, error) {
-	if len(families.GetName()) == 0 {
+func (t *errorInvalidFederateSamples) Transform(family *clientmodel.MetricFamily) (bool, error) {
+	name := family.GetName()
+	if len(name) == 0 {
 		return false, nil
 	}
-	if families.Type == nil {
+	if len(name) > 255 {
+		return false, fmt.Errorf("metrics_name cannot be longer than 255 characters")
+	}
+	if family.Type == nil {
 		return false, nil
 	}
-	for _, m := range families.Metric {
+	switch t := *family.Type; t {
+	case clientmodel.MetricType_COUNTER:
+	case clientmodel.MetricType_GAUGE:
+	case clientmodel.MetricType_HISTOGRAM:
+	case clientmodel.MetricType_SUMMARY:
+	case clientmodel.MetricType_UNTYPED:
+	default:
+		return false, fmt.Errorf("unknown metric type %s", t)
+	}
+
+	for _, m := range family.Metric {
 		if m == nil {
 			continue
+		}
+		for _, label := range m.Label {
+			if label.Name == nil || len(*label.Name) == 0 || len(*label.Name) > 255 {
+				return false, fmt.Errorf("label_name cannot be longer than 255 characters")
+			}
+			if label.Value == nil || len(*label.Value) == 0 || len(*label.Value) > 255 {
+				return false, fmt.Errorf("label_value cannot be longer than 255 characters")
+			}
 		}
 		if m.TimestampMs == nil {
 			return false, ErrNoTimestamp
 		}
 		if *m.TimestampMs < t.min {
 			return false, ErrTimestampTooOld
+		}
+		switch t := *family.Type; t {
+		case clientmodel.MetricType_COUNTER:
+			if m.Counter == nil || m.Gauge != nil || m.Histogram != nil || m.Summary != nil || m.Untyped != nil {
+				return false, fmt.Errorf("metric type %s must have counter field set", t)
+			}
+		case clientmodel.MetricType_GAUGE:
+			if m.Counter != nil || m.Gauge == nil || m.Histogram != nil || m.Summary != nil || m.Untyped != nil {
+				return false, fmt.Errorf("metric type %s must have gauge field set", t)
+			}
+		case clientmodel.MetricType_HISTOGRAM:
+			if m.Counter != nil || m.Gauge != nil || m.Histogram == nil || m.Summary != nil || m.Untyped != nil {
+				return false, fmt.Errorf("metric type %s must have histogram field set", t)
+			}
+		case clientmodel.MetricType_SUMMARY:
+			if m.Counter != nil || m.Gauge != nil || m.Histogram != nil || m.Summary == nil || m.Untyped != nil {
+				return false, fmt.Errorf("metric type %s must have summary field set", t)
+			}
+		case clientmodel.MetricType_UNTYPED:
+			if m.Counter != nil || m.Gauge != nil || m.Histogram != nil || m.Summary != nil || m.Untyped == nil {
+				return false, fmt.Errorf("metric type %s must have untyped field set", t)
+			}
 		}
 	}
 	return true, nil
@@ -245,8 +339,8 @@ var DropEmptyFamilies = dropEmptyFamilies{}
 
 type dropEmptyFamilies struct{}
 
-func (_ dropEmptyFamilies) Transform(families *clientmodel.MetricFamily) (bool, error) {
-	for _, m := range families.Metric {
+func (_ dropEmptyFamilies) Transform(family *clientmodel.MetricFamily) (bool, error) {
+	for _, m := range family.Metric {
 		if m != nil {
 			return true, nil
 		}
@@ -258,8 +352,8 @@ var PackMetrics = packMetrics{}
 
 type packMetrics struct{}
 
-func (_ packMetrics) Transform(families *clientmodel.MetricFamily) (bool, error) {
-	metrics := families.Metric
+func (_ packMetrics) Transform(family *clientmodel.MetricFamily) (bool, error) {
+	metrics := family.Metric
 	j := len(metrics)
 	next := 0
 Found:
@@ -280,19 +374,19 @@ Found:
 			next = k + 1
 			continue Found
 		}
-		// no more valid families
-		families.Metric = metrics[:i]
+		// no more valid family
+		family.Metric = metrics[:i]
 		break
 	}
-	return len(families.Metric) > 0, nil
+	return len(family.Metric) > 0, nil
 }
 
 var SortMetrics = sortMetrics{}
 
 type sortMetrics struct{}
 
-func (_ sortMetrics) Transform(families *clientmodel.MetricFamily) (bool, error) {
-	sort.Sort(MetricsByTimestamp(families.Metric))
+func (_ sortMetrics) Transform(family *clientmodel.MetricFamily) (bool, error) {
+	sort.Sort(MetricsByTimestamp(family.Metric))
 	return true, nil
 }
 
@@ -327,8 +421,8 @@ type DropUnsorted struct {
 	timestamp int64
 }
 
-func (o *DropUnsorted) Transform(families *clientmodel.MetricFamily) (bool, error) {
-	for i, m := range families.Metric {
+func (o *DropUnsorted) Transform(family *clientmodel.MetricFamily) (bool, error) {
+	for i, m := range family.Metric {
 		if m == nil {
 			continue
 		}
@@ -337,7 +431,7 @@ func (o *DropUnsorted) Transform(families *clientmodel.MetricFamily) (bool, erro
 			ts = *m.TimestampMs
 		}
 		if ts < o.timestamp {
-			families.Metric[i] = nil
+			family.Metric[i] = nil
 			continue
 		}
 		o.timestamp = ts
@@ -363,9 +457,9 @@ func NewErrorOnUnsorted(requireTimestamp bool) Interface {
 	}
 }
 
-func (t *errorOnUnsorted) Transform(families *clientmodel.MetricFamily) (bool, error) {
+func (t *errorOnUnsorted) Transform(family *clientmodel.MetricFamily) (bool, error) {
 	t.timestamp = 0
-	for _, m := range families.Metric {
+	for _, m := range family.Metric {
 		if m == nil {
 			continue
 		}
@@ -390,9 +484,9 @@ type Count struct {
 
 func (t *Count) Metrics() int { return t.metrics }
 
-func (t *Count) Transform(families *clientmodel.MetricFamily) (bool, error) {
+func (t *Count) Transform(family *clientmodel.MetricFamily) (bool, error) {
 	t.families++
-	t.metrics += len(families.Metric)
+	t.metrics += len(family.Metric)
 	return true, nil
 }
 
@@ -409,10 +503,10 @@ var (
 	ErrRequiredLabelMissing       = fmt.Errorf("a required label is missing from the metric")
 )
 
-func (t requireLabel) Transform(families *clientmodel.MetricFamily) (bool, error) {
+func (t requireLabel) Transform(family *clientmodel.MetricFamily) (bool, error) {
 	for k, v := range t.labels {
 	Metrics:
-		for _, m := range families.Metric {
+		for _, m := range family.Metric {
 			if m == nil {
 				continue
 			}
@@ -454,9 +548,9 @@ func NewLabel(labels map[string]string, retriever LabelRetriever) Interface {
 	}
 }
 
-func (t *label) Transform(families *clientmodel.MetricFamily) (bool, error) {
+func (t *label) Transform(family *clientmodel.MetricFamily) (bool, error) {
 	// lazily resolve the label retriever as needed
-	if t.retriever != nil && len(families.Metric) > 0 {
+	if t.retriever != nil && len(family.Metric) > 0 {
 		added, err := t.retriever.Labels()
 		if err != nil {
 			return false, err
@@ -467,7 +561,7 @@ func (t *label) Transform(families *clientmodel.MetricFamily) (bool, error) {
 			t.labels[k] = &clientmodel.LabelPair{Name: &name, Value: &value}
 		}
 	}
-	for _, m := range families.Metric {
+	for _, m := range family.Metric {
 		m.Label = appendLabels(m.Label, t.labels)
 	}
 	return true, nil
