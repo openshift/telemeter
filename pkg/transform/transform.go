@@ -8,6 +8,31 @@ import (
 	clientmodel "github.com/prometheus/client_model/go"
 )
 
+type Interface interface {
+	Transform(*clientmodel.MetricFamily) (ok bool, err error)
+}
+
+type none struct{}
+
+var None Interface = none{}
+
+func (_ none) Transform(family *clientmodel.MetricFamily) (bool, error) { return true, nil }
+
+type All []Interface
+
+func (transformers All) Transform(family *clientmodel.MetricFamily) (bool, error) {
+	for _, t := range transformers {
+		ok, err := t.Transform(family)
+		if err != nil {
+			return false, err
+		}
+		if !ok {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
 // PackedFamilyWithTimestampsByName sorts a packed slice of metrics
 // (no nils, all families have at least one metric, and all metrics
 // have timestamps) in order of metric name and then oldest sample
@@ -154,31 +179,6 @@ func MergeSortedWithTimestamps(families []*clientmodel.MetricFamily) []*clientmo
 		families[pos] = nil
 	}
 	return Pack(families)
-}
-
-type Interface interface {
-	Transform(*clientmodel.MetricFamily) (ok bool, err error)
-}
-
-type none struct{}
-
-var None Interface = none{}
-
-func (_ none) Transform(family *clientmodel.MetricFamily) (bool, error) { return true, nil }
-
-type All []Interface
-
-func (transformers All) Transform(family *clientmodel.MetricFamily) (bool, error) {
-	for _, t := range transformers {
-		ok, err := t.Transform(family)
-		if err != nil {
-			return false, err
-		}
-		if !ok {
-			return false, nil
-		}
-	}
-	return true, nil
 }
 
 const (

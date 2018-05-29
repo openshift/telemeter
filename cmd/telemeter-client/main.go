@@ -42,8 +42,12 @@ func main() {
 	cmd.Flags().StringVar(&opt.ToAuthorize, "to-auth", opt.ToAuthorize, "A telemeter server endpoint to exchange the bearer token for an access token.")
 	cmd.Flags().StringVar(&opt.ToToken, "to-token", opt.ToToken, "A bearer token to use when authenticating to the destination telemeter server.")
 	cmd.Flags().StringArrayVar(&opt.LabelFlag, "label", opt.LabelFlag, "Labels to add to each outgoing metric, in key=value form.")
-	cmd.Flags().StringArrayVar(&opt.Rules, "match", opt.Rules, "Match rules to federate.")
 	cmd.Flags().DurationVar(&opt.Interval, "interval", opt.Interval, "The interval between scrapes. Prometheus returns the last 5 minutes of metrics when invoking the federation endpoint.")
+
+	// TODO: more complex input definition, such as a JSON struct
+	cmd.Flags().StringArrayVar(&opt.Rules, "match", opt.Rules, "Match rules to federate.")
+	cmd.Flags().StringArrayVar(&opt.AnonymizeLabels, "anonymize-labels", opt.AnonymizeLabels, "Anonymize the values of the provided values before sending them on.")
+	cmd.Flags().StringVar(&opt.AnonymizeSalt, "anonymize-salt", opt.AnonymizeSalt, "A secret and unguessable value used to anonymize the input data.")
 
 	if err := cmd.Execute(); err != nil {
 		os.Exit(1)
@@ -60,6 +64,9 @@ type Options struct {
 	FromToken   string
 	ToToken     string
 
+	AnonymizeLabels []string
+	AnonymizeSalt   string
+
 	Rules []string
 
 	LabelFlag []string
@@ -74,6 +81,9 @@ func (o *Options) Transforms() []transform.Interface {
 	var transforms transform.All
 	if len(o.Labels) > 0 || o.LabelRetriever != nil {
 		transforms = append(transforms, transform.NewLabel(o.Labels, o.LabelRetriever))
+	}
+	if len(o.AnonymizeLabels) > 0 {
+		transforms = append(transforms, transform.NewMetricsAnonymizer(o.AnonymizeSalt, o.AnonymizeLabels, nil))
 	}
 	transforms = append(transforms,
 		transform.NewDropInvalidFederateSamples(time.Now().Add(-24*time.Hour)),
@@ -90,6 +100,9 @@ func (o *Options) MatchRules() []string {
 func (o *Options) Run() error {
 	if len(o.From) == 0 {
 		return fmt.Errorf("you must specify a Prometheus server to federate from (e.g. http://localhost:9090)")
+	}
+	if len(o.AnonymizeLabels) > 0 && len(o.AnonymizeSalt) == 0 {
+		return fmt.Errorf("you must specify --anonymize-salt when --anonymous-labels is used")
 	}
 	for _, flag := range o.LabelFlag {
 		values := strings.SplitN(flag, "=", 2)
