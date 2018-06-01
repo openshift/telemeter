@@ -231,6 +231,7 @@ func (o *Options) Run() error {
 					if err := cluster.Join(o.Members); err != nil {
 						log.Printf("error: Could not join any of %v: %v", o.Members, err)
 						time.Sleep(5 * time.Second)
+						continue
 					}
 					return
 				}
