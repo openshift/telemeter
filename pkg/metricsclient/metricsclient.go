@@ -70,16 +70,16 @@ func (c *Client) Retrieve(ctx context.Context, req *http.Request) ([]*clientmode
 			gaugeRequestRetrieve.WithLabelValues(c.metricsName, "200").Inc()
 		case http.StatusUnauthorized:
 			gaugeRequestRetrieve.WithLabelValues(c.metricsName, "401").Inc()
-			return fmt.Errorf("server requires authentication: %s", resp.Request.URL)
+			return fmt.Errorf("Prometheus server requires authentication: %s", resp.Request.URL)
 		case http.StatusForbidden:
 			gaugeRequestRetrieve.WithLabelValues(c.metricsName, "403").Inc()
-			return fmt.Errorf("server forbidden: %s", resp.Request.URL)
+			return fmt.Errorf("Prometheus server forbidden: %s", resp.Request.URL)
 		case http.StatusBadRequest:
 			gaugeRequestRetrieve.WithLabelValues(c.metricsName, "400").Inc()
 			return fmt.Errorf("bad request: %s", resp.Request.URL)
 		default:
 			gaugeRequestRetrieve.WithLabelValues(c.metricsName, strconv.Itoa(resp.StatusCode)).Inc()
-			return fmt.Errorf("server reported unexpected error code: %d", resp.StatusCode)
+			return fmt.Errorf("Prometheus server reported unexpected error code: %d", resp.StatusCode)
 		}
 
 		// read the response into memory
@@ -133,20 +133,20 @@ func (c *Client) Send(ctx context.Context, req *http.Request, families []*client
 			gaugeRequestSend.WithLabelValues(c.metricsName, "200").Inc()
 		case http.StatusUnauthorized:
 			gaugeRequestSend.WithLabelValues(c.metricsName, "401").Inc()
-			return fmt.Errorf("push server requires authentication: %s", resp.Request.URL)
+			return fmt.Errorf("gateway server requires authentication: %s", resp.Request.URL)
 		case http.StatusForbidden:
 			gaugeRequestSend.WithLabelValues(c.metricsName, "403").Inc()
-			return fmt.Errorf("push server forbidden: %s", resp.Request.URL)
+			return fmt.Errorf("gateway server forbidden: %s", resp.Request.URL)
 		case http.StatusBadRequest:
 			gaugeRequestSend.WithLabelValues(c.metricsName, "400").Inc()
-			return fmt.Errorf("push bad request: %s", resp.Request.URL)
+			return fmt.Errorf("gateway server bad request: %s", resp.Request.URL)
 		default:
 			gaugeRequestSend.WithLabelValues(c.metricsName, strconv.Itoa(resp.StatusCode)).Inc()
 			body, _ := ioutil.ReadAll(resp.Body)
 			if len(body) > 1024 {
 				body = body[:1024]
 			}
-			return fmt.Errorf("push server reported unexpected error code: %d: %s", resp.StatusCode, string(body))
+			return fmt.Errorf("gateway server reported unexpected error code: %d: %s", resp.StatusCode, string(body))
 		}
 
 		return nil

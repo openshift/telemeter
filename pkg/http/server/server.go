@@ -91,10 +91,12 @@ func (s *Server) Post(w http.ResponseWriter, req *http.Request) {
 	case <-ctx.Done():
 		http.Error(w, "Timeout while storing metrics", http.StatusInternalServerError)
 		log.Printf("timeout processing incoming request")
+		return
 	case err := <-errCh:
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
+		return
 	}
 }
 

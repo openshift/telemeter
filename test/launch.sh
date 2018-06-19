@@ -4,7 +4,7 @@
 
 trap 'kill $(jobs -p); exit 0' EXIT
 
-
+set -euo pipefail
 
 ( ./telemeter-client \
     --from "$1" --from-token="${2-}" \
@@ -19,8 +19,8 @@ trap 'kill $(jobs -p); exit 0' EXIT
     --match '{__name__="machine_memory_bytes"}' 
 ) &
 
-( ./telemeter-server --name instance-0 "--storage-dir=$(mktemp -d)" --shared-key=test/test.key --listen localhost:9003 --listen-internal localhost:9004 --listen-cluster 127.0.0.1:9006 --join 127.0.0.1:9016 ) &
-( ./telemeter-server --name instance-1 "--storage-dir=$(mktemp -d)" --shared-key=test/test.key --listen localhost:9013 --listen-internal localhost:9014 --listen-cluster 127.0.0.1:9016 --join 127.0.0.1:9006 ) &
+( ./telemeter-server --name instance-0 "--storage-dir=$(mktemp -d)" --shared-key=test/test.key --listen localhost:9003 --listen-internal localhost:9004 --listen-cluster 127.0.0.1:9006 --join 127.0.0.1:9016 -v ) &
+( ./telemeter-server --name instance-1 "--storage-dir=$(mktemp -d)" --shared-key=test/test.key --listen localhost:9013 --listen-internal localhost:9014 --listen-cluster 127.0.0.1:9016 --join 127.0.0.1:9006 -v ) &
 
 ( prometheus --config.file=./test/prom-local.conf --web.listen-address=localhost:9005 "--storage.tsdb.path=$(mktemp -d)" --log.level=debug ) &
 

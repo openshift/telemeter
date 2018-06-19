@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
+	"io"
+	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -61,51 +64,145 @@ func (a *Authorizer) AuthorizeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// skip authentication upstream and reflect token
+	auth := strings.SplitN(req.Header.Get("Authorization"), " ", 2)
+	if strings.ToLower(auth[0]) != "bearer" {
+		http.Error(w, "Only bearer authorization allowed", http.StatusUnauthorized)
+		return
+	}
+	if len(auth) != 2 || len(strings.TrimSpace(auth[1])) == 0 {
+		http.Error(w, "Invalid Authorization header", http.StatusUnauthorized)
+		return
+	}
+	userToken := auth[1]
+
+	var (
+		resp *TokenResponse
+		err  error
+	)
 	if a.to == nil {
-		auth := strings.SplitN(req.Header.Get("Authorization"), " ", 2)
-		if strings.ToLower(auth[0]) != "bearer" {
-			http.Error(w, "Only bearer authorization allowed", http.StatusUnauthorized)
+		// skip authentication upstream and reflect token
+		resp, err = a.authorizeStub(userToken, cluster)
+	} else {
+		// rate limit based on the incoming token
+		// exchange a bearer token via a remote call to an upstream
+		resp, err = a.authorizeRemote(userToken, cluster)
+	}
+	if err != nil {
+		if code, ok := err.(errWithCode); ok {
+			log.Printf("error: unable to authorize request: %v", err)
+			if code.code == http.StatusTooManyRequests {
+				w.Header().Set("Retry-After", "300")
+			}
+			http.Error(w, err.Error(), code.code)
 			return
 		}
-		if len(auth) != 2 || len(strings.TrimSpace(auth[1])) == 0 {
-			http.Error(w, "Invalid Authorization header", http.StatusUnauthorized)
-			return
-		}
-
-		user := fnvHash(auth[1])
-		log.Printf("warning: Performing no-op authentication, user will be %s with cluster %s", user, cluster)
-
-		labels := make(map[string]string)
-		for k, v := range a.labels {
-			labels[k] = v
-		}
-		labels[a.partitionKey] = cluster
-
-		token, err := a.signer.GenerateToken(jwt.Claims(user, labels, a.expireInSeconds, []string{"federate"}))
-		if err != nil {
-			log.Printf("error: unable to generate token: %v", err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		data, err := json.Marshal(remote.TokenResponse{
-			Version:          1,
-			Token:            token,
-			ExpiresInSeconds: a.expireInSeconds,
-			Labels:           labels,
-		})
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Write(data)
+		// always hide errors from the upstream service from the client
+		uid := rand.Int63()
+		log.Printf("error: unable to authorize request %d: %v", uid, err)
+		http.Error(w, fmt.Sprintf("Internal server error, requestid=%d", uid), http.StatusInternalServerError)
 		return
 	}
 
-	http.Error(w, "Remote authentication disabled", http.StatusUnauthorized)
-	// rate limit based on the incoming token
-	// exchange a bearer token via a remote call to an upstream
+	// ensure labels are consistent
+	labels := resp.Labels
+	if labels == nil {
+		labels = make(map[string]string)
+		resp.Labels = labels
+	}
+	for k, v := range a.labels {
+		labels[k] = v
+	}
+	labels[a.partitionKey] = cluster
+
+	// create a token that asserts the user and the labels
+	authToken, err := a.signer.GenerateToken(jwt.Claims(resp.User, resp.Labels, a.expireInSeconds, []string{"federate"}))
+	if err != nil {
+		log.Printf("error: unable to generate token: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// write the data back to the client
+	data, err := json.Marshal(remote.TokenResponse{
+		Version:          1,
+		Token:            authToken,
+		ExpiresInSeconds: a.expireInSeconds,
+		Labels:           resp.Labels,
+	})
+	if err != nil {
+		log.Printf("error: unable to marshal token: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Write(data)
+}
+
+func (a *Authorizer) authorizeStub(token, cluster string) (*TokenResponse, error) {
+	user := fnvHash(token)
+	log.Printf("warning: Performing no-op authentication, user will be %s with cluster %s", user, cluster)
+
+	return &TokenResponse{
+		Version: 1,
+		User:    user,
+	}, nil
+}
+
+func (a *Authorizer) authorizeRemote(token, cluster string) (*TokenResponse, error) {
+	req, err := http.NewRequest("POST", a.to.String(), strings.NewReader(url.Values{
+		"cluster": []string{cluster},
+		"token":   []string{token},
+	}.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		// read the body to keep the upstream connection open
+		if resp.Body != nil {
+			io.Copy(ioutil.Discard, resp.Body)
+			resp.Body.Close()
+		}
+	}()
+	switch resp.StatusCode {
+	case http.StatusUnauthorized:
+		return nil, errWithCode{error: fmt.Errorf("Unauthorized"), code: http.StatusUnauthorized}
+	case http.StatusTooManyRequests:
+		return nil, errWithCode{error: fmt.Errorf("Rate limited, please try again later"), code: http.StatusTooManyRequests}
+	case http.StatusConflict:
+		return nil, errWithCode{error: fmt.Errorf("The provided cluster identifier is already in use under a different account or is not sufficiently random."), code: http.StatusConflict}
+	case http.StatusOK:
+		// allowed
+	default:
+		return nil, errWithCode{error: fmt.Errorf("Upstream rejected request with code %d", resp.StatusCode), code: http.StatusInternalServerError}
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	tokenResponse := &TokenResponse{}
+	if err := json.Unmarshal(body, tokenResponse); err != nil {
+		return nil, err
+	}
+	if tokenResponse.Version != 1 {
+		log.Printf("warning: Upstream server %s responded with an unknown schema version %d", a.to, tokenResponse.Version)
+		return nil, fmt.Errorf("unrecognized token response version %d", tokenResponse.Version)
+	}
+	if len(tokenResponse.User) == 0 {
+		log.Printf("warning: Upstream server %s responded with an empty user string %d", a.to, tokenResponse.Version)
+		return nil, fmt.Errorf("server responded with an empty user string")
+	}
+
+	return tokenResponse, nil
+}
+
+type errWithCode struct {
+	error
+	code int
 }
 
 func fnvHash(text string) string {

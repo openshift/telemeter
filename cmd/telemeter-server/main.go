@@ -3,21 +3,18 @@ package main
 import (
 	"crypto"
 	"crypto/ecdsa"
-	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
-	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"log"
-	"math/big"
 	mathrand "math/rand"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -35,34 +32,76 @@ import (
 	"github.com/smarterclayton/telemeter/pkg/untrusted"
 )
 
+const desc = `
+Receive federated metric push events
+
+This server acts as a federation gateway by receiving Prometheus metrics data from
+clients, performing local filtering and sanity checking, and then exposing it for 
+scraping by a local Prometheus server. In order to satisfy the Prometheus federation
+contract, the servers form a cluster with a consistent hash ring and internally
+route requests to a consistent server so that Prometheus always sees the same metrics
+for a given remote client for a given member.
+
+A client that connects to the server must perform an authorization check, providing
+a Bearer token and a cluster identifier (as ?cluster=<id>) against the /authorize 
+endpoint. The authorize endpoint will forward that request to an upstream server that 
+may approve or reject the request as well as add additional labels that will be added
+to all future metrics from that client. The server will generate a JWT token with a
+short lifetime and pass that back to the client, which is expected to use that token
+when pushing metrics to /upload.
+
+Clients are considered untrusted and so input data is validated, sorted, and 
+normalized before processing continues.
+
+To form a cluster, a --shared-key, a --listen-cluster address, and an optional existing 
+cluster member to --join must be provided. The --name of this server is used to
+identify the server within the cluster - if it changes client data may be sent to
+another cluster member.
+
+Client data is stored temporarily on disk if --storage-dir is set until scraped. The
+structure of the data directory a two level tree based on a hash of the partition key
+and the metrics from the client are stored in a snappy-compressed protobuf file 
+(the Prometheus delimited format).
+`
+
 func main() {
 	opt := &Options{
-		Listen:             "0.0.0.0:9003",
-		ListenInternal:     "localhost:9004",
+		Listen:         "0.0.0.0:9003",
+		ListenInternal: "localhost:9004",
+
 		LimitBytes:         500 * 1024,
 		TokenExpireSeconds: 24 * 60 * 60,
 		PartitionKey:       "cluster",
 	}
 	cmd := &cobra.Command{
-		Short: "Aggregate federated metrics pushes",
-
+		Short:        "Aggregate federated metrics pushes",
+		Long:         desc,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return opt.Run()
 		},
 	}
 
-	cmd.Flags().Int64Var(&opt.TokenExpireSeconds, "token-expire-seconds", opt.TokenExpireSeconds, "The expiration of auth tokens in seconds.")
 	cmd.Flags().StringVar(&opt.Listen, "listen", opt.Listen, "A host:port to listen on for upload traffic.")
 	cmd.Flags().StringVar(&opt.ListenInternal, "listen-internal", opt.ListenInternal, "A host:port to listen on for health and metrics.")
 	cmd.Flags().StringVar(&opt.ListenCluster, "listen-cluster", opt.ListenCluster, "A host:port for cluster gossip.")
+
+	cmd.Flags().StringVar(&opt.TLSKeyPath, "tls-key", opt.TLSKeyPath, "Path to a private key to serve TLS for external traffic.")
+	cmd.Flags().StringVar(&opt.TLSCertificatePath, "tls-crt", opt.TLSCertificatePath, "Path to a certificate to serve TLS for external traffic.")
+
+	cmd.Flags().StringVar(&opt.StorageDir, "storage-dir", opt.StorageDir, "The directory to persist incoming metrics. If not specified metrics will only live in memory.")
+
 	cmd.Flags().StringArrayVar(&opt.LabelFlag, "label", opt.LabelFlag, "Labels to add to each outgoing metric, in key=value form.")
 	cmd.Flags().StringVar(&opt.PartitionKey, "partition-label", opt.PartitionKey, "The label to separate incoming data on. This label will be required for callers to include.")
-	cmd.Flags().StringVar(&opt.StorageDir, "storage-dir", opt.StorageDir, "The directory to persist incoming metrics. If not specified metrics will only live in memory.")
-	cmd.Flags().StringArrayVar(&opt.Members, "join", opt.Members, "One or more host:ports to contact to find other peers.")
 
+	cmd.Flags().StringArrayVar(&opt.Members, "join", opt.Members, "One or more host:ports to contact to find other peers.")
 	cmd.Flags().StringVar(&opt.Name, "name", opt.Name, "The name to identify this node in the cluster. If not specified will be the hostname and a random suffix.")
+
 	cmd.Flags().StringVar(&opt.SharedKey, "shared-key", opt.SharedKey, "The path to a private key file that will be used to sign authentication requests and secure the cluster protocol.")
+	cmd.Flags().Int64Var(&opt.TokenExpireSeconds, "token-expire-seconds", opt.TokenExpireSeconds, "The expiration of auth tokens in seconds.")
+
+	cmd.Flags().StringVar(&opt.AuthorizeEndpoint, "authorize", opt.AuthorizeEndpoint, "A endpoint URL to authorize against when a client requests a token.")
+	cmd.Flags().StringVar(&opt.AuthorizeTokenFile, "authorize-token-file", opt.AuthorizeTokenFile, "The path to a file containing a bearer token to use with the authorization endpoint.")
 
 	cmd.Flags().BoolVarP(&opt.Verbose, "verbose", "v", opt.Verbose, "Show verbose output.")
 
@@ -75,20 +114,25 @@ type Options struct {
 	Listen         string
 	ListenInternal string
 	ListenCluster  string
-	LimitBytes     int64
+
+	TLSKeyPath         string
+	TLSCertificatePath string
 
 	Members []string
 
-	Name      string
-	SharedKey string
+	Name               string
+	SharedKey          string
+	TokenExpireSeconds int64
+
+	AuthorizeEndpoint  string
+	AuthorizeTokenFile string
 
 	PartitionKey string
 	LabelFlag    []string
 	Labels       map[string]string
+	LimitBytes   int64
 
 	StorageDir string
-
-	TokenExpireSeconds int64
 
 	Verbose bool
 }
@@ -116,6 +160,40 @@ func (o *Options) Run() error {
 		}
 		o.Name = fmt.Sprintf("%s-%s", hostname, strconv.FormatUint(uint64(mathrand.Int63()), 32))
 	}
+
+	// set up the upstream authorization
+	var authorizeURL *url.URL
+	var authorizeClient *http.Client
+	if len(o.AuthorizeEndpoint) > 0 {
+		u, err := url.Parse(o.AuthorizeEndpoint)
+		if err != nil {
+			return fmt.Errorf("--authorize must be a valid URL: %v", err)
+		}
+		authorizeURL = u
+		authorizeClient = &http.Client{
+			Timeout: 20 * time.Second,
+			Transport: &http.Transport{
+				Dial:                (&net.Dialer{Timeout: 10 * time.Second}).Dial,
+				MaxIdleConnsPerHost: 10,
+				IdleConnTimeout:     30 * time.Second,
+			},
+		}
+		if len(o.AuthorizeTokenFile) > 0 {
+			data, err := ioutil.ReadFile(o.AuthorizeTokenFile)
+			if err != nil {
+				return fmt.Errorf("unable to load --authorize-token-file: %v", err)
+			}
+			authorizeClient.Transport = telemeterhttp.NewBearerRoundTripper(string(data), authorizeClient.Transport)
+		}
+	}
+
+	switch {
+	case len(o.TLSCertificatePath) == 0 && len(o.TLSKeyPath) > 0,
+		len(o.TLSCertificatePath) > 0 && len(o.TLSKeyPath) == 0:
+		return fmt.Errorf("both --tls-key and --tls-crt must be provided")
+	}
+	useTLS := len(o.TLSCertificatePath) > 0
+	useInternalTLS := false
 
 	var (
 		signer     *jwt.Signer
@@ -152,6 +230,10 @@ func (o *Options) Run() error {
 		}
 
 	} else {
+		if len(o.Members) > 0 {
+			return fmt.Errorf("--shared-key must be specified when specifying a cluster to join")
+		}
+		log.Printf("warning: Using a generated shared-key")
 		var err error
 		var key *ecdsa.PrivateKey
 		signer, authorizer, publicKey, key, err = jwt.New("federate")
@@ -163,46 +245,13 @@ func (o *Options) Run() error {
 		if err != nil {
 			return fmt.Errorf("unable to marshal private key")
 		}
-
 		privateKey = key
 	}
 
+	// create a secret for the JWT key
 	h := sha256.New()
 	h.Write(keyBytes)
 	secret := h.Sum(nil)[:32]
-
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
-	if err != nil {
-		log.Fatalf("failed to generate serial number: %v", err)
-	}
-	template := &x509.Certificate{
-		SerialNumber: serialNumber,
-		Issuer:       pkix.Name{CommonName: "telemeter-server-self-signed"},
-		Subject: pkix.Name{
-			Organization: []string{"telemeter-server"},
-		},
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
-		BasicConstraintsValid: true,
-		IsCA: true,
-	}
-	serverData, err := x509.CreateCertificate(rand.Reader, template, template, publicKey, privateKey)
-	if err != nil {
-		return fmt.Errorf("unable to create server certificate for private key: %v", err)
-	}
-	serverCert, err := x509.ParseCertificate(serverData)
-	if err != nil {
-		return fmt.Errorf("unable to parse server certificate for private key: %v", err)
-	}
-	externalTLS := &tls.Config{}
-	externalTLS.Certificates = append(externalTLS.Certificates, tls.Certificate{
-		Certificate: [][]byte{serverData},
-		PrivateKey:  privateKey,
-		Leaf:        serverCert,
-	})
-
-	var internalTLS *tls.Config
 
 	external := http.NewServeMux()
 	externalProtected := http.NewServeMux()
@@ -211,15 +260,20 @@ func (o *Options) Run() error {
 
 	internalPaths := []string{"/", "/federate", "/metrics", "/debug/pprof", "/healthz", "/healthz/ready"}
 
-	auth := remoteauthserver.New(o.PartitionKey, nil, nil, o.TokenExpireSeconds, signer, o.Labels)
+	// configure the authenticator and incoming data validator
+	auth := remoteauthserver.New(o.PartitionKey, authorizeURL, authorizeClient, o.TokenExpireSeconds, signer, o.Labels)
 	validator := untrusted.NewValidator(o.PartitionKey, o.Labels, o.LimitBytes, 24*time.Hour)
+
+	// register a store
 	var store server.Store
 	if len(o.StorageDir) > 0 {
 		log.Printf("Storing metrics on disk at %s", o.StorageDir)
 		store = server.NewDiskStore(o.StorageDir)
 	} else {
+		log.Printf("warning: Using memory-backed store")
 		store = server.NewMemoryStore()
 	}
+
 	if len(o.ListenCluster) > 0 {
 		cluster, err := cluster.NewDynamic(o.Name, o.ListenCluster, secret, store, o.Verbose)
 		if err != nil {
@@ -241,15 +295,16 @@ func (o *Options) Run() error {
 		internalPaths = append(internalPaths, "/debug/cluster")
 		internalProtected.Handle("/debug/cluster", cluster)
 	}
+
 	server := server.New(store, validator)
 
 	internalPathJSON, _ := json.MarshalIndent(Paths{Paths: internalPaths}, "", "  ")
 	externalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/authorize", "/upload", "/healthz", "/healthz/ready"}}, "", "  ")
 
+	// TODO: add internal authorization
 	telemeterhttp.AddDebug(internalProtected)
 	internalProtected.Handle("/federate", http.HandlerFunc(server.Get))
 
-	// TODO: add internal authorization
 	internal.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.URL.Path == "/" && req.Method == "GET" {
 			w.Header().Add("Content-Type", "application/json")
@@ -287,22 +342,21 @@ func (o *Options) Run() error {
 	}
 
 	internalMux := cmux.New(internalListener)
-
-	internalHTTPListener := internalMux.Match(cmux.HTTP1())
-	go func() {
-		if err := http.Serve(internalHTTPListener, internal); err != nil && err != http.ErrServerClosed {
-			log.Printf("error: HTTP server exited: %v", err)
-			os.Exit(1)
-		}
-	}()
-	if internalTLS != nil {
+	if useInternalTLS {
 		internalHTTPSListener := internalMux.Match(cmux.Any())
 		go func() {
 			s := &http.Server{
-				TLSConfig: internalTLS,
-				Handler:   internal,
+				Handler: internal,
 			}
-			if err := s.Serve(internalHTTPSListener); err != nil && err != http.ErrServerClosed {
+			if err := s.ServeTLS(internalHTTPSListener, o.TLSCertificatePath, o.TLSKeyPath); err != nil && err != http.ErrServerClosed {
+				log.Printf("error: HTTPS server exited: %v", err)
+				os.Exit(1)
+			}
+		}()
+	} else {
+		internalHTTPListener := internalMux.Match(cmux.HTTP1())
+		go func() {
+			if err := http.Serve(internalHTTPListener, internal); err != nil && err != http.ErrServerClosed {
 				log.Printf("error: HTTP server exited: %v", err)
 				os.Exit(1)
 			}
@@ -316,25 +370,26 @@ func (o *Options) Run() error {
 	}()
 
 	externalMux := cmux.New(externalListener)
-
-	externalHTTPListener := externalMux.Match(cmux.HTTP1())
-	go func() {
-		if err := http.Serve(externalHTTPListener, external); err != nil && err != http.ErrServerClosed {
-			log.Printf("error: HTTP server exited: %v", err)
-			os.Exit(1)
-		}
-	}()
-	externalHTTPSListener := externalMux.Match(cmux.Any())
-	go func() {
-		s := &http.Server{
-			TLSConfig: externalTLS,
-			Handler:   external,
-		}
-		if err := s.Serve(externalHTTPSListener); err != nil && err != http.ErrServerClosed {
-			log.Printf("error: HTTP server exited: %v", err)
-			os.Exit(1)
-		}
-	}()
+	if useTLS {
+		externalHTTPSListener := externalMux.Match(cmux.Any())
+		go func() {
+			s := &http.Server{
+				Handler: external,
+			}
+			if err := s.ServeTLS(externalHTTPSListener, o.TLSCertificatePath, o.TLSKeyPath); err != nil && err != http.ErrServerClosed {
+				log.Printf("error: HTTPS server exited: %v", err)
+				os.Exit(1)
+			}
+		}()
+	} else {
+		externalHTTPListener := externalMux.Match(cmux.HTTP1())
+		go func() {
+			if err := http.Serve(externalHTTPListener, external); err != nil && err != http.ErrServerClosed {
+				log.Printf("error: HTTP server exited: %v", err)
+				os.Exit(1)
+			}
+		}()
+	}
 	go func() {
 		if err := externalMux.Serve(); err != nil && err != http.ErrServerClosed {
 			log.Printf("error: external server exited: %v", err)
@@ -343,8 +398,6 @@ func (o *Options) Run() error {
 	}()
 
 	select {}
-
-	return nil
 }
 
 // loadPrivateKey loads a private key from PEM/DER-encoded data.

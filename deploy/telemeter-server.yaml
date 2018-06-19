@@ -92,3 +92,5 @@ items:
           - --listen-cluster=0.0.0.0:8082
           - --storage-dir=/var/lib/telemeter
           - --shared-key=/etc/pki/service/tls.key
+          - --tls-key=/etc/pkg/service/tls.key
+          - --tls-crt=/etc/pkg/service/tls.crt
