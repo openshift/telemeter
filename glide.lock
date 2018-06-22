@@ -1,8 +1,8 @@
-hash: 57b78995c161f468019e49f0389277308d6daf749af707ff3f32a86e73a20146
-updated: 2018-05-22T20:27:38.77172996-04:00
+hash: fe35a870ea448b4b3e9d8f749fea1a2d3a79a22fcaddf3270e7cf3e0cb68b60b
+updated: 2018-06-21T23:45:24.546241777-04:00
 imports:
 - name: github.com/armon/go-metrics
-  version: 783273d703149aaeb9897cf58613d5af48861c25
+  version: 58588f401c2cc130a7308a52ca3bc6c0a76db04b
 - name: github.com/beorn7/perks
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
   subpackages:
@@ -40,7 +40,7 @@ imports:
   subpackages:
   - pbutil
 - name: github.com/miekg/dns
-  version: 83c435cc65d2862736428b9b4d07d0ab10ad3e4d
+  version: 5a2b9fab83ff0f8bfc99684bd5f43a37abe560f1
 - name: github.com/prometheus/client_golang
   version: e7e903064f5e9eb5da98208bae10b475d4db0f8c
   subpackages:

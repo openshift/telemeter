@@ -1,4 +1,4 @@
-package: github.com/smarterclayton/telemeter
+package: github.com/openshift/telemeter
 import:
 - package: github.com/prometheus/client_golang
   subpackages:
