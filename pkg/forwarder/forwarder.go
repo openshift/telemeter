@@ -11,8 +11,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
 
-	"github.com/smarterclayton/telemeter/pkg/metricsclient"
-	"github.com/smarterclayton/telemeter/pkg/transform"
+	"github.com/openshift/telemeter/pkg/metricsclient"
+	"github.com/openshift/telemeter/pkg/transform"
 )
 
 type Interface interface {

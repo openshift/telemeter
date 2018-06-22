@@ -12,11 +12,11 @@ import (
 	"github.com/prometheus/common/expfmt"
 	"github.com/spf13/cobra"
 
-	"github.com/smarterclayton/telemeter/pkg/authorizer/remote"
-	"github.com/smarterclayton/telemeter/pkg/forwarder"
-	telemeterhttp "github.com/smarterclayton/telemeter/pkg/http"
-	"github.com/smarterclayton/telemeter/pkg/metricsclient"
-	"github.com/smarterclayton/telemeter/pkg/transform"
+	"github.com/openshift/telemeter/pkg/authorizer/remote"
+	"github.com/openshift/telemeter/pkg/forwarder"
+	telemeterhttp "github.com/openshift/telemeter/pkg/http"
+	"github.com/openshift/telemeter/pkg/metricsclient"
+	"github.com/openshift/telemeter/pkg/transform"
 )
 
 func main() {

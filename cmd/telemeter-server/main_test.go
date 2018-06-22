@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/smarterclayton/telemeter/pkg/untrusted"
+	"github.com/openshift/telemeter/pkg/untrusted"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -15,9 +15,9 @@ import (
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 
-	"github.com/smarterclayton/telemeter/pkg/authorizer"
-	"github.com/smarterclayton/telemeter/pkg/http/server"
-	"github.com/smarterclayton/telemeter/pkg/transform"
+	"github.com/openshift/telemeter/pkg/authorizer"
+	"github.com/openshift/telemeter/pkg/http/server"
+	"github.com/openshift/telemeter/pkg/transform"
 )
 
 const (

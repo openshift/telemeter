@@ -18,7 +18,7 @@ import (
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/serialx/hashring"
 
-	"github.com/smarterclayton/telemeter/pkg/metricsclient"
+	"github.com/openshift/telemeter/pkg/metricsclient"
 )
 
 var msgHandle = &codec.MsgpackHandle{}

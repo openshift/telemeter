@@ -17,7 +17,7 @@ import (
 	jose "gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/jwt"
 
-	"github.com/smarterclayton/telemeter/pkg/authorizer"
+	"github.com/openshift/telemeter/pkg/authorizer"
 )
 
 func NewForKey(audience string, private crypto.PrivateKey, public crypto.PublicKey) (*Signer, *Authorizer, error) {

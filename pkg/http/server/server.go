@@ -11,7 +11,7 @@ import (
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 
-	"github.com/smarterclayton/telemeter/pkg/transform"
+	"github.com/openshift/telemeter/pkg/transform"
 )
 
 type Store interface {

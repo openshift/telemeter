@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/smarterclayton/telemeter/pkg/authorizer"
+	"github.com/openshift/telemeter/pkg/authorizer"
 )
 
 type Authorizer struct {

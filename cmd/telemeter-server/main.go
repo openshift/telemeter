@@ -23,13 +23,13 @@ import (
 	"github.com/cockroachdb/cmux"
 	"github.com/spf13/cobra"
 
-	"github.com/smarterclayton/telemeter/pkg/authorizer/jwt"
-	"github.com/smarterclayton/telemeter/pkg/authorizer/remoteauthserver"
-	"github.com/smarterclayton/telemeter/pkg/cluster"
-	telemeterhttp "github.com/smarterclayton/telemeter/pkg/http"
-	httpauthorizer "github.com/smarterclayton/telemeter/pkg/http/authorizer"
-	"github.com/smarterclayton/telemeter/pkg/http/server"
-	"github.com/smarterclayton/telemeter/pkg/untrusted"
+	"github.com/openshift/telemeter/pkg/authorizer/jwt"
+	"github.com/openshift/telemeter/pkg/authorizer/remoteauthserver"
+	"github.com/openshift/telemeter/pkg/cluster"
+	telemeterhttp "github.com/openshift/telemeter/pkg/http"
+	httpauthorizer "github.com/openshift/telemeter/pkg/http/authorizer"
+	"github.com/openshift/telemeter/pkg/http/server"
+	"github.com/openshift/telemeter/pkg/untrusted"
 )
 
 const desc = `

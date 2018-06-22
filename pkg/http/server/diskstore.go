@@ -13,7 +13,7 @@ import (
 
 	clientmodel "github.com/prometheus/client_model/go"
 
-	"github.com/smarterclayton/telemeter/pkg/metricsclient"
+	"github.com/openshift/telemeter/pkg/metricsclient"
 )
 
 type DiskStore struct {

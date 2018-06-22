@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/smarterclayton/telemeter/pkg/authorizer"
-	"github.com/smarterclayton/telemeter/pkg/reader"
-	"github.com/smarterclayton/telemeter/pkg/transform"
+	"github.com/openshift/telemeter/pkg/authorizer"
+	"github.com/openshift/telemeter/pkg/reader"
+	"github.com/openshift/telemeter/pkg/transform"
 )
 
 type Validator struct {

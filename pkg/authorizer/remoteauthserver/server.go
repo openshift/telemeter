@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/smarterclayton/telemeter/pkg/authorizer/jwt"
-	"github.com/smarterclayton/telemeter/pkg/authorizer/remote"
+	"github.com/openshift/telemeter/pkg/authorizer/jwt"
+	"github.com/openshift/telemeter/pkg/authorizer/remote"
 )
 
 type Authorizer struct {
