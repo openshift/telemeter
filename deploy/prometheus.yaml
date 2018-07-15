@@ -1,3 +1,7 @@
+#
+# A simple stateless prometheus instance that scrapes the contents of the
+# telemeter cluster.
+# 
 kind: List
 apiVersion: v1
 items:

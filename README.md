@@ -1,15 +1,20 @@
 Telemeter
 =========
 
-Telemeter implements a Prometheus federation push client and server -
-allowing isolated Prometheus instances that cannot be scraped from a
+Telemeter implements a Prometheus federation push client and server
+to allow isolated Prometheus instances that cannot be scraped from a
 central Prometheus to instead perform push federation to a central
-location. The local client scrapes `/federate` on a given instance,
-pushes that to a remote server, which then validates and verifies that
-the metrics are "safe" before offering them up to be scraped by a
-centralized Prometheus. Since that push is across security boundaries,
-the server must perform authentication, authorization, and data
-integrity checks as well as being resilient to denial of service.
+location.
+
+1. The local client scrapes `/federate` on a given Prometheus instance.
+2. The local client performs cleanup and anonymization and then pushes the metrics to the server.
+3. The server authenticates the client, validates and verifies that the metrics are "safe", and then ensures they have a label uniquely identifying the source client.
+4. The server holds the metrics in a local disk store until scraped.
+5. A centralized Prometheus scrapes each server instance and aggregates all the metrics.
+
+Since that push is across security boundaries, the server must perform
+authentication, authorization, and data integrity checks as well as being
+resilient to denial of service.
 
 Each client is uniquely identified by a cluster ID and all metrics
 federated are labelled with that ID.
@@ -29,19 +34,36 @@ note: Telemeter is alpha and may change significantly
 Get started
 -----------
 
-To see this run locally, run
+To see this in action, run
+
+```
+make
+./test/integration.sh http://localhost:9005
+```
+
+The command launches a two instance `telemeter-server` cluster and a single
+`telemeter-client` to talk to that server, along with a Prometheus
+instance running on http://localhost:9005 that shows the federated metrics.
+The client will scrape metrics from the local prometheus, then send those
+to the telemeter server cluster, which will then be scraped by that instance.
+
+To run this test against another Prometheus server, change the URL (and if necessary,
+specify the bearer token necessary to talk to that server as the second argument).
+
+To build binaries, run
 
 ```
 make
 ```
 
-to build the binaries, then
+To execute the unit test suite, run
 
 ```
-hack/test.sh <URL_TO_PROMETHEUS_FEDERATE_ENDPOINT>
-[<AUTH_TOKEN_TO_PROMETHEUS>|""]
+make check
 ```
 
-to launch a two instance `telemeter-server` cluster and a single
-`telemeter-client` to talk to that server, along with a Prometheus
-instance running on `localhost:9005` that shows the federated metrics.
+To launch a self contained integration test, run:
+
+```
+make test-integration
+```

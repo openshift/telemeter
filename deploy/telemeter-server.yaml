@@ -1,3 +1,7 @@
+#
+# Start a simple telemeter cluster that can be scale up to handle multiple traffic.
+# Expects that an authorization service is running in the same namespace.
+#
 kind: List
 apiVersion: v1
 items:
@@ -10,8 +14,8 @@ items:
     selector:
       app: telemeter
     ports:
-    - name: http
-      port: 8080
+    - name: https
+      port: 443
       targetPort: external
 - kind: Service
   apiVersion: v1
@@ -24,6 +28,9 @@ items:
     selector:
       app: telemeter
     ports:
+    - name: https
+      port: 8443
+      targetPort: external
     - name: internal
       port: 8081
       targetPort: internal
@@ -53,7 +60,7 @@ items:
           emptyDir: {}
         containers:
         - name: server
-          image: registry.svc.ci.openshift.org/ci/telemeter:latest
+          image: openshift/origin-telemeter:v3.11
           volumeMounts:
           - name: tls
             mountPath: /etc/pki/service
@@ -62,13 +69,15 @@ items:
           livenessProbe:
             httpGet:
               path: /healthz
-              port: 8080
+              port: 8443
+              scheme: HTTPS
           readinessProbe:
             httpGet:
               path: /healthz/ready
-              port: 8080
+              port: 8443
+              scheme: HTTPS
           ports:
-          - containerPort: 8080
+          - containerPort: 8443
             name: external
           - containerPort: 8081
             name: internal
@@ -87,10 +96,11 @@ items:
           - /usr/bin/telemeter-server
           - --join=telemeter-cluster
           - --name=$(NAME)
-          - --listen=0.0.0.0:8080
+          - --listen=0.0.0.0:8443
           - --listen-internal=0.0.0.0:8081
           - --listen-cluster=0.0.0.0:8082
           - --storage-dir=/var/lib/telemeter
           - --shared-key=/etc/pki/service/tls.key
-          - --tls-key=/etc/pkg/service/tls.key
-          - --tls-crt=/etc/pkg/service/tls.crt
+          - --tls-key=/etc/pki/service/tls.key
+          - --tls-crt=/etc/pki/service/tls.crt
+          - --authorize=http://telemeter-authorization
