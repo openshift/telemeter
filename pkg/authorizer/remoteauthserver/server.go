@@ -1,6 +1,7 @@
 package remoteauthserver
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
@@ -45,12 +46,14 @@ func New(partitionKey string, to *url.URL, client *http.Client, expireInSeconds 
 }
 
 func (a *Authorizer) AuthorizeHTTP(w http.ResponseWriter, req *http.Request) {
+	log.Printf("Performing authorization check")
+
 	if req.Method != "POST" {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
 
-	req.Body = http.MaxBytesReader(w, req.Body, 1024)
+	req.Body = http.MaxBytesReader(w, req.Body, 4*1024)
 	defer req.Body.Close()
 
 	if err := req.ParseForm(); err != nil {
@@ -115,7 +118,7 @@ func (a *Authorizer) AuthorizeHTTP(w http.ResponseWriter, req *http.Request) {
 	labels[a.partitionKey] = cluster
 
 	// create a token that asserts the user and the labels
-	authToken, err := a.signer.GenerateToken(jwt.Claims(resp.User, resp.Labels, a.expireInSeconds, []string{"federate"}))
+	authToken, err := a.signer.GenerateToken(jwt.Claims(resp.AccountID, resp.Labels, a.expireInSeconds, []string{"federate"}))
 	if err != nil {
 		log.Printf("error: unable to generate token: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -142,20 +145,28 @@ func (a *Authorizer) authorizeStub(token, cluster string) (*TokenResponse, error
 	log.Printf("warning: Performing no-op authentication, user will be %s with cluster %s", user, cluster)
 
 	return &TokenResponse{
-		Version: 1,
-		User:    user,
+		APIVersion: "v1",
+		AccountID:  user,
 	}, nil
 }
 
 func (a *Authorizer) authorizeRemote(token, cluster string) (*TokenResponse, error) {
-	req, err := http.NewRequest("POST", a.to.String(), strings.NewReader(url.Values{
-		"cluster": []string{cluster},
-		"token":   []string{token},
-	}.Encode()))
+	tokenRequest := &TokenRequest{
+		APIVersion:         "v1",
+		AuthorizationToken: token,
+		ClusterID:          cluster,
+	}
+	data, err := json.Marshal(tokenRequest)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	req, err := http.NewRequest("POST", a.to.String(), bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
 	resp, err := a.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -174,13 +185,42 @@ func (a *Authorizer) authorizeRemote(token, cluster string) (*TokenResponse, err
 		return nil, errWithCode{error: fmt.Errorf("Rate limited, please try again later"), code: http.StatusTooManyRequests}
 	case http.StatusConflict:
 		return nil, errWithCode{error: fmt.Errorf("The provided cluster identifier is already in use under a different account or is not sufficiently random."), code: http.StatusConflict}
-	case http.StatusOK:
+	case http.StatusOK, http.StatusCreated:
 		// allowed
 	default:
+		tryLogBody(resp.Body, 4*1024, "warning: Upstream server rejected with body:\n%s")
 		return nil, errWithCode{error: fmt.Errorf("Upstream rejected request with code %d", resp.StatusCode), code: http.StatusInternalServerError}
 	}
+	if contentType := resp.Header.Get("Content-Type"); contentType != "application/json" {
+		log.Printf("warning: Upstream server %s responded with an unknown content type %q", a.to, contentType)
+		return nil, fmt.Errorf("unrecognized token response content-type %q", contentType)
+	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	tokenResponse, err := tryReadResponse(resp.Body, 32*1024)
+	if err != nil {
+		log.Printf("warning: Upstream server %s response could not be parsed", a.to)
+		return nil, fmt.Errorf("unable to parse response body: %v", err)
+	}
+
+	if tokenResponse.APIVersion != "v1" {
+		log.Printf("warning: Upstream server %s responded with an unknown schema version %q", a.to, tokenResponse.APIVersion)
+		return nil, fmt.Errorf("unrecognized token response version %q", tokenResponse.APIVersion)
+	}
+	if len(tokenResponse.AccountID) == 0 {
+		log.Printf("warning: Upstream server %s responded with an empty user string", a.to)
+		return nil, fmt.Errorf("server responded with an empty user string")
+	}
+
+	return tokenResponse, nil
+}
+
+func tryLogBody(r io.Reader, limitBytes int64, format string) {
+	body, _ := ioutil.ReadAll(io.LimitReader(r, limitBytes))
+	log.Printf(format, string(body))
+}
+
+func tryReadResponse(r io.Reader, limitBytes int64) (*TokenResponse, error) {
+	body, err := ioutil.ReadAll(io.LimitReader(r, limitBytes))
 	if err != nil {
 		return nil, err
 	}
@@ -188,15 +228,6 @@ func (a *Authorizer) authorizeRemote(token, cluster string) (*TokenResponse, err
 	if err := json.Unmarshal(body, tokenResponse); err != nil {
 		return nil, err
 	}
-	if tokenResponse.Version != 1 {
-		log.Printf("warning: Upstream server %s responded with an unknown schema version %d", a.to, tokenResponse.Version)
-		return nil, fmt.Errorf("unrecognized token response version %d", tokenResponse.Version)
-	}
-	if len(tokenResponse.User) == 0 {
-		log.Printf("warning: Upstream server %s responded with an empty user string %d", a.to, tokenResponse.Version)
-		return nil, fmt.Errorf("server responded with an empty user string")
-	}
-
 	return tokenResponse, nil
 }
 

@@ -1,0 +1,12 @@
+[
+  {
+    "token": "a",
+    "response": {
+      "api_version": "v1",
+      "code": 201,
+      "reason": "Created",
+      "message": "Associated to account",
+      "account_id": "1"
+    }
+  }
+]
