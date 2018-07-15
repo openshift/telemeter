@@ -7,13 +7,13 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/openshift/telemeter/pkg/authorizer/remoteauthserver"
+	"github.com/openshift/telemeter/pkg/authorizer/server"
 )
 
 type SavedResponse struct {
-	Token         string                         `json:"token"`
-	Cluster       string                         `json:"cluster"`
-	TokenResponse remoteauthserver.TokenResponse `json:"response"`
+	Token         string               `json:"token"`
+	Cluster       string               `json:"cluster"`
+	TokenResponse server.TokenResponse `json:"response"`
 }
 
 func main() {
@@ -31,12 +31,12 @@ func main() {
 		log.Fatalf("unable to parse contents of %s: %v", os.Args[2], err)
 	}
 
-	s := remoteauthserver.NewServer()
+	s := server.NewServer()
 	s.AllowNewClusters = true
-	s.Responses = make(map[remoteauthserver.Key]*remoteauthserver.TokenResponse)
+	s.Responses = make(map[server.Key]*server.TokenResponse)
 	for i := range responses {
 		r := &responses[i]
-		s.Responses[remoteauthserver.Key{Token: r.Token, Cluster: r.Cluster}] = &r.TokenResponse
+		s.Responses[server.Key{Token: r.Token, Cluster: r.Cluster}] = &r.TokenResponse
 	}
 
 	if err := http.ListenAndServe(os.Args[1], s); err != nil {

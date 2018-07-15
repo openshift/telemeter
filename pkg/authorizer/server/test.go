@@ -1,4 +1,4 @@
-package remoteauthserver
+package server
 
 import (
 	"net/http"

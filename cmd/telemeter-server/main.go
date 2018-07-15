@@ -24,11 +24,11 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/openshift/telemeter/pkg/authorizer/jwt"
-	"github.com/openshift/telemeter/pkg/authorizer/remoteauthserver"
+	"github.com/openshift/telemeter/pkg/authorizer/server"
 	"github.com/openshift/telemeter/pkg/cluster"
 	telemeterhttp "github.com/openshift/telemeter/pkg/http"
 	httpauthorizer "github.com/openshift/telemeter/pkg/http/authorizer"
-	"github.com/openshift/telemeter/pkg/http/server"
+	httpserver "github.com/openshift/telemeter/pkg/http/server"
 	"github.com/openshift/telemeter/pkg/untrusted"
 )
 
@@ -261,17 +261,17 @@ func (o *Options) Run() error {
 	internalPaths := []string{"/", "/federate", "/metrics", "/debug/pprof", "/healthz", "/healthz/ready"}
 
 	// configure the authenticator and incoming data validator
-	auth := remoteauthserver.New(o.PartitionKey, authorizeURL, authorizeClient, o.TokenExpireSeconds, signer, o.Labels)
+	auth := server.New(o.PartitionKey, authorizeURL, authorizeClient, o.TokenExpireSeconds, signer, o.Labels)
 	validator := untrusted.NewValidator(o.PartitionKey, o.Labels, o.LimitBytes, 24*time.Hour)
 
 	// register a store
-	var store server.Store
+	var store httpserver.Store
 	if len(o.StorageDir) > 0 {
 		log.Printf("Storing metrics on disk at %s", o.StorageDir)
-		store = server.NewDiskStore(o.StorageDir)
+		store = httpserver.NewDiskStore(o.StorageDir)
 	} else {
 		log.Printf("warning: Using memory-backed store")
-		store = server.NewMemoryStore()
+		store = httpserver.NewMemoryStore()
 	}
 
 	if len(o.ListenCluster) > 0 {
@@ -296,7 +296,7 @@ func (o *Options) Run() error {
 		internalProtected.Handle("/debug/cluster", cluster)
 	}
 
-	server := server.New(store, validator)
+	server := httpserver.New(store, validator)
 
 	internalPathJSON, _ := json.MarshalIndent(Paths{Paths: internalPaths}, "", "  ")
 	externalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/authorize", "/upload", "/healthz", "/healthz/ready"}}, "", "  ")
