@@ -71,7 +71,7 @@ func main() {
 
 		LimitBytes:         500 * 1024,
 		TokenExpireSeconds: 24 * 60 * 60,
-		PartitionKey:       "cluster",
+		PartitionKey:       "_id",
 	}
 	cmd := &cobra.Command{
 		Short:        "Aggregate federated metrics pushes",

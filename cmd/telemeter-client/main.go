@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -38,8 +39,10 @@ func main() {
 	cmd.Flags().StringVar(&opt.Listen, "listen", opt.Listen, "A host:port to listen on for health and metrics.")
 	cmd.Flags().StringVar(&opt.From, "from", opt.From, "The Prometheus server to federate from.")
 	cmd.Flags().StringVar(&opt.FromToken, "from-token", opt.FromToken, "A bearer token to use when authenticating to the source Prometheus server.")
-	cmd.Flags().StringVar(&opt.To, "to", opt.To, "A telemeter server endpoint to push metrics to.")
-	cmd.Flags().StringVar(&opt.ToAuthorize, "to-auth", opt.ToAuthorize, "A telemeter server endpoint to exchange the bearer token for an access token.")
+	cmd.Flags().StringVar(&opt.Identifier, "id", opt.Identifier, "The unique identifier for metrics sent with this client.")
+	cmd.Flags().StringVar(&opt.To, "to", opt.To, "A telemeter server to send metrics to.")
+	cmd.Flags().StringVar(&opt.ToUpload, "to-upload", opt.ToUpload, "A telemeter server endpoint to push metrics to. Will be defaulted for standard servers.")
+	cmd.Flags().StringVar(&opt.ToAuthorize, "to-auth", opt.ToAuthorize, "A telemeter server endpoint to exchange the bearer token for an access token. Will be defaulted for standard servers.")
 	cmd.Flags().StringVar(&opt.ToToken, "to-token", opt.ToToken, "A bearer token to use when authenticating to the destination telemeter server.")
 	cmd.Flags().StringArrayVar(&opt.LabelFlag, "label", opt.LabelFlag, "Labels to add to each outgoing metric, in key=value form.")
 	cmd.Flags().DurationVar(&opt.Interval, "interval", opt.Interval, "The interval between scrapes. Prometheus returns the last 5 minutes of metrics when invoking the federation endpoint.")
@@ -60,9 +63,11 @@ type Options struct {
 
 	From        string
 	To          string
+	ToUpload    string
 	ToAuthorize string
 	FromToken   string
 	ToToken     string
+	Identifier  string
 
 	AnonymizeLabels []string
 	AnonymizeSalt   string
@@ -102,7 +107,7 @@ func (o *Options) Run() error {
 		return fmt.Errorf("you must specify a Prometheus server to federate from (e.g. http://localhost:9090)")
 	}
 	if len(o.AnonymizeLabels) > 0 && len(o.AnonymizeSalt) == 0 {
-		return fmt.Errorf("you must specify --anonymize-salt when --anonymous-labels is used")
+		return fmt.Errorf("you must specify --anonymize-salt when --anonymize-labels is used")
 	}
 	for _, flag := range o.LabelFlag {
 		values := strings.SplitN(flag, "=", 2)
@@ -124,9 +129,9 @@ func (o *Options) Run() error {
 		from.Path = "/federate"
 	}
 
-	var to, toAuthorize *url.URL
-	if len(o.To) > 0 {
-		to, err = url.Parse(o.To)
+	var to, toUpload, toAuthorize *url.URL
+	if len(o.ToUpload) > 0 {
+		to, err = url.Parse(o.ToUpload)
 		if err != nil {
 			return fmt.Errorf("--to is not a valid URL: %v", err)
 		}
@@ -136,6 +141,34 @@ func (o *Options) Run() error {
 		if err != nil {
 			return fmt.Errorf("--to-auth is not a valid URL: %v", err)
 		}
+	}
+	if len(o.To) > 0 {
+		to, err = url.Parse(o.To)
+		if err != nil {
+			return fmt.Errorf("--to is not a valid URL: %v", err)
+		}
+		if len(to.Path) == 0 {
+			to.Path = "/"
+		}
+		if toAuthorize == nil {
+			u := *to
+			u.Path = path.Join(to.Path, "authorize")
+			if len(o.Identifier) > 0 {
+				q := to.Query()
+				q.Add("id", o.Identifier)
+				u.RawQuery = q.Encode()
+			}
+			toAuthorize = &u
+		}
+		if toUpload == nil {
+			u := *to
+			u.Path = path.Join(to.Path, "upload")
+			toUpload = &u
+		}
+	}
+
+	if toUpload == nil || toAuthorize == nil {
+		return fmt.Errorf("either --to or --to-auth and --to-upload must be specified")
 	}
 
 	fromClient := &http.Client{Transport: metricsclient.DefaultTransport()}
@@ -151,7 +184,7 @@ func (o *Options) Run() error {
 		toClient.Transport = rt
 	}
 
-	worker := forwarder.New(*from, to, o)
+	worker := forwarder.New(*from, toUpload, o)
 	worker.ToClient = metricsclient.New(toClient, o.LimitBytes, o.Interval, "federate_to")
 	worker.FromClient = metricsclient.New(fromClient, o.LimitBytes, o.Interval, "federate_from")
 	worker.Interval = o.Interval
