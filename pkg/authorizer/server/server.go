@@ -59,9 +59,10 @@ func (a *Authorizer) AuthorizeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	cluster := req.Form.Get(a.partitionKey)
+	uniqueIdKey := "id"
+	cluster := req.Form.Get(uniqueIdKey)
 	if len(cluster) == 0 {
-		http.Error(w, fmt.Sprintf("The '%s' parameter must be specified via URL or url-encoded form body", a.partitionKey), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("The '%s' parameter must be specified via URL or url-encoded form body", uniqueIdKey), http.StatusBadRequest)
 		return
 	}
 

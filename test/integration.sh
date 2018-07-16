@@ -39,8 +39,8 @@ trap 'kill $(jobs -p); exit 0' EXIT
   sleep 5
   exec ./telemeter-client \
     --from "${server}" --from-token "${token}" \
-    --to "http://localhost:9003/upload" \
-    --to-auth "http://localhost:9003/authorize?cluster=b" \
+    --to "http://localhost:9003" \
+    --id "test" \
     --to-token a \
     --interval 30s \
     --anonymize-labels "instance" --anonymize-salt "a-unique-value" \
@@ -64,7 +64,7 @@ if [[ -n "${test-}" ]]; then
       echo "error: Did not successfully retrieve cluster metrics from the local Prometheus server" 1>&2
       exit 1
     fi
-    if [[ "$( curl http://localhost:9005/api/v1/query --data-urlencode 'query=count({cluster="b"})' -G 2>/dev/null | python -c 'import sys, json; print json.load(sys.stdin)["data"]["result"][0]["value"][1]' 2>/dev/null )" -eq 0 ]]; then
+    if [[ "$( curl http://localhost:9005/api/v1/query --data-urlencode 'query=count({_id="test"})' -G 2>/dev/null | python -c 'import sys, json; print json.load(sys.stdin)["data"]["result"][0]["value"][1]' 2>/dev/null )" -eq 0 ]]; then
       retries=$((retries-1))
       sleep 1
       continue
