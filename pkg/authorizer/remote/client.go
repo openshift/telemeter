@@ -40,22 +40,19 @@ func (t *token) Load(endpoint *url.URL, initialToken string, rt http.RoundTrippe
 		return "", fmt.Errorf("unable to perform authentication request: %v", err)
 	}
 	defer resp.Body.Close()
+
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusCreated:
 	case http.StatusUnauthorized:
 		return "", fmt.Errorf("initial authentication token is expired or invalid")
 	default:
-		body, _ := ioutil.ReadAll(io.LimitReader(resp.Body, 1024))
-		return "", fmt.Errorf("unable to exchange initial token for a long lived token: %d: %v", resp.StatusCode, string(body))
+		body, _ := ioutil.ReadAll(io.LimitReader(resp.Body, 4*1024))
+		return "", fmt.Errorf("unable to exchange initial token for a long lived token: %d:\n%s", resp.StatusCode, string(body))
 	}
 
-	data, err := ioutil.ReadAll(io.LimitReader(resp.Body, 16384))
-	if err != nil {
-		return "", fmt.Errorf("unable to read the authentication response: %v", err)
-	}
-	response := &TokenResponse{}
-	if err := json.Unmarshal(data, response); err != nil {
-		return "", fmt.Errorf("unable to parse the authentication response: %v", err)
+	response, parseErr := parseTokenFromBody(resp.Body, 16*1024)
+	if parseErr != nil {
+		return "", parseErr
 	}
 
 	t.value = response.Token
@@ -92,6 +89,18 @@ func (t *token) Labels() (map[string]string, bool) {
 	return labels, true
 }
 
+func parseTokenFromBody(r io.Reader, limitBytes int64) (*TokenResponse, error) {
+	data, err := ioutil.ReadAll(io.LimitReader(r, limitBytes))
+	if err != nil {
+		return nil, fmt.Errorf("unable to read the authentication response: %v", err)
+	}
+	response := &TokenResponse{}
+	if err := json.Unmarshal(data, response); err != nil {
+		return nil, fmt.Errorf("unable to parse the authentication response: %v", err)
+	}
+	return response, nil
+}
+
 type ServerRotatingRoundTripper struct {
 	endpoint     *url.URL
 	initialToken string
@@ -125,7 +134,7 @@ func (rt *ServerRotatingRoundTripper) RoundTrip(req *http.Request) (*http.Respon
 func (rt *ServerRotatingRoundTripper) Labels() (map[string]string, error) {
 	_, err := rt.token.Load(rt.endpoint, rt.initialToken, rt.wrapper)
 	if err != nil {
-		return nil, fmt.Errorf("unable to access labels: %v", err)
+		return nil, fmt.Errorf("unable to authorize to server: %v", err)
 	}
 	labels, ok := rt.token.Labels()
 	if !ok {

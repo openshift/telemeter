@@ -1,4 +1,4 @@
-package remoteauthserver
+package server
 
 import (
 	"bytes"
@@ -46,8 +46,6 @@ func New(partitionKey string, to *url.URL, client *http.Client, expireInSeconds 
 }
 
 func (a *Authorizer) AuthorizeHTTP(w http.ResponseWriter, req *http.Request) {
-	log.Printf("Performing authorization check")
-
 	if req.Method != "POST" {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return

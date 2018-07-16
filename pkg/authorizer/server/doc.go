@@ -1,6 +1,6 @@
-// Package remoteauthserver implements an HTTP handler that either delegates
+// Package server implements an HTTP handler that either delegates
 // authorization of a token/cluster combo to a remote server via API or performs
-// a simple stub authentication.
+// a simple stub authentication locally.
 //
 // Remote authorization is performed by:
 //
@@ -10,4 +10,7 @@
 //   4. Parsing the body of the response as TokenResponse as JSON
 //   5. Returning the transformed data from the response to the caller.
 //
-package remoteauthserver
+// The result of remote authorization is a JWT signed assertion from the cluster
+// signer which is then sent back to the client. Subsequent requests may use the
+// JWT assertion to authenticate.
+package server

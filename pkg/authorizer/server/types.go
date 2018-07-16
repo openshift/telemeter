@@ -1,4 +1,4 @@
-package remoteauthserver
+package server
 
 type TokenRequest struct {
 	APIVersion string `json:"api_version"`
