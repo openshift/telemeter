@@ -160,6 +160,15 @@ func (o *Options) Run() error {
 		}
 		o.Rules = append(o.Rules, strings.Split(string(data), "\n")...)
 	}
+	var rules []string
+	for _, s := range o.Rules {
+		s = strings.TrimSpace(s)
+		if len(s) == 0 {
+			continue
+		}
+		rules = append(rules, s)
+	}
+	o.Rules = rules
 
 	from, err := url.Parse(o.From)
 	if err != nil {
