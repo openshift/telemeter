@@ -1,0 +1,55 @@
+#
+# Start a simple telemeter cluster that can be scale up to handle multiple traffic.
+# Expects that an authorization service is running in the same namespace.
+#
+kind: List
+apiVersion: v1
+items:
+- kind: Deployment
+  apiVersion: apps/v1
+  metadata:
+    name: telemeter-client
+  spec:
+    selector:
+      matchLabels:
+        app: telemeter-client
+    template:
+      metadata:
+        labels:
+          app: telemeter-client
+      spec:
+        volumes:
+        - name: credentials
+          secret:
+            secretName: telemeter-client
+        containers:
+        - name: client
+          image: openshift/origin-telemeter:v3.11
+          volumeMounts:
+          - name: credentials
+            mountPath: /etc/telemeter
+          env:
+          - name: TO
+            valueFrom:
+              secretKeyRef:
+                name: telemeter-client
+                key: to
+          - name: FROM
+            valueFrom:
+              secretKeyRef:
+                name: telemeter-client
+                key: from
+          - name: ID
+            valueFrom:
+              secretKeyRef:
+                name: telemeter-client
+                key: id
+          command:
+          - /usr/bin/telemeter-client
+          - --to=$(TO)
+          - --from=$(FROM)
+          - --id=$(ID)
+          - --from-token-file=/var/run/kubernetes.io/serviceaccount/token
+          - --to-token-file=/etc/telemeter/token
+          - --anonymize-salt-file=/etc/telemeter/salt
+          - --match-file=/etc/telemeter/rules
