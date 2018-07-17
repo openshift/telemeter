@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -39,18 +40,23 @@ func main() {
 	cmd.Flags().StringVar(&opt.Listen, "listen", opt.Listen, "A host:port to listen on for health and metrics.")
 	cmd.Flags().StringVar(&opt.From, "from", opt.From, "The Prometheus server to federate from.")
 	cmd.Flags().StringVar(&opt.FromToken, "from-token", opt.FromToken, "A bearer token to use when authenticating to the source Prometheus server.")
+	cmd.Flags().StringVar(&opt.FromTokenFile, "from-token-file", opt.FromTokenFile, "A file containing a bearer token to use when authenticating to the source Prometheus server.")
 	cmd.Flags().StringVar(&opt.Identifier, "id", opt.Identifier, "The unique identifier for metrics sent with this client.")
 	cmd.Flags().StringVar(&opt.To, "to", opt.To, "A telemeter server to send metrics to.")
 	cmd.Flags().StringVar(&opt.ToUpload, "to-upload", opt.ToUpload, "A telemeter server endpoint to push metrics to. Will be defaulted for standard servers.")
 	cmd.Flags().StringVar(&opt.ToAuthorize, "to-auth", opt.ToAuthorize, "A telemeter server endpoint to exchange the bearer token for an access token. Will be defaulted for standard servers.")
 	cmd.Flags().StringVar(&opt.ToToken, "to-token", opt.ToToken, "A bearer token to use when authenticating to the destination telemeter server.")
+	cmd.Flags().StringVar(&opt.ToTokenFile, "to-token-file", opt.ToTokenFile, "A file containing a bearer token to use when authenticating to the destination telemeter server.")
 	cmd.Flags().StringArrayVar(&opt.LabelFlag, "label", opt.LabelFlag, "Labels to add to each outgoing metric, in key=value form.")
 	cmd.Flags().DurationVar(&opt.Interval, "interval", opt.Interval, "The interval between scrapes. Prometheus returns the last 5 minutes of metrics when invoking the federation endpoint.")
 
 	// TODO: more complex input definition, such as a JSON struct
 	cmd.Flags().StringArrayVar(&opt.Rules, "match", opt.Rules, "Match rules to federate.")
+	cmd.Flags().StringVar(&opt.RulesFile, "match-file", opt.RulesFile, "A file containing match rules to federate, one rule per line.")
+
 	cmd.Flags().StringArrayVar(&opt.AnonymizeLabels, "anonymize-labels", opt.AnonymizeLabels, "Anonymize the values of the provided values before sending them on.")
 	cmd.Flags().StringVar(&opt.AnonymizeSalt, "anonymize-salt", opt.AnonymizeSalt, "A secret and unguessable value used to anonymize the input data.")
+	cmd.Flags().StringVar(&opt.AnonymizeSaltFile, "anonymize-salt-file", opt.AnonymizeSaltFile, "A file containing a secret and unguessable value used to anonymize the input data.")
 
 	if err := cmd.Execute(); err != nil {
 		os.Exit(1)
@@ -61,18 +67,22 @@ type Options struct {
 	Listen     string
 	LimitBytes int64
 
-	From        string
-	To          string
-	ToUpload    string
-	ToAuthorize string
-	FromToken   string
-	ToToken     string
-	Identifier  string
+	From          string
+	To            string
+	ToUpload      string
+	ToAuthorize   string
+	FromToken     string
+	FromTokenFile string
+	ToToken       string
+	ToTokenFile   string
+	Identifier    string
 
-	AnonymizeLabels []string
-	AnonymizeSalt   string
+	AnonymizeLabels   []string
+	AnonymizeSalt     string
+	AnonymizeSaltFile string
 
-	Rules []string
+	Rules     []string
+	RulesFile string
 
 	LabelFlag []string
 	Labels    map[string]string
@@ -106,6 +116,29 @@ func (o *Options) Run() error {
 	if len(o.From) == 0 {
 		return fmt.Errorf("you must specify a Prometheus server to federate from (e.g. http://localhost:9090)")
 	}
+
+	if len(o.ToToken) == 0 && len(o.ToTokenFile) > 0 {
+		data, err := ioutil.ReadFile(o.ToTokenFile)
+		if err != nil {
+			return fmt.Errorf("unable to read --to-token-file: %v", err)
+		}
+		o.ToToken = strings.TrimSpace(string(data))
+	}
+	if len(o.FromToken) == 0 && len(o.FromTokenFile) > 0 {
+		data, err := ioutil.ReadFile(o.FromTokenFile)
+		if err != nil {
+			return fmt.Errorf("unable to read --from-token-file: %v", err)
+		}
+		o.FromToken = strings.TrimSpace(string(data))
+	}
+	if len(o.AnonymizeSalt) == 0 && len(o.AnonymizeSaltFile) > 0 {
+		data, err := ioutil.ReadFile(o.AnonymizeSaltFile)
+		if err != nil {
+			return fmt.Errorf("unable to read --anonymize-salt-file: %v", err)
+		}
+		o.AnonymizeSalt = strings.TrimSpace(string(data))
+	}
+
 	if len(o.AnonymizeLabels) > 0 && len(o.AnonymizeSalt) == 0 {
 		return fmt.Errorf("you must specify --anonymize-salt when --anonymize-labels is used")
 	}
@@ -118,6 +151,14 @@ func (o *Options) Run() error {
 			o.Labels = make(map[string]string)
 		}
 		o.Labels[values[0]] = values[1]
+	}
+
+	if len(o.RulesFile) > 0 {
+		data, err := ioutil.ReadFile(o.RulesFile)
+		if err != nil {
+			return fmt.Errorf("--match-file could not be loaded: %v", err)
+		}
+		o.Rules = append(o.Rules, strings.Split(string(data), "\n")...)
 	}
 
 	from, err := url.Parse(o.From)
