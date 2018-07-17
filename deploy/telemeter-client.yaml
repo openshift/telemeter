@@ -49,7 +49,7 @@ items:
           - --to=$(TO)
           - --from=$(FROM)
           - --id=$(ID)
-          - --from-token-file=/var/run/kubernetes.io/serviceaccount/token
+          - --from-token-file=/var/run/secrets/kubernetes.io/serviceaccount/token
           - --to-token-file=/etc/telemeter/token
           - --anonymize-salt-file=/etc/telemeter/salt
           - --match-file=/etc/telemeter/rules
