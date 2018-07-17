@@ -54,8 +54,9 @@ items:
           command:
           - /usr/bin/telemeter-client
           - --to=$(TO)
-          - --from=$(FROM)
           - --id=$(ID)
+          - --from=https://prometheus-k8s.openshift-monitoring.svc:9091
+          - --from-ca-cert=/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
           - --from-token-file=/var/run/secrets/kubernetes.io/serviceaccount/token
           - --to-token-file=/etc/telemeter/token
           - --anonymize-salt-file=/etc/telemeter/salt
