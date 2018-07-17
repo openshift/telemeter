@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -40,6 +42,7 @@ func main() {
 	cmd.Flags().StringVar(&opt.Listen, "listen", opt.Listen, "A host:port to listen on for health and metrics.")
 	cmd.Flags().StringVar(&opt.From, "from", opt.From, "The Prometheus server to federate from.")
 	cmd.Flags().StringVar(&opt.FromToken, "from-token", opt.FromToken, "A bearer token to use when authenticating to the source Prometheus server.")
+	cmd.Flags().StringVar(&opt.FromCAFile, "from-ca-file", opt.FromCAFile, "A file containing the CA certificate to use to verify the --from URL in addition to the system roots certificates.")
 	cmd.Flags().StringVar(&opt.FromTokenFile, "from-token-file", opt.FromTokenFile, "A file containing a bearer token to use when authenticating to the source Prometheus server.")
 	cmd.Flags().StringVar(&opt.Identifier, "id", opt.Identifier, "The unique identifier for metrics sent with this client.")
 	cmd.Flags().StringVar(&opt.To, "to", opt.To, "A telemeter server to send metrics to.")
@@ -71,6 +74,7 @@ type Options struct {
 	To            string
 	ToUpload      string
 	ToAuthorize   string
+	FromCAFile    string
 	FromToken     string
 	FromTokenFile string
 	ToToken       string
@@ -221,7 +225,25 @@ func (o *Options) Run() error {
 		return fmt.Errorf("either --to or --to-auth and --to-upload must be specified")
 	}
 
-	fromClient := &http.Client{Transport: metricsclient.DefaultTransport()}
+	fromTransport := metricsclient.DefaultTransport()
+	if len(o.FromCAFile) > 0 {
+		if fromTransport.TLSClientConfig == nil {
+			fromTransport.TLSClientConfig = &tls.Config{}
+		}
+		pool, err := x509.SystemCertPool()
+		if err != nil {
+			return fmt.Errorf("can't read system certificates when --from-ca-file was specified: %v", err)
+		}
+		data, err := ioutil.ReadFile(o.FromCAFile)
+		if err != nil {
+			return fmt.Errorf("can't read --from-ca-file: %v", err)
+		}
+		if !pool.AppendCertsFromPEM(data) {
+			log.Printf("warning: No certs found in --from-ca-file")
+		}
+		fromTransport.TLSClientConfig.RootCAs = pool
+	}
+	fromClient := &http.Client{Transport: fromTransport}
 	if len(o.FromToken) > 0 {
 		fromClient.Transport = telemeterhttp.NewBearerRoundTripper(o.FromToken, fromClient.Transport)
 	}
