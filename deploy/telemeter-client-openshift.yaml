@@ -41,11 +41,6 @@ items:
               secretKeyRef:
                 name: telemeter-client
                 key: to
-          - name: FROM
-            valueFrom:
-              secretKeyRef:
-                name: telemeter-client
-                key: from
           - name: ID
             valueFrom:
               secretKeyRef:
@@ -56,7 +51,7 @@ items:
           - --to=$(TO)
           - --id=$(ID)
           - --from=https://prometheus-k8s.openshift-monitoring.svc:9091
-          - --from-ca-cert=/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
+          - --from-ca-file=/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
           - --from-token-file=/var/run/secrets/kubernetes.io/serviceaccount/token
           - --to-token-file=/etc/telemeter/token
           - --anonymize-salt-file=/etc/telemeter/salt
