@@ -42,7 +42,7 @@ type metricMessageHeader struct {
 }
 
 type LocalStore interface {
-	ReadMetrics(ctx context.Context, fn func(partitionKey string, families []*clientmodel.MetricFamily) error) error
+	ReadMetrics(ctx context.Context, minTimestampMs int64, fn func(partitionKey string, families []*clientmodel.MetricFamily) error) error
 	WriteMetrics(ctx context.Context, partitionKey string, families []*clientmodel.MetricFamily) error
 }
 
@@ -357,8 +357,8 @@ func (c *DynamicCluster) forwardMetrics(ctx context.Context, partitionKey string
 	return true, nil
 }
 
-func (c *DynamicCluster) ReadMetrics(ctx context.Context, fn func(partitionKey string, families []*clientmodel.MetricFamily) error) error {
-	return c.store.ReadMetrics(ctx, fn)
+func (c *DynamicCluster) ReadMetrics(ctx context.Context, minTimestampMs int64, fn func(partitionKey string, families []*clientmodel.MetricFamily) error) error {
+	return c.store.ReadMetrics(ctx, minTimestampMs, fn)
 }
 
 func (c *DynamicCluster) WriteMetrics(ctx context.Context, partitionKey string, families []*clientmodel.MetricFamily) error {

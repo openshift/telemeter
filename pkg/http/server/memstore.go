@@ -22,7 +22,7 @@ func NewMemoryStore() Store {
 	}
 }
 
-func (s *memoryStore) ReadMetrics(ctx context.Context, fn func(partitionKey string, families []*clientmodel.MetricFamily) error) error {
+func (s *memoryStore) ReadMetrics(ctx context.Context, minTimestampMs int64, fn func(partitionKey string, families []*clientmodel.MetricFamily) error) error {
 	s.lock.Lock()
 	store := s.store
 	s.store = make(map[string]*clusterMetricSlice)

@@ -2,6 +2,7 @@ package transform
 
 import (
 	"fmt"
+	"log"
 	"sort"
 	"time"
 
@@ -260,6 +261,30 @@ func (t *dropInvalidFederateSamples) Transform(family *clientmodel.MetricFamily)
 	return true, nil
 }
 
+type dropExpiredSamples struct {
+	min int64
+}
+
+func NewDropExpiredSamples(min time.Time) Interface {
+	return &dropExpiredSamples{
+		min: min.Unix() * 1000,
+	}
+}
+
+func (t *dropExpiredSamples) Transform(family *clientmodel.MetricFamily) (bool, error) {
+	for i, m := range family.Metric {
+		if m == nil {
+			continue
+		}
+		if m.TimestampMs == nil || *m.TimestampMs < t.min {
+			log.Printf("drop metric %d %d", *m.TimestampMs, t.min)
+			family.Metric[i] = nil
+			continue
+		}
+	}
+	return true, nil
+}
+
 type errorInvalidFederateSamples struct {
 	min int64
 }
@@ -361,7 +386,7 @@ Found:
 		if metrics[i] != nil {
 			continue
 		}
-		// scan for the next non-nil family
+		// scan for the next non-nil metric
 		if next <= i {
 			next = i + 1
 		}
@@ -369,12 +394,12 @@ Found:
 			if metrics[k] == nil {
 				continue
 			}
-			// fill the current i with a non-nil family
+			// fill the current i with a non-nil metric
 			metrics[i], metrics[k] = metrics[k], nil
 			next = k + 1
 			continue Found
 		}
-		// no more valid family
+		// no more valid metrics
 		family.Metric = metrics[:i]
 		break
 	}

@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/openshift/telemeter/pkg/untrusted"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/openshift/telemeter/pkg/untrusted"
 
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -85,7 +86,7 @@ func testPost(t *testing.T, validator server.UploadValidator, send, expect []*cl
 	mustPost(s.URL, expfmt.FmtProtoDelim, send)
 
 	var actual []*clientmodel.MetricFamily
-	err := store.ReadMetrics(context.Background(), func(partitionKey string, families []*clientmodel.MetricFamily) error {
+	err := store.ReadMetrics(context.Background(), 0, func(partitionKey string, families []*clientmodel.MetricFamily) error {
 		if partitionKey != "test" {
 			t.Fatalf("unexpected partition key: %s", partitionKey)
 		}
@@ -103,7 +104,7 @@ func testPost(t *testing.T, validator server.UploadValidator, send, expect []*cl
 func TestGet(t *testing.T) {
 	store := server.NewMemoryStore()
 	validator := untrusted.NewValidator("cluster", nil, 0, 0)
-	server := server.New(store, validator)
+	server := server.NewNonExpiring(store, validator)
 	s := httptest.NewServer(http.HandlerFunc(server.Get))
 	defer s.Close()
 
