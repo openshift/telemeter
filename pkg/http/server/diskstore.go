@@ -36,7 +36,7 @@ func lastFile(files []os.FileInfo) os.FileInfo {
 	return nil
 }
 
-func (s *DiskStore) ReadMetrics(ctx context.Context, fn func(partitionKey string, families []*clientmodel.MetricFamily) error) error {
+func (s *DiskStore) ReadMetrics(ctx context.Context, minTimestampMs int64, fn func(partitionKey string, families []*clientmodel.MetricFamily) error) error {
 	return filepath.Walk(s.path, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -83,6 +83,12 @@ func (s *DiskStore) ReadMetrics(ctx context.Context, fn func(partitionKey string
 		families, err := metricsclient.Read(f)
 		if err != nil {
 			return fmt.Errorf("unable to read data for %s from %s: %v", partitionKey, lastFile.Name(), err)
+		}
+
+		if minTimestampMs > 0 && minTimestampMs > newestTimestamp(families) {
+			f.Close()
+			os.Remove(path)
+			return nil
 		}
 
 		if err := fn(partitionKey, families); err != nil {

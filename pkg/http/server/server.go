@@ -14,8 +14,11 @@ import (
 	"github.com/openshift/telemeter/pkg/transform"
 )
 
+// maxSampleAge is the maximum age of a sample that we can report via federation.
+const maxSampleAge = 10 * time.Minute
+
 type Store interface {
-	ReadMetrics(ctx context.Context, fn func(partitionKey string, families []*clientmodel.MetricFamily) error) error
+	ReadMetrics(ctx context.Context, minTimestampMs int64, fn func(partitionKey string, families []*clientmodel.MetricFamily) error) error
 	WriteMetrics(ctx context.Context, partitionKey string, families []*clientmodel.MetricFamily) error
 }
 
@@ -26,12 +29,22 @@ type UploadValidator interface {
 type Server struct {
 	store     Store
 	validator UploadValidator
+	nowFn     func() time.Time
 }
 
 func New(store Store, validator UploadValidator) *Server {
 	return &Server{
 		store:     store,
 		validator: validator,
+		nowFn:     time.Now,
+	}
+}
+
+func NewNonExpiring(store Store, validator UploadValidator) *Server {
+	return &Server{
+		store:     store,
+		validator: validator,
+		nowFn:     nil,
 	}
 }
 
@@ -43,9 +56,25 @@ func (s *Server) Get(w http.ResponseWriter, req *http.Request) {
 	format := expfmt.Negotiate(req.Header)
 	encoder := expfmt.NewEncoder(w, format)
 	ctx := context.Background()
-	err := s.store.ReadMetrics(ctx, func(partitionKey string, families []*clientmodel.MetricFamily) error {
+
+	// samples older than 10 minutes must be ignored
+	var minTimeMs int64
+	var filter transform.All
+	if s.nowFn != nil {
+		minTime := s.nowFn().Add(-maxSampleAge)
+		minTimeMs = minTime.UnixNano() / int64(time.Millisecond)
+		filter = transform.All{
+			transform.NewDropExpiredSamples(minTime),
+			transform.PackMetrics,
+		}
+	}
+
+	err := s.store.ReadMetrics(ctx, minTimeMs, func(partitionKey string, families []*clientmodel.MetricFamily) error {
 		for _, family := range families {
 			if family == nil {
+				continue
+			}
+			if ok, err := filter.Transform(family); err != nil || !ok {
 				continue
 			}
 			if err := encoder.Encode(family); err != nil {
