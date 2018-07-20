@@ -50,12 +50,14 @@ func main() {
 	cmd.Flags().StringVar(&opt.ToAuthorize, "to-auth", opt.ToAuthorize, "A telemeter server endpoint to exchange the bearer token for an access token. Will be defaulted for standard servers.")
 	cmd.Flags().StringVar(&opt.ToToken, "to-token", opt.ToToken, "A bearer token to use when authenticating to the destination telemeter server.")
 	cmd.Flags().StringVar(&opt.ToTokenFile, "to-token-file", opt.ToTokenFile, "A file containing a bearer token to use when authenticating to the destination telemeter server.")
-	cmd.Flags().StringArrayVar(&opt.LabelFlag, "label", opt.LabelFlag, "Labels to add to each outgoing metric, in key=value form.")
 	cmd.Flags().DurationVar(&opt.Interval, "interval", opt.Interval, "The interval between scrapes. Prometheus returns the last 5 minutes of metrics when invoking the federation endpoint.")
 
 	// TODO: more complex input definition, such as a JSON struct
 	cmd.Flags().StringArrayVar(&opt.Rules, "match", opt.Rules, "Match rules to federate.")
 	cmd.Flags().StringVar(&opt.RulesFile, "match-file", opt.RulesFile, "A file containing match rules to federate, one rule per line.")
+
+	cmd.Flags().StringArrayVar(&opt.LabelFlag, "label", opt.LabelFlag, "Labels to add to each outgoing metric, in key=value form.")
+	cmd.Flags().StringSliceVar(&opt.RenameFlag, "rename", opt.RenameFlag, "Rename metrics before sending by specifying OLD=NEW name pairs. Defaults to renaming ALERTS to alerts. Defaults to ALERTS=alerts.")
 
 	cmd.Flags().StringArrayVar(&opt.AnonymizeLabels, "anonymize-labels", opt.AnonymizeLabels, "Anonymize the values of the provided values before sending them on.")
 	cmd.Flags().StringVar(&opt.AnonymizeSalt, "anonymize-salt", opt.AnonymizeSalt, "A secret and unguessable value used to anonymize the input data.")
@@ -81,6 +83,9 @@ type Options struct {
 	ToTokenFile   string
 	Identifier    string
 
+	RenameFlag []string
+	Renames    map[string]string
+
 	AnonymizeLabels   []string
 	AnonymizeSalt     string
 	AnonymizeSaltFile string
@@ -103,6 +108,9 @@ func (o *Options) Transforms() []transform.Interface {
 	}
 	if len(o.AnonymizeLabels) > 0 {
 		transforms = append(transforms, transform.NewMetricsAnonymizer(o.AnonymizeSalt, o.AnonymizeLabels, nil))
+	}
+	if len(o.Renames) > 0 {
+		transforms = append(transforms, transform.RenameMetrics{Names: o.Renames})
 	}
 	transforms = append(transforms,
 		transform.NewDropInvalidFederateSamples(time.Now().Add(-24*time.Hour)),
@@ -155,6 +163,23 @@ func (o *Options) Run() error {
 			o.Labels = make(map[string]string)
 		}
 		o.Labels[values[0]] = values[1]
+	}
+
+	if len(o.RenameFlag) == 0 {
+		o.RenameFlag = []string{"ALERTS=alerts"}
+	}
+	for _, flag := range o.RenameFlag {
+		if len(flag) == 0 {
+			continue
+		}
+		values := strings.SplitN(flag, "=", 2)
+		if len(values) != 2 {
+			return fmt.Errorf("--rename must be of the form OLD_NAME=NEW_NAME: %s", flag)
+		}
+		if o.Renames == nil {
+			o.Renames = make(map[string]string)
+		}
+		o.Renames[values[0]] = values[1]
 	}
 
 	if len(o.RulesFile) > 0 {
