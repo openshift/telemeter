@@ -3,3 +3,4 @@
 {__name__="machine_cpu_cores"}
 {__name__="machine_memory_bytes"}
 {__name__="etcd_object_counts"}
+{__name__="ALERTS",alertstate="firing"}

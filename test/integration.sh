@@ -42,12 +42,11 @@ trap 'kill $(jobs -p); exit 0' EXIT
     --to "http://localhost:9003" \
     --id "test" \
     --to-token a \
-    --interval 30s \
+    --interval 15s \
     --anonymize-labels "instance" --anonymize-salt "a-unique-value" \
-    --match '{__name__="up"}' \
-    --match '{__name__="openshift_build_info"}' \
-    --match '{__name__="machine_cpu_cores"}' \
-    --match '{__name__="machine_memory_bytes"}' 
+    --rename ALERTS=alerts --rename openshift_build_info=build_info --rename scrape_samples_scraped=scraped \
+    --match-file "deploy/default-rules" \
+    --match '{__name__="scrape_samples_scraped"}'
 ) &
 
 ( ./telemeter-server --authorize http://localhost:9001 --name instance-0 "--storage-dir=$(mktemp -d)" --shared-key=test/test.key --listen localhost:9003 --listen-internal localhost:9004 --listen-cluster 127.0.0.1:9006 --join 127.0.0.1:9016 -v ) &
@@ -64,7 +63,14 @@ if [[ -n "${test-}" ]]; then
       echo "error: Did not successfully retrieve cluster metrics from the local Prometheus server" 1>&2
       exit 1
     fi
+    # verify we scrape metrics from the test cluster and give it _id test
     if [[ "$( curl http://localhost:9005/api/v1/query --data-urlencode 'query=count({_id="test"})' -G 2>/dev/null | python -c 'import sys, json; print json.load(sys.stdin)["data"]["result"][0]["value"][1]' 2>/dev/null )" -eq 0 ]]; then
+      retries=$((retries-1))
+      sleep 1
+      continue
+    fi
+    # verify we rename openshift_build_info to build_info
+    if [[ "$( curl http://localhost:9005/api/v1/query --data-urlencode 'query=count(scraped{_id="test"})' -G 2>/dev/null | python -c 'import sys, json; print json.load(sys.stdin)["data"]["result"][0]["value"][1]' 2>/dev/null )" -eq 0 ]]; then
       retries=$((retries-1))
       sleep 1
       continue

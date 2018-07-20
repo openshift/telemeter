@@ -406,6 +406,20 @@ Found:
 	return len(family.Metric) > 0, nil
 }
 
+type RenameMetrics struct {
+	Names map[string]string
+}
+
+func (m RenameMetrics) Transform(family *clientmodel.MetricFamily) (bool, error) {
+	if family == nil || family.Name == nil {
+		return true, nil
+	}
+	if replace, ok := m.Names[*family.Name]; ok {
+		family.Name = &replace
+	}
+	return true, nil
+}
+
 var SortMetrics = sortMetrics{}
 
 type sortMetrics struct{}
