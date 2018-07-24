@@ -2,7 +2,6 @@ package transform
 
 import (
 	"fmt"
-	"log"
 	"sort"
 	"time"
 
@@ -283,7 +282,6 @@ func (t *dropExpiredSamples) Transform(family *clientmodel.MetricFamily) (bool, 
 			continue
 		}
 		if m.TimestampMs == nil || *m.TimestampMs < t.min {
-			log.Printf("drop metric %d %d", *m.TimestampMs, t.min)
 			family.Metric[i] = nil
 			continue
 		}
