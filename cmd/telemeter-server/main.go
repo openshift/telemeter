@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"github.com/cockroachdb/cmux"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 
 	"github.com/openshift/telemeter/pkg/authorizer/jwt"
@@ -64,7 +66,28 @@ and the metrics from the client are stored in a snappy-compressed protobuf file
 (the Prometheus delimited format).
 `
 
+var (
+	metricRequestAuthorize = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "telemeter_server_request_authorize",
+		Help: "Tracks the number of authorization requests.",
+	}, []string{"code"})
+	metricRequestAuthorizeLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name: "telemeter_server_request_authorize_latency",
+		Help: "Tracks latency on authorization requests.",
+	}, []string{})
+	metricRequestFederate = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "telemeter_server_request_federate",
+		Help: "Tracks the number of federated uploads.",
+	}, []string{"code"})
+	metricRequestFederateLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name: "telemeter_server_request_federate_latency",
+		Help: "Tracks latency on federated uploads.",
+	}, []string{})
+)
+
 func main() {
+	prometheus.MustRegister(metricRequestAuthorize, metricRequestAuthorizeLatency, metricRequestFederate, metricRequestFederateLatency)
+
 	opt := &Options{
 		Listen:         "0.0.0.0:9003",
 		ListenInternal: "localhost:9004",
@@ -316,7 +339,13 @@ func (o *Options) Run() error {
 	telemeterhttp.AddMetrics(internal)
 	telemeterhttp.AddHealth(internal)
 
-	externalProtected.Handle("/upload", http.HandlerFunc(server.Post))
+	externalProtected.Handle("/upload",
+		promhttp.InstrumentHandlerCounter(metricRequestFederate,
+			promhttp.InstrumentHandlerDuration(metricRequestFederateLatency,
+				http.HandlerFunc(server.Post),
+			),
+		),
+	)
 	externalProtectedHandler := httpauthorizer.New(externalProtected, authorizer)
 
 	external.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -328,7 +357,13 @@ func (o *Options) Run() error {
 		externalProtectedHandler.ServeHTTP(w, req)
 	}))
 	telemeterhttp.AddHealth(external)
-	external.Handle("/authorize", http.HandlerFunc(auth.AuthorizeHTTP))
+	external.Handle("/authorize",
+		promhttp.InstrumentHandlerCounter(metricRequestAuthorize,
+			promhttp.InstrumentHandlerDuration(metricRequestAuthorizeLatency,
+				http.HandlerFunc(auth.AuthorizeHTTP),
+			),
+		),
+	)
 
 	log.Printf("Starting telemeter-server %s on %s (internal=%s, cluster=%s)", o.Name, o.Listen, o.ListenInternal, o.ListenCluster)
 

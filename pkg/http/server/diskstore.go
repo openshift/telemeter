@@ -14,6 +14,7 @@ import (
 	clientmodel "github.com/prometheus/client_model/go"
 
 	"github.com/openshift/telemeter/pkg/metricsclient"
+	"github.com/openshift/telemeter/pkg/transform"
 )
 
 type DiskStore struct {
@@ -122,6 +123,9 @@ func (s *DiskStore) WriteMetrics(ctx context.Context, partitionKey string, famil
 	if err := f.Close(); err != nil {
 		return fmt.Errorf("unable to commit metrics to disk %s: %v", path, err)
 	}
+
+	metricSamples.WithLabelValues("disk").Add(float64(transform.Metrics(families)))
+
 	return nil
 }
 
