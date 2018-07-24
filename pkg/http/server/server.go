@@ -24,7 +24,7 @@ var (
 		Name: "telemeter_server_request_receive",
 		Help: "Tracks the number of metrics requests received",
 	}, []string{"status_code"})
-	metricRequestReceiveLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	metricRequestReceiveLatency = prometheus.NewSummaryVec(prometheus.SummaryOpts{
 		Name: "telemeter_server_request_latency",
 		Help: "Tracks the latency of incoming requests by phase",
 	}, []string{"phase"})
