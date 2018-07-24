@@ -71,7 +71,7 @@ var (
 		Name: "telemeter_server_request_authorize",
 		Help: "Tracks the number of authorization requests.",
 	}, []string{"code"})
-	metricRequestAuthorizeLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	metricRequestAuthorizeLatency = prometheus.NewSummaryVec(prometheus.SummaryOpts{
 		Name: "telemeter_server_request_authorize_latency",
 		Help: "Tracks latency on authorization requests.",
 	}, []string{})
@@ -79,7 +79,7 @@ var (
 		Name: "telemeter_server_request_federate",
 		Help: "Tracks the number of federated uploads.",
 	}, []string{"code"})
-	metricRequestFederateLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	metricRequestFederateLatency = prometheus.NewSummaryVec(prometheus.SummaryOpts{
 		Name: "telemeter_server_request_federate_latency",
 		Help: "Tracks latency on federated uploads.",
 	}, []string{})

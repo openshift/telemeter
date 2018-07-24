@@ -32,7 +32,7 @@ var (
 		Name: "telemeter_server_cluster_forward_samples",
 		Help: "Tracks the number of samples forwarded by this server.",
 	})
-	metricForwardLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	metricForwardLatency = prometheus.NewSummaryVec(prometheus.SummaryOpts{
 		Name: "telemeter_server_cluster_forward_latency",
 		Help: "Tracks latency of forwarding results inside the cluster.",
 	}, []string{"result"})
