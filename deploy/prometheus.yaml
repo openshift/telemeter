@@ -69,3 +69,13 @@ items:
           - telemeter-cluster
           type: A
           port: 8081
+      - job_name: 'telemeter-server'
+        scrape_interval: 30s
+
+        metrics_path: '/metrics'
+
+        dns_sd_configs:
+        - names:
+          - telemeter-cluster
+          type: A
+          port: 8081

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"testing"
 	"time"
 
@@ -86,6 +87,7 @@ func TestServer_Get(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			sort.Slice(families, func(i, j int) bool { return families[i].GetName() < families[j].GetName() })
 			got, expected := familiesToText(families), familiesToText(tt.wantFamilies)
 			if got != expected {
 				t.Fatalf("unexpected result\n%s\n%s", got, expected)

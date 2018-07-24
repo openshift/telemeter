@@ -8,11 +8,31 @@ import (
 	"time"
 
 	"github.com/golang/snappy"
+	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 
 	"github.com/openshift/telemeter/pkg/transform"
 )
+
+var (
+	metricSamples = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "telemeter_server_samples",
+		Help: "Tracks the number of samples processed by this server.",
+	}, []string{"phase"})
+	metricRequestReceive = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "telemeter_server_request_receive",
+		Help: "Tracks the number of metrics requests received",
+	}, []string{"status_code"})
+	metricRequestReceiveLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name: "telemeter_server_request_latency",
+		Help: "Tracks the latency of incoming requests by phase",
+	}, []string{"phase"})
+)
+
+func init() {
+	prometheus.MustRegister(metricSamples, metricRequestReceive, metricRequestReceiveLatency)
+}
 
 // maxSampleAge is the maximum age of a sample that we can report via federation.
 const maxSampleAge = 10 * time.Minute
@@ -141,6 +161,8 @@ func decodeAndStoreMetrics(ctx context.Context, partitionKey string, decoder exp
 			return err
 		}
 	}
+
+	metricSamples.WithLabelValues("received").Add(float64(transform.Metrics(families)))
 
 	// filter the list
 	for _, transform := range transforms {

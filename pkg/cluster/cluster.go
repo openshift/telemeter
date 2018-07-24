@@ -15,11 +15,32 @@ import (
 
 	"github.com/hashicorp/go-msgpack/codec"
 	"github.com/hashicorp/memberlist"
+	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/serialx/hashring"
 
 	"github.com/openshift/telemeter/pkg/metricsclient"
+	"github.com/openshift/telemeter/pkg/transform"
 )
+
+var (
+	metricForwardResult = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "telemeter_server_cluster_forward",
+		Help: "Tracks the outcome of forwarding results inside the cluster.",
+	}, []string{"result"})
+	metricForwardSamples = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "telemeter_server_cluster_forward_samples",
+		Help: "Tracks the number of samples forwarded by this server.",
+	})
+	metricForwardLatency = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name: "telemeter_server_cluster_forward_latency",
+		Help: "Tracks latency of forwarding results inside the cluster.",
+	}, []string{"result"})
+)
+
+func init() {
+	prometheus.MustRegister(metricForwardResult, metricForwardSamples, metricForwardLatency)
+}
 
 var msgHandle = &codec.MsgpackHandle{}
 
@@ -303,27 +324,27 @@ func (c *DynamicCluster) problemDetected(name string, now time.Time) {
 func (c *DynamicCluster) findRemote(partitionKey string, now time.Time) (*memberlist.Node, bool) {
 	if c.ml.NumMembers() < 2 {
 		log.Printf("Only a single node, do nothing")
+		metricForwardResult.WithLabelValues("singleton").Inc()
 		return nil, false
 	}
 
 	nodeName, ok := c.getNodeForKey(partitionKey)
 	if !ok {
 		log.Printf("No node found in ring for %s", partitionKey)
+		metricForwardResult.WithLabelValues("no_key").Inc()
 		return nil, false
 	}
 
 	if c.hasProblems(nodeName, now) {
 		log.Printf("Node %s has failed recently, using local storage", nodeName)
+		metricForwardResult.WithLabelValues("recently_failed").Inc()
 		return nil, false
 	}
 
 	node := c.memberByName(nodeName)
 	if node == nil {
 		log.Printf("No node found named %s", nodeName)
-		return nil, false
-	}
-
-	if node.Name == c.name {
+		metricForwardResult.WithLabelValues("no_member").Inc()
 		return nil, false
 	}
 	return node, true
@@ -334,6 +355,9 @@ func (c *DynamicCluster) forwardMetrics(ctx context.Context, partitionKey string
 
 	node, ok := c.findRemote(partitionKey, now)
 	if !ok {
+		return false, fmt.Errorf("cannot forward")
+	}
+	if node.Name == c.name {
 		return false, nil
 	}
 
@@ -343,15 +367,23 @@ func (c *DynamicCluster) forwardMetrics(ctx context.Context, partitionKey string
 	// write the metric message
 	buf.WriteByte(byte(metricMessage))
 	if err := enc.Encode(&metricMessageHeader{PartitionKey: partitionKey}); err != nil {
+		metricForwardResult.WithLabelValues("encode_header").Inc()
 		return false, err
 	}
 	if err := metricsclient.Write(buf, families); err != nil {
+		metricForwardResult.WithLabelValues("encode").Inc()
 		return false, fmt.Errorf("unable to write metrics: %v", err)
 	}
+
+	metricForwardSamples.Add(float64(transform.Metrics(families)))
 
 	if err := c.ml.SendReliable(node, buf.Bytes()); err != nil {
 		log.Printf("error: Failed to forward metrics to %s: %v", node, err)
 		c.problemDetected(node.Name, now)
+		metricForwardResult.WithLabelValues("send").Inc()
+		metricForwardLatency.WithLabelValues("send").Observe(time.Now().Sub(now).Seconds())
+	} else {
+		metricForwardLatency.WithLabelValues("").Observe(time.Now().Sub(now).Seconds())
 	}
 
 	return true, nil
@@ -369,9 +401,11 @@ func (c *DynamicCluster) WriteMetrics(ctx context.Context, partitionKey string, 
 		return c.store.WriteMetrics(ctx, partitionKey, families)
 	}
 	if ok {
-		// metrics were received
+		// metrics were forwarded successfully
+		metricForwardResult.WithLabelValues("").Inc()
 		return nil
 	}
 
+	metricForwardResult.WithLabelValues("self").Inc()
 	return c.store.WriteMetrics(ctx, partitionKey, families)
 }

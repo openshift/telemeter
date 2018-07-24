@@ -47,7 +47,7 @@ func New(partitionKey string, to *url.URL, client *http.Client, expireInSeconds 
 
 func (a *Authorizer) AuthorizeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.Method != "POST" {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		http.Error(w, "Only POST is allowed to this endpoint", http.StatusMethodNotAllowed)
 		return
 	}
 

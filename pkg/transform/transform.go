@@ -2,7 +2,6 @@ package transform
 
 import (
 	"fmt"
-	"log"
 	"sort"
 	"time"
 
@@ -223,13 +222,19 @@ func (t *dropInvalidFederateSamples) Transform(family *clientmodel.MetricFamily)
 		if m == nil {
 			continue
 		}
+		packLabels := false
 		for j, label := range m.Label {
 			if label.Name == nil || len(*label.Name) == 0 || len(*label.Name) > 255 {
 				m.Label[j] = nil
+				packLabels = true
 			}
-			if label.Value == nil || len(*label.Value) == 0 || len(*label.Value) > 255 {
+			if label.Value == nil || len(*label.Value) > 255 {
 				m.Label[j] = nil
+				packLabels = true
 			}
+		}
+		if packLabels {
+			m.Label = PackLabels(m.Label)
 		}
 		if m.TimestampMs == nil || *m.TimestampMs < t.min {
 			family.Metric[i] = nil
@@ -277,7 +282,6 @@ func (t *dropExpiredSamples) Transform(family *clientmodel.MetricFamily) (bool, 
 			continue
 		}
 		if m.TimestampMs == nil || *m.TimestampMs < t.min {
-			log.Printf("drop metric %d %d", *m.TimestampMs, t.min)
 			family.Metric[i] = nil
 			continue
 		}
@@ -324,7 +328,7 @@ func (t *errorInvalidFederateSamples) Transform(family *clientmodel.MetricFamily
 			if label.Name == nil || len(*label.Name) == 0 || len(*label.Name) > 255 {
 				return false, fmt.Errorf("label_name cannot be longer than 255 characters")
 			}
-			if label.Value == nil || len(*label.Value) == 0 || len(*label.Value) > 255 {
+			if label.Value == nil || len(*label.Value) > 255 {
 				return false, fmt.Errorf("label_value cannot be longer than 255 characters")
 			}
 		}
@@ -404,6 +408,36 @@ Found:
 		break
 	}
 	return len(family.Metric) > 0, nil
+}
+
+// PackLabels fills holes in the label slice by shifting items towards the zero index.
+// It will modify the slice in place.
+func PackLabels(labels []*clientmodel.LabelPair) []*clientmodel.LabelPair {
+	j := len(labels)
+	next := 0
+Found:
+	for i := 0; i < j; i++ {
+		if labels[i] != nil {
+			continue
+		}
+		// scan for the next non-nil metric
+		if next <= i {
+			next = i + 1
+		}
+		for k := next; k < j; k++ {
+			if labels[k] == nil {
+				continue
+			}
+			// fill the current i with a non-nil metric
+			labels[i], labels[k] = labels[k], nil
+			next = k + 1
+			continue Found
+		}
+		// no more valid metrics
+		labels = labels[:i]
+		break
+	}
+	return labels
 }
 
 type RenameMetrics struct {

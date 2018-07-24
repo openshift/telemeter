@@ -5,6 +5,8 @@ import (
 	"sync"
 
 	clientmodel "github.com/prometheus/client_model/go"
+
+	"github.com/openshift/telemeter/pkg/transform"
 )
 
 type clusterMetricSlice struct {
@@ -45,6 +47,8 @@ func (s *memoryStore) WriteMetrics(ctx context.Context, partitionKey string, fam
 		m = &clusterMetricSlice{}
 		s.store[partitionKey] = m
 	}
+
+	metricSamples.WithLabelValues("memory").Add(float64(transform.Metrics(families)))
 
 	m.families = families
 	return nil
