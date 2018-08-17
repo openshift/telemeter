@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"log"
 	"math/rand"
+	"mime"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -190,7 +191,9 @@ func (a *Authorizer) authorizeRemote(token, cluster string) (*TokenResponse, err
 		tryLogBody(resp.Body, 4*1024, "warning: Upstream server rejected with body:\n%s")
 		return nil, errWithCode{error: fmt.Errorf("Upstream rejected request with code %d", resp.StatusCode), code: http.StatusInternalServerError}
 	}
-	if contentType := resp.Header.Get("Content-Type"); contentType != "application/json" {
+	contentType := resp.Header.Get("Content-Type")
+	mediaType, _, err := mime.ParseMediaType(contentType)
+	if err != nil || mediaType != "application/json" {
 		log.Printf("warning: Upstream server %s responded with an unknown content type %q", a.to, contentType)
 		return nil, fmt.Errorf("unrecognized token response content-type %q", contentType)
 	}
