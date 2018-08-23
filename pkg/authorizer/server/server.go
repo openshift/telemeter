@@ -188,7 +188,7 @@ func (a *Authorizer) authorizeRemote(token, cluster string) (*TokenResponse, err
 	case http.StatusOK, http.StatusCreated:
 		// allowed
 	default:
-		tryLogBody(resp.Body, 4*1024, "warning: Upstream server rejected with body:\n%s")
+		tryLogBody(resp.Body, 4*1024, fmt.Sprintf("warning: Upstream server rejected request for cluster %q with body:\n%%s", cluster))
 		return nil, errWithCode{error: fmt.Errorf("Upstream rejected request with code %d", resp.StatusCode), code: http.StatusInternalServerError}
 	}
 	contentType := resp.Header.Get("Content-Type")
