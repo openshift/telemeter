@@ -20,18 +20,10 @@ var (
 		Name: "telemeter_server_samples",
 		Help: "Tracks the number of samples processed by this server.",
 	}, []string{"phase"})
-	metricRequestReceive = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "telemeter_server_request_receive",
-		Help: "Tracks the number of metrics requests received",
-	}, []string{"status_code"})
-	metricRequestReceiveLatency = prometheus.NewSummaryVec(prometheus.SummaryOpts{
-		Name: "telemeter_server_request_latency",
-		Help: "Tracks the latency of incoming requests by phase",
-	}, []string{"phase"})
 )
 
 func init() {
-	prometheus.MustRegister(metricSamples, metricRequestReceive, metricRequestReceiveLatency)
+	prometheus.MustRegister(metricSamples)
 }
 
 // maxSampleAge is the maximum age of a sample that we can report via federation.
