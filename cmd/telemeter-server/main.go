@@ -79,6 +79,10 @@ var (
 		Name: "telemeter_server_request_federate",
 		Help: "Tracks the number of federated uploads.",
 	}, []string{"code"})
+	metricRequestFederateSize = prometheus.NewSummaryVec(prometheus.SummaryOpts{
+		Name: "telemeter_server_request_federate_size_bytes",
+		Help: "Tracks the sum of request sizes of metrics received",
+	}, []string{"code"})
 	metricRequestFederateLatency = prometheus.NewSummaryVec(prometheus.SummaryOpts{
 		Name: "telemeter_server_request_federate_latency",
 		Help: "Tracks latency on federated uploads.",
@@ -86,7 +90,7 @@ var (
 )
 
 func main() {
-	prometheus.MustRegister(metricRequestAuthorize, metricRequestAuthorizeLatency, metricRequestFederate, metricRequestFederateLatency)
+	prometheus.MustRegister(metricRequestAuthorize, metricRequestAuthorizeLatency, metricRequestFederate, metricRequestFederateLatency, metricRequestFederateSize)
 
 	opt := &Options{
 		Listen:         "0.0.0.0:9003",
@@ -340,9 +344,11 @@ func (o *Options) Run() error {
 	telemeterhttp.AddHealth(internal)
 
 	externalProtected.Handle("/upload",
-		promhttp.InstrumentHandlerCounter(metricRequestFederate,
-			promhttp.InstrumentHandlerDuration(metricRequestFederateLatency,
-				http.HandlerFunc(server.Post),
+		promhttp.InstrumentHandlerRequestSize(metricRequestFederateSize,
+			promhttp.InstrumentHandlerCounter(metricRequestFederate,
+				promhttp.InstrumentHandlerDuration(metricRequestFederateLatency,
+					http.HandlerFunc(server.Post),
+				),
 			),
 		),
 	)
