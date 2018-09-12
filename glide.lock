@@ -1,16 +1,20 @@
-hash: fe35a870ea448b4b3e9d8f749fea1a2d3a79a22fcaddf3270e7cf3e0cb68b60b
-updated: 2018-06-21T23:45:24.546241777-04:00
+hash: 04f961407a6bd1b29e2ecb932125fdcc7f60a594006170e15981cbfb05a61798
+updated: 2018-09-12T11:23:26.666419526+02:00
 imports:
 - name: github.com/armon/go-metrics
-  version: 58588f401c2cc130a7308a52ca3bc6c0a76db04b
+  version: 3c58d8115a78a6879e5df75ae900846768d36895
 - name: github.com/beorn7/perks
-  version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
+  version: 3a771d992973f24aa725d07868b467d1ddfceafb
   subpackages:
   - quantile
 - name: github.com/cockroachdb/cmux
-  version: b64f5908f4945f4b11ed4a0a9d3cc1e23350866d
+  version: 30d10be492927e2dcae0089c374c455d42414fcb
+- name: github.com/gogo/protobuf
+  version: c0656edd0d9eab7c66d1eb0c568f9039345796f7
+  subpackages:
+  - proto
 - name: github.com/golang/protobuf
-  version: 1643683e1b54a9e88ad26d98f81400c8c9d9f4f9
+  version: aa810b61a9c79d51363740d207bb46cf8e620ed5
   subpackages:
   - proto
 - name: github.com/golang/snappy
@@ -18,7 +22,7 @@ imports:
 - name: github.com/hashicorp/errwrap
   version: 7554cd9344cec97297fa6649b055a8c98c2a1e55
 - name: github.com/hashicorp/go-immutable-radix
-  version: 7f3cd4390caab3250a57f30efdb2a65dd7649ecf
+  version: 27df80928bb34bb1b0d6d0e01b9e679902e7a6b5
 - name: github.com/hashicorp/go-msgpack
   version: fa3f63826f7c23912c15263591e65d54d080b458
   subpackages:
@@ -28,50 +32,55 @@ imports:
 - name: github.com/hashicorp/go-sockaddr
   version: 6d291a969b86c4b633730bfc6b8b9d64c3aafed9
 - name: github.com/hashicorp/golang-lru
-  version: a0d98a5f288019575c6d1f4bb1573fef2d1fcdc4
+  version: 20f1fb78b0740ba8c3cb143a61e86ba5c8669768
   subpackages:
   - simplelru
 - name: github.com/hashicorp/memberlist
-  version: 2288bf30e9c8d7b5f6549bf62e07120d72fd4b6c
+  version: b195c8e4fcc6284fff1583fd6ab09e68ca207551
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/matttproud/golang_protobuf_extensions
-  version: fc2b8d3a73c4867e51861bbdd5ae3c1f0869dd6a
+  version: c12348ce28de40eed0136aa2b644d0ee0650e56c
   subpackages:
   - pbutil
 - name: github.com/miekg/dns
-  version: 5a2b9fab83ff0f8bfc99684bd5f43a37abe560f1
+  version: e875a31a5cfbcd646131e625f24818cbae228913
 - name: github.com/prometheus/client_golang
-  version: e7e903064f5e9eb5da98208bae10b475d4db0f8c
+  version: 7858729281ec582767b20e0d696b6041d995d5e0
   subpackages:
   - prometheus
+  - prometheus/internal
+  - prometheus/promhttp
 - name: github.com/prometheus/client_model
-  version: fa8ad6fec33561be4280a8f0514318c79d7f6cb6
+  version: 5c3871d89910bfb32f5fcab2aa4b9ec68e65a99f
   subpackages:
   - go
 - name: github.com/prometheus/common
-  version: 13ba4ddd0caa9c28ca7b7bffe1dfa9ed8d5ef207
+  version: c7de2306084e37d54b8be01f3541a8464345e9a5
   subpackages:
   - expfmt
   - internal/bitbucket.org/ww/goautoneg
   - model
 - name: github.com/prometheus/procfs
-  version: 65c1f6f8f0fc1e2185eb9863a3bc751496404259
+  version: 05ee40e3a273f7245e8777337fc7b46e533a9a92
   subpackages:
+  - internal/util
+  - nfs
   - xfs
 - name: github.com/sean-/seed
   version: e2103e2c35297fb7e17febb81e49b312087a2372
 - name: github.com/serialx/hashring
   version: 49a4782e9908fe098c907022a1bd7519c79803d6
 - name: github.com/spf13/cobra
-  version: 6644d46b81fa1831979c4cded0106e774e0ef0ab
+  version: ef82de70bb3f60c65fb8eebacbb2d122ef517385
 - name: github.com/spf13/pflag
-  version: 4c012f6dcd9546820e378d0bdda4d8fc772cdfea
+  version: 9a97c102cda95a86cec2345a6f09f55a939babf5
 - name: golang.org/x/crypto
-  version: 81e90905daefcd6fd217b62423c0908922eadb30
+  version: df8d4716b3472e4a531c33cedbe537dae921a1a9
   subpackages:
   - ed25519
   - ed25519/internal/edwards25519
+  - pbkdf2
 - name: golang.org/x/net
   version: 1c05540f6879653db88113bc4a2b70aec4bd491f
   subpackages:
@@ -84,6 +93,10 @@ imports:
   - ipv4
   - ipv6
   - lex/httplex
+- name: golang.org/x/sys
+  version: 95c6576299259db960f6c5b9b69ea52422860fce
+  subpackages:
+  - unix
 - name: golang.org/x/text
   version: b19bf474d317b857955b12035d2c5acb57ce8b01
   subpackages:
@@ -92,7 +105,7 @@ imports:
   - unicode/bidi
   - unicode/norm
 - name: gopkg.in/square/go-jose.v2
-  version: f8f38de21b4dcd69d0413faf231983f5fd6634b1
+  version: 8254d6c783765f38c8675fae4427a1fe73fbd09d
   subpackages:
   - cipher
   - json

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -337,33 +338,42 @@ func BenchmarkServe(b *testing.B) {
 
 	c := new(Client)
 	m := new(Msg)
-	m.SetQuestion("miek.nl", TypeSOA)
+	m.SetQuestion("miek.nl.", TypeSOA)
 
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		c.Exchange(m, addrstr)
+		_, _, err := c.Exchange(m, addrstr)
+		if err != nil {
+			b.Fatalf("Exchange failed: %v", err)
+		}
 	}
 	runtime.GOMAXPROCS(a)
 }
 
-func benchmarkServe6(b *testing.B) {
+func BenchmarkServe6(b *testing.B) {
 	b.StopTimer()
 	HandleFunc("miek.nl.", HelloServer)
 	defer HandleRemove("miek.nl.")
 	a := runtime.GOMAXPROCS(4)
 	s, addrstr, err := RunLocalUDPServer("[::1]:0")
 	if err != nil {
+		if strings.Contains(err.Error(), "bind: cannot assign requested address") {
+			b.Skip("missing IPv6 support")
+		}
 		b.Fatalf("unable to run test server: %v", err)
 	}
 	defer s.Shutdown()
 
 	c := new(Client)
 	m := new(Msg)
-	m.SetQuestion("miek.nl", TypeSOA)
+	m.SetQuestion("miek.nl.", TypeSOA)
 
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		c.Exchange(m, addrstr)
+		_, _, err := c.Exchange(m, addrstr)
+		if err != nil {
+			b.Fatalf("Exchange failed: %v", err)
+		}
 	}
 	runtime.GOMAXPROCS(a)
 }
@@ -390,10 +400,13 @@ func BenchmarkServeCompress(b *testing.B) {
 
 	c := new(Client)
 	m := new(Msg)
-	m.SetQuestion("miek.nl", TypeSOA)
+	m.SetQuestion("miek.nl.", TypeSOA)
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		c.Exchange(m, addrstr)
+		_, _, err := c.Exchange(m, addrstr)
+		if err != nil {
+			b.Fatalf("Exchange failed: %v", err)
+		}
 	}
 	runtime.GOMAXPROCS(a)
 }
@@ -672,18 +685,66 @@ func TestShutdownUDP(t *testing.T) {
 }
 
 func TestServerStartStopRace(t *testing.T) {
+	var wg sync.WaitGroup
 	for i := 0; i < 10; i++ {
-		var err error
-		s := &Server{}
-		s, _, _, err = RunLocalUDPServerWithFinChan(":0")
+		wg.Add(1)
+		s, _, _, err := RunLocalUDPServerWithFinChan(":0")
 		if err != nil {
 			t.Fatalf("could not start server: %s", err)
 		}
 		go func() {
+			defer wg.Done()
 			if err := s.Shutdown(); err != nil {
-				t.Fatalf("could not stop server: %s", err)
+				t.Errorf("could not stop server: %s", err)
 			}
 		}()
+	}
+	wg.Wait()
+}
+
+func TestServerReuseport(t *testing.T) {
+	if !supportsReusePort {
+		t.Skip("reuseport is not supported")
+	}
+
+	startServer := func(addr string) (*Server, chan error) {
+		wait := make(chan struct{})
+		srv := &Server{
+			Net:               "udp",
+			Addr:              addr,
+			NotifyStartedFunc: func() { close(wait) },
+			ReusePort:         true,
+		}
+
+		fin := make(chan error, 1)
+		go func() {
+			fin <- srv.ListenAndServe()
+		}()
+
+		select {
+		case <-wait:
+		case err := <-fin:
+			t.Fatalf("failed to start server: %v", err)
+		}
+
+		return srv, fin
+	}
+
+	srv1, fin1 := startServer(":0") // :0 is resolved to a random free port by the kernel
+	srv2, fin2 := startServer(srv1.PacketConn.LocalAddr().String())
+
+	if err := srv1.Shutdown(); err != nil {
+		t.Fatalf("failed to shutdown first server: %v", err)
+	}
+	if err := srv2.Shutdown(); err != nil {
+		t.Fatalf("failed to shutdown second server: %v", err)
+	}
+
+	if err := <-fin1; err != nil {
+		t.Fatalf("first ListenAndServe returned error after Shutdown: %v", err)
+	}
+	if err := <-fin2; err != nil {
+		t.Fatalf("second ListenAndServe returned error after Shutdown: %v", err)
 	}
 }
 

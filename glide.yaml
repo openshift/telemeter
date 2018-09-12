@@ -4,5 +4,10 @@ import:
   subpackages:
   - prometheus
 - package: github.com/spf13/cobra
+  version: 0.0.3
 - package: github.com/spf13/pflag
-  version: 4c012f6dcd9546820e378d0bdda4d8fc772cdfea
+  version: 1.0.2
+- package: github.com/golang/protobuf
+  version: v1.2.0
+  subpackages:
+  - proto
