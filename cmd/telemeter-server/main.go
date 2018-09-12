@@ -67,30 +67,30 @@ and the metrics from the client are stored in a snappy-compressed protobuf file
 `
 
 var (
-	metricRequestAuthorize = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "telemeter_server_request_authorize",
-		Help: "Tracks the number of authorization requests.",
-	}, []string{"code"})
-	metricRequestAuthorizeLatency = prometheus.NewSummaryVec(prometheus.SummaryOpts{
-		Name: "telemeter_server_request_authorize_latency",
-		Help: "Tracks latency on authorization requests.",
-	}, []string{})
-	metricRequestFederate = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "telemeter_server_request_federate",
-		Help: "Tracks the number of federated uploads.",
-	}, []string{"code"})
-	metricRequestFederateSize = prometheus.NewSummaryVec(prometheus.SummaryOpts{
-		Name: "telemeter_server_request_federate_size_bytes",
-		Help: "Tracks the sum of request sizes of metrics received",
-	}, []string{"code"})
-	metricRequestFederateLatency = prometheus.NewSummaryVec(prometheus.SummaryOpts{
-		Name: "telemeter_server_request_federate_latency",
-		Help: "Tracks latency on federated uploads.",
-	}, []string{})
+	requestDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name: "http_request_duration_seconds",
+			Help: "Tracks the latencies for HTTP requests.",
+		},
+		[]string{"code", "handler", "method"},
+	)
+	requestSize = prometheus.NewSummaryVec(
+		prometheus.SummaryOpts{
+			Name: "http_request_size_bytes",
+			Help: "Tracks the size of HTTP requests.",
+		},
+		[]string{"code", "handler", "method"},
+	)
+	requestsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "http_requests_total",
+			Help: "Tracks the number of HTTP requests.",
+		}, []string{"code", "handler", "method"},
+	)
 )
 
 func main() {
-	prometheus.MustRegister(metricRequestAuthorize, metricRequestAuthorizeLatency, metricRequestFederate, metricRequestFederateLatency, metricRequestFederateSize)
+	prometheus.MustRegister(requestDuration, requestSize, requestsTotal)
 
 	opt := &Options{
 		Listen:         "0.0.0.0:9003",
@@ -343,15 +343,7 @@ func (o *Options) Run() error {
 	telemeterhttp.AddMetrics(internal)
 	telemeterhttp.AddHealth(internal)
 
-	externalProtected.Handle("/upload",
-		promhttp.InstrumentHandlerRequestSize(metricRequestFederateSize,
-			promhttp.InstrumentHandlerCounter(metricRequestFederate,
-				promhttp.InstrumentHandlerDuration(metricRequestFederateLatency,
-					http.HandlerFunc(server.Post),
-				),
-			),
-		),
-	)
+	externalProtected.Handle("/upload", instrumentHandler("upload", http.HandlerFunc(server.Post)))
 	externalProtectedHandler := httpauthorizer.New(externalProtected, authorizer)
 
 	external.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -363,13 +355,7 @@ func (o *Options) Run() error {
 		externalProtectedHandler.ServeHTTP(w, req)
 	}))
 	telemeterhttp.AddHealth(external)
-	external.Handle("/authorize",
-		promhttp.InstrumentHandlerCounter(metricRequestAuthorize,
-			promhttp.InstrumentHandlerDuration(metricRequestAuthorizeLatency,
-				http.HandlerFunc(auth.AuthorizeHTTP),
-			),
-		),
-	)
+	external.Handle("/authorize", instrumentHandler("authorize", http.HandlerFunc(auth.AuthorizeHTTP)))
 
 	log.Printf("Starting telemeter-server %s on %s (internal=%s, cluster=%s)", o.Name, o.Listen, o.ListenInternal, o.ListenCluster)
 
@@ -467,4 +453,18 @@ func loadPrivateKey(data []byte) (interface{}, error) {
 	}
 
 	return nil, fmt.Errorf("unable to parse private key data: '%s', '%s' and '%s'", err0, err1, err2)
+}
+
+// instrumentHandler instruments an http.HandlerFunc.
+func instrumentHandler(handlerName string, handler http.HandlerFunc) http.HandlerFunc {
+	return promhttp.InstrumentHandlerDuration(
+		requestDuration.MustCurryWith(prometheus.Labels{"handler": handlerName}),
+		promhttp.InstrumentHandlerRequestSize(
+			requestSize.MustCurryWith(prometheus.Labels{"handler": handlerName}),
+			promhttp.InstrumentHandlerCounter(
+				requestsTotal.MustCurryWith(prometheus.Labels{"handler": handlerName}),
+				handler,
+			),
+		),
+	)
 }
