@@ -19,8 +19,8 @@ import (
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/serialx/hashring"
 
+	"github.com/openshift/telemeter/pkg/metricfamily"
 	"github.com/openshift/telemeter/pkg/metricsclient"
-	"github.com/openshift/telemeter/pkg/transform"
 )
 
 var (
@@ -375,7 +375,7 @@ func (c *DynamicCluster) forwardMetrics(ctx context.Context, partitionKey string
 		return false, fmt.Errorf("unable to write metrics: %v", err)
 	}
 
-	metricForwardSamples.Add(float64(transform.Metrics(families)))
+	metricForwardSamples.Add(float64(metricfamily.MetricsCount(families)))
 
 	if err := c.ml.SendReliable(node, buf.Bytes()); err != nil {
 		log.Printf("error: Failed to forward metrics to %s: %v", node, err)

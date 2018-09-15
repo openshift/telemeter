@@ -1,4 +1,4 @@
-package transform
+package metricfamily
 
 import (
 	"reflect"
@@ -80,7 +80,7 @@ func TestPackMetrics(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, gotErr := PackMetrics.Transform(tt.args)
+			got, gotErr := PackMetrics(tt.args)
 			if got != tt.wantOk {
 				t.Errorf("PackMetrics() = %t, want %t", got, tt.wantOk)
 			}

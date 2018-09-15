@@ -11,12 +11,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
 
+	"github.com/openshift/telemeter/pkg/metricfamily"
 	"github.com/openshift/telemeter/pkg/metricsclient"
-	"github.com/openshift/telemeter/pkg/transform"
 )
 
 type Interface interface {
-	Transforms() []transform.Interface
+	Transforms() []metricfamily.Transformer
 	MatchRules() []string
 }
 
@@ -115,21 +115,21 @@ func (w *Worker) Run() {
 	}
 }
 
-func (w *Worker) forward(ctx context.Context, from *url.URL, transforms []transform.Interface) error {
+func (w *Worker) forward(ctx context.Context, from *url.URL, transforms []metricfamily.Transformer) error {
 	req := &http.Request{Method: "GET", URL: from}
 	families, err := w.FromClient.Retrieve(ctx, req)
 	if err != nil {
 		return err
 	}
 
-	before := transform.Metrics(families)
+	before := metricfamily.MetricsCount(families)
 	for _, t := range transforms {
-		if err := transform.Filter(families, t); err != nil {
+		if err := metricfamily.Filter(families, t); err != nil {
 			return err
 		}
 	}
-	families = transform.Pack(families)
-	after := transform.Metrics(families)
+	families = metricfamily.Pack(families)
+	after := metricfamily.MetricsCount(families)
 
 	gaugeFederateSamples.Set(float64(before))
 	gaugeFederateFilteredSamples.Set(float64(before - after))

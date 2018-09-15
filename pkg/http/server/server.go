@@ -12,7 +12,7 @@ import (
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 
-	"github.com/openshift/telemeter/pkg/transform"
+	"github.com/openshift/telemeter/pkg/metricfamily"
 )
 
 var (
@@ -35,7 +35,7 @@ type Store interface {
 }
 
 type UploadValidator interface {
-	ValidateUpload(ctx context.Context, req *http.Request) (string, []transform.Interface, error)
+	ValidateUpload(ctx context.Context, req *http.Request) (string, []metricfamily.Transformer, error)
 }
 
 type Server struct {
@@ -71,13 +71,13 @@ func (s *Server) Get(w http.ResponseWriter, req *http.Request) {
 
 	// samples older than 10 minutes must be ignored
 	var minTimeMs int64
-	var filter transform.All
+	var filter metricfamily.AllTransformer
 	if s.nowFn != nil {
 		minTime := s.nowFn().Add(-maxSampleAge)
 		minTimeMs = minTime.UnixNano() / int64(time.Millisecond)
-		filter = transform.All{
-			transform.NewDropExpiredSamples(minTime),
-			transform.PackMetrics,
+		filter = metricfamily.AllTransformer{
+			metricfamily.NewDropExpiredSamples(minTime),
+			metricfamily.TransformerFunc(metricfamily.PackMetrics),
 		}
 	}
 
@@ -141,7 +141,7 @@ func (s *Server) Post(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func decodeAndStoreMetrics(ctx context.Context, partitionKey string, decoder expfmt.Decoder, transforms []transform.Interface, store Store) error {
+func decodeAndStoreMetrics(ctx context.Context, partitionKey string, decoder expfmt.Decoder, transforms []metricfamily.Transformer, store Store) error {
 	families := make([]*clientmodel.MetricFamily, 0, 100)
 	for {
 		family := &clientmodel.MetricFamily{}
@@ -154,7 +154,7 @@ func decodeAndStoreMetrics(ctx context.Context, partitionKey string, decoder exp
 		}
 	}
 
-	metricSamples.WithLabelValues("received").Add(float64(transform.Metrics(families)))
+	metricSamples.WithLabelValues("received").Add(float64(metricfamily.MetricsCount(families)))
 
 	// filter the list
 	for _, transform := range transforms {
@@ -170,7 +170,7 @@ func decodeAndStoreMetrics(ctx context.Context, partitionKey string, decoder exp
 		}
 	}
 
-	families = transform.Pack(families)
+	families = metricfamily.Pack(families)
 
 	return store.WriteMetrics(ctx, partitionKey, families)
 }
