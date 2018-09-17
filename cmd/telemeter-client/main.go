@@ -19,8 +19,8 @@ import (
 	"github.com/openshift/telemeter/pkg/authorizer/remote"
 	"github.com/openshift/telemeter/pkg/forwarder"
 	telemeterhttp "github.com/openshift/telemeter/pkg/http"
+	"github.com/openshift/telemeter/pkg/metricfamily"
 	"github.com/openshift/telemeter/pkg/metricsclient"
-	"github.com/openshift/telemeter/pkg/transform"
 )
 
 func main() {
@@ -98,26 +98,26 @@ type Options struct {
 
 	Interval time.Duration
 
-	LabelRetriever transform.LabelRetriever
+	LabelRetriever metricfamily.LabelRetriever
 }
 
-func (o *Options) Transforms() []transform.Interface {
-	var transforms transform.All
+func (o *Options) Transforms() []metricfamily.Transformer {
+	var transforms metricfamily.AllTransformer
 	if len(o.Labels) > 0 || o.LabelRetriever != nil {
-		transforms = append(transforms, transform.NewLabel(o.Labels, o.LabelRetriever))
+		transforms = append(transforms, metricfamily.NewLabel(o.Labels, o.LabelRetriever))
 	}
 	if len(o.AnonymizeLabels) > 0 {
-		transforms = append(transforms, transform.NewMetricsAnonymizer(o.AnonymizeSalt, o.AnonymizeLabels, nil))
+		transforms = append(transforms, metricfamily.NewMetricsAnonymizer(o.AnonymizeSalt, o.AnonymizeLabels, nil))
 	}
 	if len(o.Renames) > 0 {
-		transforms = append(transforms, transform.RenameMetrics{Names: o.Renames})
+		transforms = append(transforms, metricfamily.RenameMetrics{Names: o.Renames})
 	}
 	transforms = append(transforms,
-		transform.NewDropInvalidFederateSamples(time.Now().Add(-24*time.Hour)),
-		transform.PackMetrics,
-		transform.SortMetrics,
+		metricfamily.NewDropInvalidFederateSamples(time.Now().Add(-24*time.Hour)),
+		metricfamily.TransformerFunc(metricfamily.PackMetrics),
+		metricfamily.TransformerFunc(metricfamily.SortMetrics),
 	)
-	return []transform.Interface{transforms}
+	return []metricfamily.Transformer{transforms}
 }
 
 func (o *Options) MatchRules() []string {

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/openshift/telemeter/pkg/metricfamily"
 	"github.com/openshift/telemeter/pkg/untrusted"
 
 	clientmodel "github.com/prometheus/client_model/go"
@@ -18,7 +19,6 @@ import (
 
 	"github.com/openshift/telemeter/pkg/authorizer"
 	"github.com/openshift/telemeter/pkg/http/server"
-	"github.com/openshift/telemeter/pkg/transform"
 )
 
 const (
@@ -119,12 +119,12 @@ func TestGet(t *testing.T) {
 }
 
 func sort(families []*clientmodel.MetricFamily) []*clientmodel.MetricFamily {
-	transform.Filter(families, transform.SortMetrics)
-	return transform.Pack(families)
+	metricfamily.Filter(families, metricfamily.TransformerFunc(metricfamily.SortMetrics))
+	return metricfamily.Pack(families)
 }
 
 func withLabels(families []*clientmodel.MetricFamily, labels map[string]string) []*clientmodel.MetricFamily {
-	transform.Filter(families, transform.NewLabel(labels, nil))
+	metricfamily.Filter(families, metricfamily.NewLabel(labels, nil))
 	return families
 }
 

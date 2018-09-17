@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/openshift/telemeter/pkg/authorizer"
+	"github.com/openshift/telemeter/pkg/metricfamily"
 	"github.com/openshift/telemeter/pkg/reader"
-	"github.com/openshift/telemeter/pkg/transform"
 )
 
 type Validator struct {
@@ -29,7 +29,7 @@ func NewValidator(partitionKey string, addLabels map[string]string, limitBytes i
 	}
 }
 
-func (v *Validator) ValidateUpload(ctx context.Context, req *http.Request) (string, []transform.Interface, error) {
+func (v *Validator) ValidateUpload(ctx context.Context, req *http.Request) (string, []metricfamily.Transformer, error) {
 	user, ok := authorizer.FromContext(ctx)
 	if !ok {
 		return "", nil, fmt.Errorf("unable to find user info")
@@ -38,25 +38,25 @@ func (v *Validator) ValidateUpload(ctx context.Context, req *http.Request) (stri
 		return "", nil, fmt.Errorf("user data must contain a '%s' label", v.partitionKey)
 	}
 
-	var transforms transform.All
+	var transforms metricfamily.AllTransformer
 
 	if v.maxAge > 0 {
-		transform.NewErrorInvalidFederateSamples(time.Now().Add(-v.maxAge))
+		metricfamily.NewErrorInvalidFederateSamples(time.Now().Add(-v.maxAge))
 	}
 
-	transforms = append(transforms, transform.NewErrorOnUnsorted(true))
+	transforms = append(transforms, metricfamily.NewErrorOnUnsorted(true))
 
 	if len(v.labels) > 0 {
-		transforms = append(transforms, transform.NewLabel(v.labels, nil))
+		transforms = append(transforms, metricfamily.NewLabel(v.labels, nil))
 	}
 
-	transforms = append(transforms, transform.NewRequiredLabels(user.Labels))
+	transforms = append(transforms, metricfamily.NewRequiredLabels(user.Labels))
 
-	transforms = append(transforms, transform.DropEmptyFamilies)
+	transforms = append(transforms, metricfamily.TransformerFunc(metricfamily.DropEmptyFamilies))
 
 	if v.limitBytes > 0 {
 		req.Body = reader.NewLimitReadCloser(req.Body, v.limitBytes)
 	}
 
-	return user.Labels[v.partitionKey], []transform.Interface{transforms}, nil
+	return user.Labels[v.partitionKey], []metricfamily.Transformer{transforms}, nil
 }
