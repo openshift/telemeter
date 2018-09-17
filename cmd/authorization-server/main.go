@@ -10,7 +10,7 @@ import (
 	"github.com/openshift/telemeter/pkg/authorizer/server"
 )
 
-type SavedResponse struct {
+type savedResponse struct {
 	Token         string               `json:"token"`
 	Cluster       string               `json:"cluster"`
 	TokenResponse server.TokenResponse `json:"response"`
@@ -26,7 +26,7 @@ func main() {
 		log.Fatalf("unable to read JSON file: %v", err)
 	}
 
-	var responses []SavedResponse
+	var responses []savedResponse
 	if err := json.Unmarshal(data, &responses); err != nil {
 		log.Fatalf("unable to parse contents of %s: %v", os.Args[2], err)
 	}

@@ -13,7 +13,7 @@ type User struct {
 	Labels map[string]string
 }
 
-var userKey key = 0
+var userKey key
 
 type key int
 
