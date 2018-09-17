@@ -69,7 +69,7 @@ if [[ -n "${test-}" ]]; then
       sleep 1
       continue
     fi
-    # verify we rename openshift_build_info to build_info
+    # verify we rename scrape_samples_scraped to scraped
     if [[ "$( curl http://localhost:9005/api/v1/query --data-urlencode 'query=count(scraped{_id="test"})' -G 2>/dev/null | python -c 'import sys, json; print json.load(sys.stdin)["data"]["result"][0]["value"][1]' 2>/dev/null )" -eq 0 ]]; then
       retries=$((retries-1))
       sleep 1
