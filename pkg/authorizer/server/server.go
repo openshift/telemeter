@@ -60,10 +60,10 @@ func (a *Authorizer) AuthorizeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	uniqueIdKey := "id"
-	cluster := req.Form.Get(uniqueIdKey)
+	uniqueIDKey := "id"
+	cluster := req.Form.Get(uniqueIDKey)
 	if len(cluster) == 0 {
-		http.Error(w, fmt.Sprintf("The '%s' parameter must be specified via URL or url-encoded form body", uniqueIdKey), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("The '%s' parameter must be specified via URL or url-encoded form body", uniqueIDKey), http.StatusBadRequest)
 		return
 	}
 
@@ -180,16 +180,16 @@ func (a *Authorizer) authorizeRemote(token, cluster string) (*TokenResponse, err
 	}()
 	switch resp.StatusCode {
 	case http.StatusUnauthorized:
-		return nil, errWithCode{error: fmt.Errorf("Unauthorized"), code: http.StatusUnauthorized}
+		return nil, errWithCode{error: fmt.Errorf("unauthorized"), code: http.StatusUnauthorized}
 	case http.StatusTooManyRequests:
-		return nil, errWithCode{error: fmt.Errorf("Rate limited, please try again later"), code: http.StatusTooManyRequests}
+		return nil, errWithCode{error: fmt.Errorf("rate limited, please try again later"), code: http.StatusTooManyRequests}
 	case http.StatusConflict:
-		return nil, errWithCode{error: fmt.Errorf("The provided cluster identifier is already in use under a different account or is not sufficiently random."), code: http.StatusConflict}
+		return nil, errWithCode{error: fmt.Errorf("the provided cluster identifier is already in use under a different account or is not sufficiently random"), code: http.StatusConflict}
 	case http.StatusOK, http.StatusCreated:
 		// allowed
 	default:
 		tryLogBody(resp.Body, 4*1024, fmt.Sprintf("warning: Upstream server rejected request for cluster %q with body:\n%%s", cluster))
-		return nil, errWithCode{error: fmt.Errorf("Upstream rejected request with code %d", resp.StatusCode), code: http.StatusInternalServerError}
+		return nil, errWithCode{error: fmt.Errorf("upstream rejected request with code %d", resp.StatusCode), code: http.StatusInternalServerError}
 	}
 	contentType := resp.Header.Get("Content-Type")
 	mediaType, _, err := mime.ParseMediaType(contentType)
