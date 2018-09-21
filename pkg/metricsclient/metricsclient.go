@@ -226,5 +226,6 @@ func DefaultTransport() *http.Transport {
 			KeepAlive: 30 * time.Second,
 		}).Dial,
 		TLSHandshakeTimeout: 10 * time.Second,
+		DisableKeepAlives:   true,
 	}
 }
