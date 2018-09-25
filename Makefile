@@ -1,21 +1,45 @@
+.PHONY: all build image check test-integration vendor dependencies manifests
+
+MIXTOOL_BIN=$(GOPATH)/bin/mixtool
+# We need jsonnet on CI; here we default to the user's installed jsonnet binary; if nothing is installed, then install go-jsonnet.
+JSONNET_BIN=$(if $(shell which jsonnet 2>/dev/null),$(shell which jsonnet 2>/dev/null),$(GOPATH)/bin/jsonnet)
+JB_BIN=$(GOPATH)/bin/jb
+JSONNET_SRC=$(shell find ./jsonnet -type f)
+JSONNET_VENDOR=jsonnet/jsonnetfile.lock.json jsonnet/vendor
+
+all: build manifests
+
 build:
 	go build ./cmd/telemeter-client
 	go build ./cmd/telemeter-server
 	go build ./cmd/authorization-server
-.PHONY: build
 
 image:
 	imagebuilder -t openshift/telemeter:latest .
-.PHONY: image
 
 check:
 	go test -race ./...
-.PHONY: check
 
 test-integration: build
 	./test/integration.sh
-.PHONY: test-integration
 
 vendor:
 	glide update -v --skip-test
-.PHONY: vendor
+
+manifests: $(JSONNET_SRC) $(JSONNET_VENDOR)
+	rm -rf manifests
+	mixtool build jsonnet/main.jsonnet -J jsonnet/vendor -m manifests
+
+$(JSONNET_VENDOR): jsonnet/jsonnetfile.json
+	cd jsonnet && jb install
+
+dependencies: $(JB_BIN) $(JSONNET_BIN) $(MIXTOOL_BIN)
+
+$(MIXTOOL_BIN):
+	go get -u github.com/metalmatze/mixtool/cmd/mixtool
+
+$(JB_BIN):
+	go get -u github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb
+
+$(JSONNET_BIN):
+	go get -u github.com/google/go-jsonnet/jsonnet
