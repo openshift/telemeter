@@ -8,10 +8,10 @@ local metricsPort = 8080;
 
 {
   _config+:: {
-    namespace: 'default',
+    namespace: 'openshift-monitoring',
 
     telemeterClient+:: {
-      from: 'https://prometheus-k8s.openshift-monitoring.svc:9091',
+      from: 'https://prometheus-k8s.%(namespace)s.svc:9091' % $._config,
       to: '',
     },
 
