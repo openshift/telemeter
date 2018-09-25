@@ -1,0 +1,24 @@
+{
+    "dependencies": [
+        {
+            "name": "telemeter-client",
+            "source": {
+                "git": {
+                    "remote": "../",
+                    "subdir": "jsonnet/telemeter/client"
+                }
+            },
+            "version": "6078ce258f0944caf22b7ad261a6fde0abbc3219"
+        },
+        {
+            "name": "ksonnet",
+            "source": {
+                "git": {
+                    "remote": "https://github.com/ksonnet/ksonnet-lib",
+                    "subdir": ""
+                }
+            },
+            "version": "ed0796f3cb97ebc35ae54f543b1814a7c8dae305"
+        }
+    ]
+}
