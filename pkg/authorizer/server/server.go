@@ -79,7 +79,7 @@ func (a *Authorizer) AuthorizeHTTP(w http.ResponseWriter, req *http.Request) {
 	userToken := auth[1]
 
 	var (
-		resp *TokenResponse
+		resp *clusterRegistration
 		err  error
 	)
 	if a.to == nil {
@@ -106,19 +106,12 @@ func (a *Authorizer) AuthorizeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	// ensure labels are consistent
-	labels := resp.Labels
-	if labels == nil {
-		labels = make(map[string]string)
-		resp.Labels = labels
+	labels := map[string]string{
+		a.partitionKey: cluster,
 	}
-	for k, v := range a.labels {
-		labels[k] = v
-	}
-	labels[a.partitionKey] = cluster
 
 	// create a token that asserts the user and the labels
-	authToken, err := a.signer.GenerateToken(jwt.Claims(resp.AccountID, resp.Labels, a.expireInSeconds, []string{"federate"}))
+	authToken, err := a.signer.GenerateToken(jwt.Claims(resp.AccountID, labels, a.expireInSeconds, []string{"federate"}))
 	if err != nil {
 		log.Printf("error: unable to generate token: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -130,7 +123,7 @@ func (a *Authorizer) AuthorizeHTTP(w http.ResponseWriter, req *http.Request) {
 		Version:          1,
 		Token:            authToken,
 		ExpiresInSeconds: a.expireInSeconds,
-		Labels:           resp.Labels,
+		Labels:           labels,
 	})
 	if err != nil {
 		log.Printf("error: unable to marshal token: %v", err)
@@ -140,23 +133,24 @@ func (a *Authorizer) AuthorizeHTTP(w http.ResponseWriter, req *http.Request) {
 	w.Write(data)
 }
 
-func (a *Authorizer) authorizeStub(token, cluster string) (*TokenResponse, error) {
-	user := fnvHash(token)
-	log.Printf("warning: Performing no-op authentication, user will be %s with cluster %s", user, cluster)
+func (a *Authorizer) authorizeStub(token, cluster string) (*clusterRegistration, error) {
+	account := fnvHash(token)
+	log.Printf("warning: Performing no-op authentication, account will be %s with cluster %s", account, cluster)
 
-	return &TokenResponse{
-		APIVersion: "v1",
-		AccountID:  user,
+	return &clusterRegistration{
+		ClusterID:          cluster,
+		AuthorizationToken: token,
+		AccountID:          account,
 	}, nil
 }
 
-func (a *Authorizer) authorizeRemote(token, cluster string) (*TokenResponse, error) {
-	tokenRequest := &TokenRequest{
-		APIVersion:         "v1",
-		AuthorizationToken: token,
+func (a *Authorizer) authorizeRemote(token, cluster string) (*clusterRegistration, error) {
+	regReq := &clusterRegistration{
 		ClusterID:          cluster,
+		AuthorizationToken: token,
 	}
-	data, err := json.Marshal(tokenRequest)
+
+	data, err := json.Marshal(regReq)
 	if err != nil {
 		return nil, err
 	}
@@ -198,22 +192,18 @@ func (a *Authorizer) authorizeRemote(token, cluster string) (*TokenResponse, err
 		return nil, fmt.Errorf("unrecognized token response content-type %q", contentType)
 	}
 
-	tokenResponse, err := tryReadResponse(resp.Body, 32*1024)
+	regResponse, err := tryReadResponse(resp.Body, 32*1024)
 	if err != nil {
 		log.Printf("warning: Upstream server %s response could not be parsed", a.to)
 		return nil, fmt.Errorf("unable to parse response body: %v", err)
 	}
 
-	if tokenResponse.APIVersion != "v1" {
-		log.Printf("warning: Upstream server %s responded with an unknown schema version %q", a.to, tokenResponse.APIVersion)
-		return nil, fmt.Errorf("unrecognized token response version %q", tokenResponse.APIVersion)
-	}
-	if len(tokenResponse.AccountID) == 0 {
+	if len(regResponse.AccountID) == 0 {
 		log.Printf("warning: Upstream server %s responded with an empty user string", a.to)
 		return nil, fmt.Errorf("server responded with an empty user string")
 	}
 
-	return tokenResponse, nil
+	return regResponse, nil
 }
 
 func tryLogBody(r io.Reader, limitBytes int64, format string) {
@@ -221,16 +211,16 @@ func tryLogBody(r io.Reader, limitBytes int64, format string) {
 	log.Printf(format, string(body))
 }
 
-func tryReadResponse(r io.Reader, limitBytes int64) (*TokenResponse, error) {
+func tryReadResponse(r io.Reader, limitBytes int64) (*clusterRegistration, error) {
 	body, err := ioutil.ReadAll(io.LimitReader(r, limitBytes))
 	if err != nil {
 		return nil, err
 	}
-	tokenResponse := &TokenResponse{}
-	if err := json.Unmarshal(body, tokenResponse); err != nil {
+	response := &clusterRegistration{}
+	if err := json.Unmarshal(body, response); err != nil {
 		return nil, err
 	}
-	return tokenResponse, nil
+	return response, nil
 }
 
 type errWithCode struct {

@@ -10,10 +10,8 @@ import (
 	"github.com/openshift/telemeter/pkg/authorizer/server"
 )
 
-type savedResponse struct {
-	Token         string               `json:"token"`
-	Cluster       string               `json:"cluster"`
-	TokenResponse server.TokenResponse `json:"response"`
+type tokenEntry struct {
+	Token string `json:"token"`
 }
 
 func main() {
@@ -26,18 +24,17 @@ func main() {
 		log.Fatalf("unable to read JSON file: %v", err)
 	}
 
-	var responses []savedResponse
-	if err := json.Unmarshal(data, &responses); err != nil {
+	var tokenEntries []tokenEntry
+	if err := json.Unmarshal(data, &tokenEntries); err != nil {
 		log.Fatalf("unable to parse contents of %s: %v", os.Args[2], err)
 	}
 
-	s := server.NewServer()
-	s.AllowNewClusters = true
-	s.Responses = make(map[server.Key]*server.TokenResponse)
-	for i := range responses {
-		r := &responses[i]
-		s.Responses[server.Key{Token: r.Token, Cluster: r.Cluster}] = &r.TokenResponse
+	tokenSet := make(map[string]struct{})
+	for i := range tokenEntries {
+		tokenSet[tokenEntries[i].Token] = struct{}{}
 	}
+
+	s := server.NewServer(tokenSet)
 
 	if err := http.ListenAndServe(os.Args[1], s); err != nil {
 		log.Fatalf("server exited: %v", err)
