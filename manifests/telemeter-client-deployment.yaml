@@ -22,7 +22,7 @@ spec:
         - --from=https://prometheus-k8s.openshift-monitoring.svc:9091
         - --from-ca-file=/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
         - --from-token-file=/var/run/secrets/kubernetes.io/serviceaccount/token
-        - --to=
+        - --to=$(TO)
         - --to-token-file=/etc/telemeter/token
         - --listen=localhost:8080
         env:
@@ -30,6 +30,11 @@ spec:
           valueFrom:
             secretKeyRef:
               key: id
+              name: telemeter-client
+        - name: TO
+          valueFrom:
+            secretKeyRef:
+              key: to
               name: telemeter-client
         image: openshift/telemeter:v3.11
         name: telemeter-client
