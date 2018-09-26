@@ -1,6 +1,6 @@
 (import 'kubernetes/kubernetes.libsonnet') + {
   _config+:: {
-    jobs: {
+    jobs+: {
       TelemeterClient: 'job="telemeter-client"',
     },
   },
