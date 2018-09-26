@@ -27,51 +27,41 @@ func TestAuthorizer_authorizeRemote(t *testing.T) {
 		name          string
 		fields        fields
 		args          args
-		responses     map[Key]*TokenResponse
-		want          *TokenResponse
+		tokens        map[string]struct{}
+		want          *clusterRegistration
 		wantErr       bool
 		wantErrString string
 	}{
-		{name: "no response defined", wantErr: true},
 		{
-			name:          "generic error",
-			args:          args{token: "a", cluster: "b"},
-			responses:     map[Key]*TokenResponse{{Token: "a", Cluster: "b"}: {APIVersion: "v1", Code: http.StatusBadGateway}},
-			wantErrString: "rejected request with code 502",
+			name:          "no cluster ID",
+			tokens:        make(map[string]struct{}),
+			wantErr:       true,
+			wantErrString: "rejected request with code 400",
 		},
 		{
-			name:          "error when no user",
+			name:          "unknown token",
 			args:          args{token: "a", cluster: "b"},
-			responses:     map[Key]*TokenResponse{{Token: "a", Cluster: "b"}: {APIVersion: "v1", Status: "ok", Code: http.StatusOK, AccountID: ""}},
-			wantErrString: "responded with an empty user string",
+			tokens:        map[string]struct{}{"c": struct{}{}},
+			wantErr:       true,
+			wantErrString: "unauthorized",
 		},
 		{
-			name: "success when user provided",
-			args: args{token: "a", cluster: "b"},
-			responses: map[Key]*TokenResponse{
-				{Token: "a", Cluster: "b"}: {
-					APIVersion: "v1",
-					Status:     "ok",
-					Code:       http.StatusOK,
-					AccountID:  "c",
-				},
-			},
-			want: &TokenResponse{
-				APIVersion: "v1",
-				Status:     "ok",
-				Code:       http.StatusOK,
-				AccountID:  "c",
+			name:    "known token",
+			args:    args{token: "a", cluster: "b"},
+			tokens:  map[string]struct{}{"a": struct{}{}},
+			wantErr: false,
+			want: &clusterRegistration{
+				AuthorizationToken: "a",
+				ClusterID:          "b",
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := NewServer()
-			s.Responses = tt.responses
+			s := NewServer(tt.tokens)
 			server := httptest.NewServer(s)
 			defer server.Close()
 			u, _ := url.Parse(server.URL)
-			tt.wantErr = tt.wantErr || len(tt.wantErrString) > 0
 
 			a := &Authorizer{
 				partitionKey:    tt.fields.partitionKey,
@@ -94,7 +84,14 @@ func TestAuthorizer_authorizeRemote(t *testing.T) {
 				if !strings.Contains(err.Error(), tt.wantErrString) {
 					t.Errorf("Authorizer.authorizeRemote() error = %v, wantErrString %v", err, tt.wantErrString)
 				}
+				return
 			}
+			if got.AccountID == "" {
+				t.Error("expected account ID, got none")
+			}
+
+			// reset account ID to compare only cluster ID and auth token
+			got.AccountID = ""
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Authorizer.authorizeRemote() = %v, want %v", got, tt.want)
 			}

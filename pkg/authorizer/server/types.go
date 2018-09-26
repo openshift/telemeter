@@ -1,21 +1,12 @@
 package server
 
-type TokenRequest struct {
-	APIVersion string `json:"api_version"`
-
-	AuthorizationToken string `json:"authorization_token"`
+type clusterRegistration struct {
 	ClusterID          string `json:"cluster_id"`
+	AuthorizationToken string `json:"authorization_token"`
+	AccountID          string `json:"account_id"`
 }
 
-type TokenResponse struct {
-	APIVersion string `json:"api_version"`
-
-	Status  string `json:"status"`
-	Code    int    `json:"code"`
-	Reason  string `json:"reason"`
-	Message string `json:"message"`
-
-	AccountID string `json:"account_id"`
-
-	Labels map[string]string `json:"labels"`
+type registrationError struct {
+	Name   string `json:"name"`
+	Reason string `json:"reason"`
 }

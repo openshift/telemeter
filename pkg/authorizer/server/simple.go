@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 )
 
 type Key struct {
@@ -12,69 +13,67 @@ type Key struct {
 }
 
 type Server struct {
-	AllowNewClusters bool
-	Responses        map[Key]*TokenResponse
-	Received         map[Key]struct{}
+	mu        sync.Mutex
+	Tokens    map[string]struct{}
+	Responses map[Key]clusterRegistration
 }
 
-func NewServer() *Server {
+func NewServer(tokenSet map[string]struct{}) *Server {
 	return &Server{
-		Received: make(map[Key]struct{}),
+		Tokens:    tokenSet,
+		Responses: make(map[Key]clusterRegistration),
 	}
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	defer req.Body.Close()
 	if req.Method != "POST" {
-		Write(w, &TokenResponse{APIVersion: "v1", Status: "failure", Code: http.StatusMethodNotAllowed, Reason: "MethodNotAllowed", Message: "Only requests of type 'POST' are accepted."})
+		Write(w, http.StatusMethodNotAllowed, &registrationError{Name: "MethodNotAllowed", Reason: "Only requests of type 'POST' are accepted."})
 		return
 	}
 	if req.Header.Get("Content-Type") != "application/json" {
-		Write(w, &TokenResponse{APIVersion: "v1", Status: "failure", Code: http.StatusBadRequest, Reason: "InvalidContentType", Message: "Only requests with Content-Type application/json are accepted."})
+		Write(w, http.StatusBadRequest, &registrationError{Name: "InvalidContentType", Reason: "Only requests with Content-Type application/json are accepted."})
 		return
 	}
-	tokenRequest := &TokenRequest{}
-	if err := json.NewDecoder(req.Body).Decode(tokenRequest); err != nil {
-		Write(w, &TokenResponse{APIVersion: "v1", Status: "failure", Code: http.StatusBadRequest, Reason: "InvalidBody", Message: fmt.Sprintf("Unable to parse body as JSON: %v", err)})
+	regRequest := &clusterRegistration{}
+	if err := json.NewDecoder(req.Body).Decode(regRequest); err != nil {
+		Write(w, http.StatusBadRequest, &registrationError{Name: "InvalidBody", Reason: fmt.Sprintf("Unable to parse body as JSON: %v", err)})
 		return
 	}
-	if tokenRequest.APIVersion != "v1" {
-		Write(w, &TokenResponse{APIVersion: "v1", Status: "failure", Code: http.StatusBadRequest, Reason: "InvalidAPIVersion", Message: "Only requests with api_version 'v1' are accepted."})
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if regRequest.ClusterID == "" {
+		Write(w, http.StatusBadRequest, &registrationError{Name: "BadRequest", Reason: "No cluster ID provided."})
 		return
 	}
-	key := Key{Token: tokenRequest.AuthorizationToken, Cluster: tokenRequest.ClusterID}
-	resp, ok := s.Responses[key]
-	if !s.AllowNewClusters {
-		if !ok {
-			Write(w, &TokenResponse{APIVersion: "v1", Status: "failure", Code: http.StatusInternalServerError, Reason: "UnknownError", Message: "Generic error."})
-			return
+
+	if _, tokenFound := s.Tokens[regRequest.AuthorizationToken]; !tokenFound {
+		Write(w, http.StatusUnauthorized, &registrationError{Name: "NotAuthorized", Reason: "The provided token is not recognized."})
+		return
+	}
+
+	key := Key{Token: regRequest.AuthorizationToken, Cluster: regRequest.ClusterID}
+	resp, clusterFound := s.Responses[key]
+	code := http.StatusOK
+
+	if !clusterFound {
+		resp = clusterRegistration{
+			AccountID:          fnvHash(regRequest.ClusterID),
+			AuthorizationToken: regRequest.AuthorizationToken,
+			ClusterID:          regRequest.ClusterID,
 		}
-		s.Received[key] = struct{}{}
-		Write(w, resp)
-		return
+		s.Responses[key] = resp
+		code = http.StatusCreated
 	}
 
-	// lookup without cluster ID specified
-	key.Cluster = ""
-	resp, ok = s.Responses[key]
-	if !ok {
-		Write(w, &TokenResponse{APIVersion: "v1", Status: "failure", Code: http.StatusUnauthorized, Reason: "NotAuthorized", Message: "The provided token is not recognized."})
-		return
-	}
-
-	// provide simple 201 vs 200 behavior if we have already received this request
-	if _, ok := s.Received[key]; ok && resp.Status == "ok" && resp.Code == http.StatusCreated {
-		copied := *resp
-		copied.Code = http.StatusOK
-		resp = &copied
-	}
-
-	Write(w, resp)
+	Write(w, code, resp)
 }
 
-func Write(w http.ResponseWriter, resp *TokenResponse) error {
+func Write(w http.ResponseWriter, statusCode int, resp interface{}) error {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(resp.Code)
+	w.WriteHeader(statusCode)
 	data, err := json.MarshalIndent(resp, "", "  ")
 	if err != nil {
 		return err
