@@ -37,6 +37,7 @@ local metricsPort = 8080;
       local credentialsMount = containerVolumeMount.new(credentialsVolumeName, credentialsMountPath);
       local credentialsVolume = volume.fromSecret(credentialsVolumeName, credentialsSecret);
       local id = containerEnv.fromSecretRef('ID', credentialsSecret, 'id');
+      local to = containerEnv.fromSecretRef('TO', credentialsSecret, 'to');
 
       local telemeterClient =
         container.new('telemeter-client', $._config.imageRepos.telemeterClient + ':' + $._config.versions.telemeterClient) +
@@ -46,13 +47,13 @@ local metricsPort = 8080;
           '--from=' + $._config.telemeterClient.from,
           '--from-ca-file=' + fromCAFile,
           '--from-token-file=' + fromTokenFile,
-          '--to=' + $._config.telemeterClient.to,
+          '--to=$(TO)',
           '--to-token-file=' + credentialsMountPath + '/token',
           '--listen=localhost:' + metricsPort,
         ]) +
         container.withPorts(containerPort.newNamed('http', metricsPort)) +
         container.withVolumeMounts([credentialsMount]) +
-        container.withEnv([id]);
+        container.withEnv([id, to]);
 
       deployment.new('telemeter-client', 1, [telemeterClient], podLabels) +
       deployment.mixin.metadata.withNamespace($._config.namespace) +
@@ -66,7 +67,9 @@ local metricsPort = 8080;
     secret:
       local secret = k.core.v1.secret;
 
-      secret.new(credentialsSecret, {}) +
+      secret.new(credentialsSecret, {
+        to: std.base64($._config.telemeterClient.to),
+      }) +
       secret.mixin.metadata.withNamespace($._config.namespace) +
       secret.mixin.metadata.withLabels({ 'k8s-app': 'telemeter-client' }),
 
