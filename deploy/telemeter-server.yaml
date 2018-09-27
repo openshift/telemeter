@@ -107,9 +107,11 @@ objects:
           - --shared-key=/etc/pki/service/tls.key
           - --tls-key=/etc/pki/service/tls.key
           - --tls-crt=/etc/pki/service/tls.crt
-          - --authorize=http://telemeter-authorization
+          - --authorize=${AUTHORIZE_URL}
 parameters:
 - name: IMAGE
   value: openshift/origin-telemeter
 - name: IMAGE_TAG
   value: v3.11
+- name: AUTHORIZE_URL
+  value: https://api.openshift.com/api/accounts_mgmt/v1/cluster_registrations
