@@ -6,7 +6,7 @@
 apiVersion: v1
 kind: Template
 metadata:
-  name: openshiftio-tenant-log-indirector-service
+  name: telemeter
 objects:
 - apiVersion: v1
   kind: Service
