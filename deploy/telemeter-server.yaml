@@ -2,11 +2,14 @@
 # Start a simple telemeter cluster that can be scale up to handle multiple traffic.
 # Expects that an authorization service is running in the same namespace.
 #
-kind: List
+---
 apiVersion: v1
-items:
-- kind: Service
-  apiVersion: v1
+kind: Template
+metadata:
+  name: telemeter
+objects:
+- apiVersion: v1
+  kind: Service
   metadata:
     name: telemeter
   spec:
@@ -17,8 +20,8 @@ items:
     - name: https
       port: 443
       targetPort: external
-- kind: Service
-  apiVersion: v1
+- apiVersion: v1
+  kind: Service
   metadata:
     name: telemeter-cluster
     annotations:
@@ -37,8 +40,8 @@ items:
     - name: cluster
       port: 8082
       targetPort: cluster
-- kind: StatefulSet
-  apiVersion: apps/v1
+- apiVersion: apps/v1
+  kind: StatefulSet
   metadata:
     name: telemeter
   spec:
@@ -60,7 +63,7 @@ items:
           emptyDir: {}
         containers:
         - name: server
-          image: openshift/origin-telemeter:v3.11
+          image: ${IMAGE}:${IMAGE_TAG}
           volumeMounts:
           - name: tls
             mountPath: /etc/pki/service
@@ -104,3 +107,8 @@ items:
           - --tls-key=/etc/pki/service/tls.key
           - --tls-crt=/etc/pki/service/tls.crt
           - --authorize=http://telemeter-authorization
+parameters:
+- name: IMAGE
+  value: openshift/origin-telemeter
+- name: IMAGE_TAG
+  value: v3.11
