@@ -109,6 +109,6 @@ objects:
           - --authorize=http://telemeter-authorization
 parameters:
 - name: IMAGE
-  value: quay.io/app-sre/telemeter
+  value: openshift/origin-telemeter
 - name: IMAGE_TAG
   value: v3.11
