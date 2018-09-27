@@ -45,6 +45,7 @@ objects:
   metadata:
     name: telemeter
   spec:
+    replicas: 3
     podManagementPolicy: Parallel
     serviceName: telemeter-cluster
     selector:
