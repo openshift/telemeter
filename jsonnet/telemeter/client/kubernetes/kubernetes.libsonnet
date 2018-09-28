@@ -16,11 +16,11 @@ local metricsPort = 8080;
     },
 
     versions+:: {
-      telemeterClient: 'v3.11',
+      telemeterClient: 'v4.0',
     },
 
     imageRepos+:: {
-      telemeterClient: 'openshift/telemeter',
+      telemeterClient: 'quay.io/openshift/origin-telemeter',
     },
   },
 
@@ -59,9 +59,6 @@ local metricsPort = 8080;
       deployment.mixin.metadata.withNamespace($._config.namespace) +
       deployment.mixin.metadata.withLabels(podLabels) +
       deployment.mixin.spec.selector.withMatchLabels(podLabels) +
-      deployment.mixin.spec.template.spec.securityContext.withRunAsNonRoot(true) +
-      deployment.mixin.spec.template.spec.securityContext.withRunAsUser(65534) +
-      deployment.mixin.spec.template.spec.withServiceAccountName('telemeter-client') +
       deployment.mixin.spec.template.spec.withVolumes([credentialsVolume]),
 
     secret:
