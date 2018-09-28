@@ -11,3 +11,5 @@ import:
   version: v1.2.0
   subpackages:
   - proto
+- package: github.com/coreos/go-oidc
+  version: v2.0.0

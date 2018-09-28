@@ -1,5 +1,5 @@
-hash: 04f961407a6bd1b29e2ecb932125fdcc7f60a594006170e15981cbfb05a61798
-updated: 2018-09-12T11:23:26.666419526+02:00
+hash: 4dcb377462795bc8fb5c31272599a798759f523b5ec1dbbf9b9d32c89e0c7a8a
+updated: 2018-09-28T13:39:09.28428174+02:00
 imports:
 - name: github.com/armon/go-metrics
   version: 3c58d8115a78a6879e5df75ae900846768d36895
@@ -9,6 +9,8 @@ imports:
   - quantile
 - name: github.com/cockroachdb/cmux
   version: 30d10be492927e2dcae0089c374c455d42414fcb
+- name: github.com/coreos/go-oidc
+  version: 1180514eaf4d9f38d0d19eef639a1d695e066e72
 - name: github.com/gogo/protobuf
   version: c0656edd0d9eab7c66d1eb0c568f9039345796f7
   subpackages:
