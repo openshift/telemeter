@@ -25,6 +25,32 @@ local metricsPort = 8080;
   },
 
   telemeterClient+:: {
+    clusterRoleBinding:
+      local clusterRoleBinding = k.rbac.v1.clusterRoleBinding;
+
+      clusterRoleBinding.new() +
+      clusterRoleBinding.mixin.metadata.withName('telemeter-client') +
+      clusterRoleBinding.mixin.roleRef.withApiGroup('rbac.authorization.k8s.io') +
+      clusterRoleBinding.mixin.roleRef.withName('telemeter-client') +
+      clusterRoleBinding.mixin.roleRef.mixinInstance({ kind: 'ClusterRole' }) +
+      clusterRoleBinding.withSubjects([{ kind: 'ServiceAccount', name: 'telemeter-client', namespace: $._config.namespace }]),
+
+    clusterRole:
+      local clusterRole = k.rbac.v1.clusterRole;
+      local policyRule = clusterRole.rulesType;
+
+      local rule = policyRule.new() +
+                   policyRule.withApiGroups(['']) +
+                   policyRule.withResources([
+                     'namespaces',
+                   ]) +
+                   policyRule.withVerbs(['get']);
+
+
+      clusterRole.new() +
+      clusterRole.mixin.metadata.withName('telemeter-client') +
+      clusterRole.withRules([rule]),
+
     deployment:
       local deployment = k.apps.v1beta2.deployment;
       local container = k.apps.v1beta2.deployment.mixin.spec.template.spec.containersType;
@@ -59,6 +85,7 @@ local metricsPort = 8080;
       deployment.mixin.metadata.withNamespace($._config.namespace) +
       deployment.mixin.metadata.withLabels(podLabels) +
       deployment.mixin.spec.selector.withMatchLabels(podLabels) +
+      deployment.mixin.spec.template.spec.withServiceAccountName('telemeter-client') +
       deployment.mixin.spec.template.spec.withVolumes([credentialsVolume]),
 
     secret:
@@ -80,6 +107,12 @@ local metricsPort = 8080;
       service.mixin.metadata.withNamespace($._config.namespace) +
       service.mixin.metadata.withLabels({ 'k8s-app': 'telemeter-client' }) +
       service.mixin.spec.withClusterIp('None'),
+
+    serviceAccount:
+      local serviceAccount = k.core.v1.serviceAccount;
+
+      serviceAccount.new('telemeter-client') +
+      serviceAccount.mixin.metadata.withNamespace($._config.namespace),
 
     serviceMonitor:
       {
