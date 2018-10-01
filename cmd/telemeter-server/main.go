@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/rsa"
@@ -21,9 +22,11 @@ import (
 	"time"
 
 	"github.com/cockroachdb/cmux"
+	oidc "github.com/coreos/go-oidc"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
+	"golang.org/x/oauth2"
 
 	"github.com/openshift/telemeter/pkg/authorizer/jwt"
 	"github.com/openshift/telemeter/pkg/authorizer/server"
@@ -31,6 +34,7 @@ import (
 	telemeterhttp "github.com/openshift/telemeter/pkg/http"
 	httpauthorizer "github.com/openshift/telemeter/pkg/http/authorizer"
 	httpserver "github.com/openshift/telemeter/pkg/http/server"
+	telemeter_oauth2 "github.com/openshift/telemeter/pkg/oauth2"
 	"github.com/openshift/telemeter/pkg/untrusted"
 )
 
@@ -128,7 +132,11 @@ func main() {
 	cmd.Flags().Int64Var(&opt.TokenExpireSeconds, "token-expire-seconds", opt.TokenExpireSeconds, "The expiration of auth tokens in seconds.")
 
 	cmd.Flags().StringVar(&opt.AuthorizeEndpoint, "authorize", opt.AuthorizeEndpoint, "A endpoint URL to authorize against when a client requests a token.")
-	cmd.Flags().StringVar(&opt.AuthorizeTokenFile, "authorize-token-file", opt.AuthorizeTokenFile, "The path to a file containing a bearer token to use with the authorization endpoint.")
+
+	cmd.Flags().StringVar(&opt.AuthorizeIssuerURL, "authorize-issuer-url", opt.AuthorizeIssuerURL, "The authorize OIDC issuer URL, see https://openid.net/specs/openid-connect-discovery-1_0.html#IssuerDiscovery.")
+	cmd.Flags().StringVar(&opt.AuthorizeUsername, "authorize-username", opt.AuthorizeUsername, "The authorize OIDC username, see rfc6749#section-4.3.")
+	cmd.Flags().StringVar(&opt.AuthorizePassword, "authorize-password", opt.AuthorizePassword, "The authorize OIDC password, see rfc6749#section-4.3.")
+	cmd.Flags().StringVar(&opt.AuthorizeClientID, "authorize-client-id", opt.AuthorizeClientID, "The authorize OIDC client ID, see rfc6749#section-4.3.")
 
 	cmd.Flags().BoolVarP(&opt.Verbose, "verbose", "v", opt.Verbose, "Show verbose output.")
 
@@ -151,8 +159,12 @@ type Options struct {
 	SharedKey          string
 	TokenExpireSeconds int64
 
-	AuthorizeEndpoint  string
-	AuthorizeTokenFile string
+	AuthorizeEndpoint string
+
+	AuthorizeIssuerURL string
+	AuthorizeClientID  string
+	AuthorizeUsername  string
+	AuthorizePassword  string
 
 	PartitionKey string
 	LabelFlag    []string
@@ -191,12 +203,14 @@ func (o *Options) Run() error {
 	// set up the upstream authorization
 	var authorizeURL *url.URL
 	var authorizeClient *http.Client
+	ctx := context.Background()
 	if len(o.AuthorizeEndpoint) > 0 {
 		u, err := url.Parse(o.AuthorizeEndpoint)
 		if err != nil {
 			return fmt.Errorf("--authorize must be a valid URL: %v", err)
 		}
 		authorizeURL = u
+
 		authorizeClient = &http.Client{
 			Timeout: 20 * time.Second,
 			Transport: &http.Transport{
@@ -205,12 +219,27 @@ func (o *Options) Run() error {
 				IdleConnTimeout:     30 * time.Second,
 			},
 		}
-		if len(o.AuthorizeTokenFile) > 0 {
-			data, err := ioutil.ReadFile(o.AuthorizeTokenFile)
+
+		if o.AuthorizeIssuerURL != "" {
+			provider, err := oidc.NewProvider(ctx, o.AuthorizeIssuerURL)
 			if err != nil {
-				return fmt.Errorf("unable to load --authorize-token-file: %v", err)
+				return fmt.Errorf("OIDC provider initialization failed: %v", err)
 			}
-			authorizeClient.Transport = telemeterhttp.NewBearerRoundTripper(string(data), authorizeClient.Transport)
+
+			cfg := oauth2.Config{
+				ClientID: o.AuthorizeClientID,
+				Endpoint: provider.Endpoint(),
+			}
+
+			src := telemeter_oauth2.NewPasswordCredentialsTokenSource(
+				ctx, &cfg,
+				o.AuthorizeUsername, o.AuthorizePassword,
+			)
+
+			authorizeClient.Transport = &oauth2.Transport{
+				Base:   authorizeClient.Transport,
+				Source: src,
+			}
 		}
 	}
 
