@@ -1,7 +1,8 @@
 local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
-local credentialsSecret = 'telemeter-client';
-local credentialsVolumeName = 'credentials';
-local credentialsMountPath = '/etc/telemeter';
+local secretName = 'telemeter-client';
+local secretVolumeName = 'secret-telemeter-client';
+local secretMountPath = '/etc/telemeter';
+local matchFileName = 'match-rules';
 local tlsSecret = 'telemeter-client-tls';
 local tlsVolumeName = 'telemeter-client-tls';
 local tlsMountPath = '/etc/tls/private';
@@ -18,6 +19,14 @@ local securePort = 8443;
       from: 'https://prometheus-k8s.%(namespace)s.svc:9091' % $._config,
       serverName: 'server-name-replaced-at-runtime',
       to: '',
+      matchRules: [
+        '{__name__="up"}',
+        '{__name__="openshift_build_info"}',
+        '{__name__="machine_cpu_cores"}',
+        '{__name__="machine_memory_bytes"}',
+        '{__name__="etcd_object_counts"}',
+        '{__name__="ALERTS",alertstate="firing"}',
+      ],
     },
 
     versions+:: {
@@ -81,12 +90,12 @@ local securePort = 8443;
       local containerEnv = container.envType;
 
       local podLabels = { 'k8s-app': 'telemeter-client' };
-      local credentialsMount = containerVolumeMount.new(credentialsVolumeName, credentialsMountPath);
-      local credentialsVolume = volume.fromSecret(credentialsVolumeName, credentialsSecret);
+      local secretMount = containerVolumeMount.new(secretVolumeName, secretMountPath);
+      local secretVolume = volume.fromSecret(secretVolumeName, secretName);
       local tlsMount = containerVolumeMount.new(tlsVolumeName, '/etc/tls/private');
       local tlsVolume = volume.fromSecret(tlsVolumeName, tlsSecret);
-      local id = containerEnv.fromSecretRef('ID', credentialsSecret, 'id');
-      local to = containerEnv.fromSecretRef('TO', credentialsSecret, 'to');
+      local id = containerEnv.fromSecretRef('ID', secretName, 'id');
+      local to = containerEnv.fromSecretRef('TO', secretName, 'to');
 
       local telemeterClient =
         container.new('telemeter-client', $._config.imageRepos.telemeterClient + ':' + $._config.versions.telemeterClient) +
@@ -97,11 +106,12 @@ local securePort = 8443;
           '--from-ca-file=' + fromCAFile,
           '--from-token-file=' + fromTokenFile,
           '--to=$(TO)',
-          '--to-token-file=' + credentialsMountPath + '/token',
+          '--to-token-file=%s/token' % secretMountPath,
           '--listen=localhost:' + metricsPort,
+          '--match-file=%s/%s' % [secretMountPath, matchFileName],
         ]) +
         container.withPorts(containerPort.newNamed('http', metricsPort)) +
-        container.withVolumeMounts([credentialsMount]) +
+        container.withVolumeMounts([secretMount]) +
         container.withEnv([id, to]);
 
       local proxy =
@@ -122,12 +132,13 @@ local securePort = 8443;
       deployment.mixin.metadata.withLabels(podLabels) +
       deployment.mixin.spec.selector.withMatchLabels(podLabels) +
       deployment.mixin.spec.template.spec.withServiceAccountName('telemeter-client') +
-      deployment.mixin.spec.template.spec.withVolumes([credentialsVolume, tlsVolume]),
+      deployment.mixin.spec.template.spec.withVolumes([secretVolume, tlsVolume]),
 
     secret:
       local secret = k.core.v1.secret;
 
-      secret.new(credentialsSecret, {
+      secret.new(secretName, {
+        [matchFileName]: std.base64(std.join('\n', $._config.telemeterClient.matchRules)),
         to: std.base64($._config.telemeterClient.to),
       }) +
       secret.mixin.metadata.withNamespace($._config.namespace) +
