@@ -2,9 +2,13 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
 local credentialsSecret = 'telemeter-client';
 local credentialsVolumeName = 'credentials';
 local credentialsMountPath = '/etc/telemeter';
+local tlsSecret = 'telemeter-client-tls';
+local tlsVolumeName = 'telemeter-client-tls';
+local tlsMountPath = '/etc/tls/private';
 local fromCAFile = '/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt';
 local fromTokenFile = '/var/run/secrets/kubernetes.io/serviceaccount/token';
 local metricsPort = 8080;
+local securePort = 8443;
 
 {
   _config+:: {
@@ -12,14 +16,17 @@ local metricsPort = 8080;
 
     telemeterClient+:: {
       from: 'https://prometheus-k8s.%(namespace)s.svc:9091' % $._config,
+      serverName: 'server-name-replaced-at-runtime',
       to: '',
     },
 
     versions+:: {
+      kubeRbacProxy: 'v0.3.1',
       telemeterClient: 'v4.0',
     },
 
     imageRepos+:: {
+      kubeRbacProxy: 'quay.io/coreos/kube-rbac-proxy',
       telemeterClient: 'quay.io/openshift/origin-telemeter',
     },
   },
@@ -39,17 +46,31 @@ local metricsPort = 8080;
       local clusterRole = k.rbac.v1.clusterRole;
       local policyRule = clusterRole.rulesType;
 
-      local rule = policyRule.new() +
-                   policyRule.withApiGroups(['']) +
-                   policyRule.withResources([
-                     'namespaces',
-                   ]) +
-                   policyRule.withVerbs(['get']);
+      local authenticationRule = policyRule.new() +
+                                 policyRule.withApiGroups(['authentication.k8s.io']) +
+                                 policyRule.withResources([
+                                   'tokenreviews',
+                                 ]) +
+                                 policyRule.withVerbs(['create']);
+
+      local authorizationRule = policyRule.new() +
+                                policyRule.withApiGroups(['authorization.k8s.io']) +
+                                policyRule.withResources([
+                                  'subjectaccessreviews',
+                                ]) +
+                                policyRule.withVerbs(['create']);
+
+      local coreRule = policyRule.new() +
+                       policyRule.withApiGroups(['']) +
+                       policyRule.withResources([
+                         'namespaces',
+                       ]) +
+                       policyRule.withVerbs(['get']);
 
 
       clusterRole.new() +
       clusterRole.mixin.metadata.withName('telemeter-client') +
-      clusterRole.withRules([rule]),
+      clusterRole.withRules([authenticationRule, authorizationRule, coreRule]),
 
     deployment:
       local deployment = k.apps.v1beta2.deployment;
@@ -62,6 +83,8 @@ local metricsPort = 8080;
       local podLabels = { 'k8s-app': 'telemeter-client' };
       local credentialsMount = containerVolumeMount.new(credentialsVolumeName, credentialsMountPath);
       local credentialsVolume = volume.fromSecret(credentialsVolumeName, credentialsSecret);
+      local tlsMount = containerVolumeMount.new(tlsVolumeName, '/etc/tls/private');
+      local tlsVolume = volume.fromSecret(tlsVolumeName, tlsSecret);
       local id = containerEnv.fromSecretRef('ID', credentialsSecret, 'id');
       local to = containerEnv.fromSecretRef('TO', credentialsSecret, 'to');
 
@@ -81,12 +104,25 @@ local metricsPort = 8080;
         container.withVolumeMounts([credentialsMount]) +
         container.withEnv([id, to]);
 
-      deployment.new('telemeter-client', 1, [telemeterClient], podLabels) +
+      local proxy =
+        container.new('kube-rbac-proxy', $._config.imageRepos.kubeRbacProxy + ':' + $._config.versions.kubeRbacProxy) +
+        container.withArgs([
+          '--secure-listen-address=:' + securePort,
+          '--upstream=http://127.0.0.1:%s/' % metricsPort,
+          '--tls-cert-file=/etc/tls/private/tls.crt',
+          '--tls-private-key-file=/etc/tls/private/tls.key',
+        ]) +
+        container.withPorts(containerPort.new(securePort) + containerPort.withName('https')) +
+        container.mixin.resources.withRequests({ cpu: '10m', memory: '20Mi' }) +
+        container.mixin.resources.withLimits({ cpu: '20m', memory: '40Mi' }) +
+        container.withVolumeMounts([tlsMount]);
+
+      deployment.new('telemeter-client', 1, [telemeterClient, proxy], podLabels) +
       deployment.mixin.metadata.withNamespace($._config.namespace) +
       deployment.mixin.metadata.withLabels(podLabels) +
       deployment.mixin.spec.selector.withMatchLabels(podLabels) +
       deployment.mixin.spec.template.spec.withServiceAccountName('telemeter-client') +
-      deployment.mixin.spec.template.spec.withVolumes([credentialsVolume]),
+      deployment.mixin.spec.template.spec.withVolumes([credentialsVolume, tlsVolume]),
 
     secret:
       local secret = k.core.v1.secret;
@@ -101,12 +137,15 @@ local metricsPort = 8080;
       local service = k.core.v1.service;
       local servicePort = k.core.v1.service.mixin.spec.portsType;
 
-      local servicePortHTTP = servicePort.newNamed('http', metricsPort, 'http');
+      local servicePortHTTPS = servicePort.newNamed('https', securePort, 'https');
 
-      service.new('telemeter-client', $.telemeterClient.deployment.spec.selector.matchLabels, [servicePortHTTP]) +
+      service.new('telemeter-client', $.telemeterClient.deployment.spec.selector.matchLabels, [servicePortHTTPS]) +
       service.mixin.metadata.withNamespace($._config.namespace) +
       service.mixin.metadata.withLabels({ 'k8s-app': 'telemeter-client' }) +
-      service.mixin.spec.withClusterIp('None'),
+      service.mixin.spec.withClusterIp('None') +
+      service.mixin.metadata.withAnnotations({
+        'service.alpha.openshift.io/serving-cert-secret-name': tlsSecret,
+      }),
 
     serviceAccount:
       local serviceAccount = k.core.v1.serviceAccount;
@@ -134,9 +173,14 @@ local metricsPort = 8080;
           },
           endpoints: [
             {
-              port: 'http',
-              scheme: 'http',
+              bearerTokenFile: '/var/run/secrets/kubernetes.io/serviceaccount/token',
               interval: '30s',
+              port: 'https',
+              scheme: 'https',
+              tlsConfig: {
+                caFile: '/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt',
+                serverName: $._config.telemeterClient.serverName,
+              },
             },
           ],
         },
