@@ -19,6 +19,16 @@
                 }
             },
             "version": "."
+        },
+        {
+            "name": "prometheus-telemeter",
+            "source": {
+                "git": {
+                    "remote": "../",
+                    "subdir": "jsonnet/telemeter/prometheus"
+                }
+            },
+            "version": "."
         }
     ]
 }
