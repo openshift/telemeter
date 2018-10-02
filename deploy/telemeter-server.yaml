@@ -111,6 +111,11 @@ objects:
               secretKeyRef:
                 name: telemeter
                 key: rhd.password
+          - name: RHD_CLIENT_ID
+            valueFrom:
+              secretKeyRef:
+                name: telemeter
+                key: rhd.client_id
           command:
           - /usr/bin/telemeter-server
           - --join=telemeter-cluster
@@ -123,6 +128,10 @@ objects:
           - --tls-key=/etc/pki/service/tls.key
           - --tls-crt=/etc/pki/service/tls.crt
           - --authorize=${AUTHORIZE_URL}
+          - --authorize-issuer-url=$(RHD_URL)
+          - --authorize-client-id=$(RHD_CLIENT_ID)
+          - --authorize-username=$(RHD_USERNAME)
+          - --authorize-password=$(RHD_PASSWORD)
 parameters:
 - name: IMAGE
   value: openshift/origin-telemeter
