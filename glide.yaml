@@ -13,3 +13,6 @@ import:
   - proto
 - package: github.com/coreos/go-oidc
   version: v2.0.0
+- package: golang.org/x/oauth2
+  subpackages:
+  - internal
