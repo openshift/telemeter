@@ -24,7 +24,7 @@ items:
             secretName: telemeter-client
         containers:
         - name: client
-          image: openshift/origin-telemeter:v3.11
+          image: openshift/origin-telemeter:v4.0
           resources:
             requests:
               cpu: 5m
