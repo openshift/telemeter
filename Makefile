@@ -28,7 +28,8 @@ vendor:
 
 manifests: $(JSONNET_SRC) $(JSONNET_VENDOR)
 	rm -rf manifests
-	mixtool build jsonnet/main.jsonnet -J jsonnet/vendor -m manifests
+	mixtool build jsonnet/client.jsonnet -J jsonnet/vendor -m manifests/client
+	mixtool build jsonnet/server.jsonnet -J jsonnet/vendor -m manifests/server
 
 $(JSONNET_VENDOR): jsonnet/jsonnetfile.json
 	cd jsonnet && jb install
