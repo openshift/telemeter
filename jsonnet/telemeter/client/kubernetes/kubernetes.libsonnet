@@ -92,7 +92,7 @@ local securePort = 8443;
       local podLabels = { 'k8s-app': 'telemeter-client' };
       local secretMount = containerVolumeMount.new(secretVolumeName, secretMountPath);
       local secretVolume = volume.fromSecret(secretVolumeName, secretName);
-      local tlsMount = containerVolumeMount.new(tlsVolumeName, '/etc/tls/private');
+      local tlsMount = containerVolumeMount.new(tlsVolumeName, tlsMountPath);
       local tlsVolume = volume.fromSecret(tlsVolumeName, tlsSecret);
       local id = containerEnv.fromSecretRef('ID', secretName, 'id');
       local to = containerEnv.fromSecretRef('TO', secretName, 'to');
@@ -119,8 +119,8 @@ local securePort = 8443;
         container.withArgs([
           '--secure-listen-address=:' + securePort,
           '--upstream=http://127.0.0.1:%s/' % metricsPort,
-          '--tls-cert-file=/etc/tls/private/tls.crt',
-          '--tls-private-key-file=/etc/tls/private/tls.key',
+          '--tls-cert-file=%s/tls.crt' % tlsMountPath,
+          '--tls-private-key-file=%s/tls.key' % tlsMountPath,
         ]) +
         container.withPorts(containerPort.new(securePort) + containerPort.withName('https')) +
         container.mixin.resources.withRequests({ cpu: '10m', memory: '20Mi' }) +
