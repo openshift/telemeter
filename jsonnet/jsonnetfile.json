@@ -9,6 +9,16 @@
                 }
             },
             "version": "."
+        },
+        {
+            "name": "telemeter-server",
+            "source": {
+                "git": {
+                    "remote": "../",
+                    "subdir": "jsonnet/telemeter/server"
+                }
+            },
+            "version": "."
         }
     ]
 }

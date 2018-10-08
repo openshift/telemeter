@@ -1,0 +1,159 @@
+apiVersion: v1
+kind: Template
+metadata:
+  name: telemeter
+objects:
+- apiVersion: v1
+  data:
+    rhd.client_id: ""
+    rhd.password: ""
+    rhd.url: ""
+    rhd.username: ""
+  kind: Secret
+  metadata:
+    labels:
+      k8s-app: telemeter-server
+    name: telemeter-server
+    namespace: telemeter
+  type: Opaque
+- apiVersion: v1
+  kind: Service
+  metadata:
+    annotations:
+      service.alpha.openshift.io/serving-cert-secret-name: telemeter-server-shared
+    labels:
+      k8s-app: telemeter-server
+    name: telemeter-server
+    namespace: telemeter
+  spec:
+    clusterIP: None
+    ports:
+    - name: external;
+      port: 8443
+      targetPort: external
+    - name: internal
+      port: 8082
+      targetPort: internal
+    - name: cluster
+      port: 8081
+      targetPort: cluster
+    selector:
+      k8s-app: telemeter-server
+- apiVersion: monitoring.coreos.com/v1
+  kind: ServiceMonitor
+  metadata:
+    labels:
+      k8s-app: telemeter-server
+    name: telemeter-server
+    namespace: telemeter
+  spec:
+    endpoints:
+    - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      interval: 30s
+      port: external
+      scheme: https
+      tlsConfig:
+        caFile: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
+        serverName: server-name-replaced-at-runtime
+    jobLabel: k8s-app
+    selector:
+      matchLabels:
+        k8s-app: telemeter-server
+- apiVersion: apps/v1beta2
+  image: ${IMAGE}:${IMAGE_TAG}
+  kind: StatefulSet
+  metadata:
+    name: telemeter-server
+    namespace: telemeter
+  spec:
+    podManagementPolicy: Parallel
+    replicas: 3
+    selector:
+      matchLabels:
+        k8s-app: telemeter-server
+    serviceName: telemeter-server
+    template:
+      metadata:
+        labels:
+          k8s-app: telemeter-server
+      spec:
+        containers:
+        - command:
+          - /usr/bin/telemeter-server
+          - --join=telemeter-cluster
+          - --name=$(NAME)
+          - --listen=0.0.0.0:8443
+          - --listen-internal=0.0.0.0:8081
+          - --listen-cluster=0.0.0.0:8082
+          - --storage-dir=/var/lib/telemeter
+          - --shared-key=/etc/pki/service/tls.key
+          - --tls-key=/etc/pki/service/tls.key
+          - --tls-crt=/etc/pki/service/tls.crt
+          - --authorize=${AUTHORIZE_URL}
+          - --authorize-issuer-url=$(RHD_URL)
+          - --authorize-client-id=$(RHD_CLIENT_ID)
+          - --authorize-username=$(RHD_USERNAME)
+          - --authorize-password=$(RHD_PASSWORD)
+          env:
+          - name: RHD_URL
+            valueFrom:
+              secretKeyRef:
+                key: rhd.url
+                name: telemeter-server
+          - name: RHD_USERNAME
+            valueFrom:
+              secretKeyRef:
+                key: rhd.username
+                name: telemeter-server
+          - name: RHD_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: rhd.password
+                name: telemeter-server
+          - name: RHD_CLIENT_ID
+            valueFrom:
+              secretKeyRef:
+                key: rhd.client_id
+                name: telemeter-server
+          image: quay.io/openshift/origin-telemeter:v4.0
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8443
+              scheme: HTTPS
+          name: telemeter-server
+          ports:
+          - containerPort: 8443
+            name: external
+          - containerPort: 8082
+            name: internal
+          - containerPort: 8081
+            name: cluster
+          readinessProbe:
+            httpGet:
+              path: /healthz/ready
+              port: 8443
+              scheme: HTTPS
+          volumeMounts:
+          - mountPath: /etc/pki/service
+            name: telemeter-server-tls
+            readOnly: false
+          - mountPath: /var/lib/telemeter
+            name: local
+            readOnly: false
+        serviceAccountName: telemeter-server
+        volumes:
+        - emptyDir: {}
+          name: local
+        - name: telemeter-server-tls
+          secret:
+            secretName: telemeter-server-shared
+    volumeClaimTemplates:
+    - {}
+parameters:
+- name: IMAGE
+  value: quay.io/openshift/origin-telemeter
+- name: IMAGE_TAG
+  value: v4.0
+- name: AUTHORIZE_URL
+  value: https://api.openshift.com/api/accounts_mgmt/v1/cluster_registrations

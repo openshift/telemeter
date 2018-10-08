@@ -1,0 +1,90 @@
+apiVersion: apps/v1beta2
+kind: StatefulSet
+metadata:
+  name: telemeter-server
+  namespace: telemeter
+spec:
+  podManagementPolicy: Parallel
+  replicas: 3
+  selector:
+    matchLabels:
+      k8s-app: telemeter-server
+  serviceName: telemeter-server
+  template:
+    metadata:
+      labels:
+        k8s-app: telemeter-server
+    spec:
+      containers:
+      - command:
+        - /usr/bin/telemeter-server
+        - --join=telemeter-cluster
+        - --name=$(NAME)
+        - --listen=0.0.0.0:8443
+        - --listen-internal=0.0.0.0:8081
+        - --listen-cluster=0.0.0.0:8082
+        - --storage-dir=/var/lib/telemeter
+        - --shared-key=/etc/pki/service/tls.key
+        - --tls-key=/etc/pki/service/tls.key
+        - --tls-crt=/etc/pki/service/tls.crt
+        - --authorize=https://api.openshift.com/api/accounts_mgmt/v1/cluster_registrations
+        - --authorize-issuer-url=$(RHD_URL)
+        - --authorize-client-id=$(RHD_CLIENT_ID)
+        - --authorize-username=$(RHD_USERNAME)
+        - --authorize-password=$(RHD_PASSWORD)
+        env:
+        - name: RHD_URL
+          valueFrom:
+            secretKeyRef:
+              key: rhd.url
+              name: telemeter-server
+        - name: RHD_USERNAME
+          valueFrom:
+            secretKeyRef:
+              key: rhd.username
+              name: telemeter-server
+        - name: RHD_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: rhd.password
+              name: telemeter-server
+        - name: RHD_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              key: rhd.client_id
+              name: telemeter-server
+        image: quay.io/openshift/origin-telemeter:v4.0
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8443
+            scheme: HTTPS
+        name: telemeter-server
+        ports:
+        - containerPort: 8443
+          name: external
+        - containerPort: 8082
+          name: internal
+        - containerPort: 8081
+          name: cluster
+        readinessProbe:
+          httpGet:
+            path: /healthz/ready
+            port: 8443
+            scheme: HTTPS
+        volumeMounts:
+        - mountPath: /etc/pki/service
+          name: telemeter-server-tls
+          readOnly: false
+        - mountPath: /var/lib/telemeter
+          name: local
+          readOnly: false
+      serviceAccountName: telemeter-server
+      volumes:
+      - emptyDir: {}
+        name: local
+      - name: telemeter-server-tls
+        secret:
+          secretName: telemeter-server-shared
+  volumeClaimTemplates:
+  - {}
