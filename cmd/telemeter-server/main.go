@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -27,6 +28,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/clientcredentials"
+	jose "gopkg.in/square/go-jose.v2"
+
+	"path/filepath"
 
 	"github.com/openshift/telemeter/pkg/authorizer/jwt"
 	"github.com/openshift/telemeter/pkg/authorizer/server"
@@ -103,6 +108,8 @@ func main() {
 		LimitBytes:         500 * 1024,
 		TokenExpireSeconds: 24 * 60 * 60,
 		PartitionKey:       "_id",
+
+		AuthorizeJWSAlg: string(jose.RS512),
 	}
 	cmd := &cobra.Command{
 		Short:        "Aggregate federated metrics pushes",
@@ -133,10 +140,33 @@ func main() {
 
 	cmd.Flags().StringVar(&opt.AuthorizeEndpoint, "authorize", opt.AuthorizeEndpoint, "A endpoint URL to authorize against when a client requests a token.")
 
-	cmd.Flags().StringVar(&opt.AuthorizeIssuerURL, "authorize-issuer-url", opt.AuthorizeIssuerURL, "The authorize OIDC issuer URL, see https://openid.net/specs/openid-connect-discovery-1_0.html#IssuerDiscovery.")
-	cmd.Flags().StringVar(&opt.AuthorizeUsername, "authorize-username", opt.AuthorizeUsername, "The authorize OIDC username, see rfc6749#section-4.3.")
-	cmd.Flags().StringVar(&opt.AuthorizePassword, "authorize-password", opt.AuthorizePassword, "The authorize OIDC password, see rfc6749#section-4.3.")
-	cmd.Flags().StringVar(&opt.AuthorizeClientID, "authorize-client-id", opt.AuthorizeClientID, "The authorize OIDC client ID, see rfc6749#section-4.3.")
+	cmd.Flags().StringVar(&opt.AuthorizeIssuerURL, "authorize-issuer-url", opt.AuthorizeIssuerURL,
+		"The authorize OIDC issuer URL, see https://openid.net/specs/openid-connect-discovery-1_0.html#IssuerDiscovery."+
+			"If set, incoming upload requests will be authorized against this OIDC endpoint.")
+
+	cmd.Flags().StringVar(&opt.AuthorizeClientID, "authorize-client-id", opt.AuthorizeClientID,
+		"The authorize OAuth 2.0 client ID, see https://tools.ietf.org/html/rfc6749#section-2.2.")
+
+	cmd.Flags().StringVar(&opt.AuthorizeUsername, "authorize-username", opt.AuthorizeUsername,
+		"The authorize resource owner username. "+
+			"If set, the resource owner password credentials grant flow will be used, see rfc6749#section-4.3.")
+
+	cmd.Flags().StringVar(&opt.AuthorizePassword, "authorize-password", opt.AuthorizePassword,
+		"The authorize resource owner password, see https://tools.ietf.org/html/rfc6749#section-4.3.")
+
+	cmd.Flags().StringVar(&opt.AuthorizePrivateJWKPath, "authorize-private-jwk-path", opt.AuthorizePrivateJWKPath,
+		"The authorize private JWK file used for signing client assertion JWTs. "+
+			"If set, the client credentials grant flow will be used using a JWT for client authentication where the client acts on behalf of itself, "+
+			"see https://tools.ietf.org/html/rfc6749#section-4.4, https://tools.ietf.org/html/rfc7523#section-2.2, https://tools.ietf.org/html/rfc7521#section-6.2. "+
+			"The public part of this private key will be available at the /jwks endpoint on the upload traffic listener.")
+
+	cmd.Flags().StringVar(&opt.AuthorizeJWSAlg, "authorize-jws-alg", opt.AuthorizeJWSAlg,
+		"The algorithm used to sign the client assertion JWT. "+
+			"Can be one of EdDSA HS256 HS384 HS512 RS256 RS384 RS512 ES256 ES384 ES512 PS256 PS384 PS512")
+
+	cmd.Flags().StringVar(&opt.AuthorizePublicJWKDir, "authorize-public-jwk-dir", opt.AuthorizePublicJWKDir,
+		"(optional) The directory containing public JWK files. "+
+			"All valid public JWKs will be available at the /jwks endpoint on the upload traffic listener.")
 
 	cmd.Flags().BoolVarP(&opt.Verbose, "verbose", "v", opt.Verbose, "Show verbose output.")
 
@@ -161,10 +191,13 @@ type Options struct {
 
 	AuthorizeEndpoint string
 
-	AuthorizeIssuerURL string
-	AuthorizeClientID  string
-	AuthorizeUsername  string
-	AuthorizePassword  string
+	AuthorizeIssuerURL      string
+	AuthorizeClientID       string
+	AuthorizeUsername       string
+	AuthorizePassword       string
+	AuthorizePrivateJWKPath string
+	AuthorizePublicJWKDir   string
+	AuthorizeJWSAlg         string
 
 	PartitionKey string
 	LabelFlag    []string
@@ -201,8 +234,11 @@ func (o *Options) Run() error {
 	}
 
 	// set up the upstream authorization
-	var authorizeURL *url.URL
-	var authorizeClient *http.Client
+	var (
+		authorizeURL    *url.URL
+		authorizeClient *http.Client
+		jwks            jose.JSONWebKeySet
+	)
 	ctx := context.Background()
 	if len(o.AuthorizeEndpoint) > 0 {
 		u, err := url.Parse(o.AuthorizeEndpoint)
@@ -211,19 +247,31 @@ func (o *Options) Run() error {
 		}
 		authorizeURL = u
 
-		authorizeClient = &http.Client{
-			Timeout: 20 * time.Second,
-			Transport: &http.Transport{
-				Dial:                (&net.Dialer{Timeout: 10 * time.Second}).Dial,
-				MaxIdleConnsPerHost: 10,
-				IdleConnTimeout:     30 * time.Second,
-			},
+		transport := &http.Transport{
+			Dial:                (&net.Dialer{Timeout: 10 * time.Second}).Dial,
+			MaxIdleConnsPerHost: 10,
+			IdleConnTimeout:     30 * time.Second,
 		}
 
+		authorizeClient = &http.Client{
+			Timeout:   20 * time.Second,
+			Transport: transport,
+		}
+
+		var provider *oidc.Provider
+
 		if o.AuthorizeIssuerURL != "" {
-			provider, err := oidc.NewProvider(ctx, o.AuthorizeIssuerURL)
+			provider, err = oidc.NewProvider(ctx, o.AuthorizeIssuerURL)
 			if err != nil {
 				return fmt.Errorf("OIDC provider initialization failed: %v", err)
+			}
+		}
+
+		switch {
+		case o.AuthorizeUsername != "":
+			// use code grant flow
+			if provider == nil {
+				return errors.New("no issuer specified")
 			}
 
 			cfg := oauth2.Config{
@@ -237,8 +285,60 @@ func (o *Options) Run() error {
 			)
 
 			authorizeClient.Transport = &oauth2.Transport{
-				Base:   authorizeClient.Transport,
+				Base:   transport,
 				Source: src,
+			}
+		case o.AuthorizePrivateJWKPath != "":
+			privJWK, err := parseJWK(o.AuthorizePrivateJWKPath)
+			if err != nil {
+				return fmt.Errorf("error parsing private JWK: %v", err)
+			}
+
+			jwks.Keys = append(jwks.Keys, privJWK.Public())
+
+			if o.AuthorizePublicJWKDir != "" {
+				pubJWKs, err := parsePublicJWKs(o.AuthorizePublicJWKDir)
+				if err != nil {
+					return fmt.Errorf("error parsing public JWKs: %v", err)
+				}
+				jwks.Keys = append(jwks.Keys, pubJWKs...)
+			}
+
+			signer, err := jose.NewSigner(
+				jose.SigningKey{
+					Key:       privJWK,
+					Algorithm: jose.SignatureAlgorithm(o.AuthorizeJWSAlg),
+				},
+				&jose.SignerOptions{
+					// this will only embed the JWK's key ID "kid"
+					// the public key content can be retrieved using the `/jwks` endpoint
+					EmbedJWK: false,
+				},
+			)
+			if err != nil {
+				return fmt.Errorf("signer initialization failed: %v", err)
+			}
+
+			ctx = context.WithValue(ctx, oauth2.HTTPClient,
+				&http.Client{
+					Transport: telemeter_oauth2.NewJWTClientAuthenticator(
+						telemeter_oauth2.ClientClaims{
+							Issuer:   "telemeter",
+							Subject:  o.AuthorizeClientID,
+							Audience: []string{o.AuthorizeIssuerURL},
+							Expiry:   10 * time.Second,
+						},
+						signer,
+						transport,
+					),
+				},
+			)
+
+			cfg := clientcredentials.Config{TokenURL: provider.Endpoint().TokenURL}
+
+			authorizeClient.Transport = &oauth2.Transport{
+				Base:   transport,
+				Source: cfg.TokenSource(ctx),
 			}
 		}
 	}
@@ -355,7 +455,7 @@ func (o *Options) Run() error {
 	server := httpserver.New(store, validator)
 
 	internalPathJSON, _ := json.MarshalIndent(Paths{Paths: internalPaths}, "", "  ")
-	externalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/authorize", "/upload", "/healthz", "/healthz/ready"}}, "", "  ")
+	externalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/authorize", "/upload", "/healthz", "/healthz/ready", "/jwks"}}, "", "  ")
 
 	// TODO: add internal authorization
 	telemeterhttp.AddDebug(internalProtected)
@@ -385,6 +485,11 @@ func (o *Options) Run() error {
 	}))
 	telemeterhttp.AddHealth(external)
 	external.Handle("/authorize", instrumentHandler("authorize", http.HandlerFunc(auth.AuthorizeHTTP)))
+
+	external.Handle("/jwks", instrumentHandler("jwks", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(jwks)
+	})))
 
 	log.Printf("Starting telemeter-server %s on %s (internal=%s, cluster=%s)", o.Name, o.Listen, o.ListenInternal, o.ListenCluster)
 
@@ -496,4 +601,34 @@ func instrumentHandler(handlerName string, handler http.HandlerFunc) http.Handle
 			),
 		),
 	)
+}
+
+func parseJWK(path string) (*jose.JSONWebKey, error) {
+	var jwk jose.JSONWebKey
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("error opening file %q: %v", path, err)
+	}
+	defer f.Close()
+	if err := json.NewDecoder(f).Decode(&jwk); err != nil {
+		return nil, fmt.Errorf("error decoding file %q: %v", path, err)
+	}
+	return &jwk, nil
+}
+
+func parsePublicJWKs(dirname string) ([]jose.JSONWebKey, error) {
+	files, err := ioutil.ReadDir(dirname)
+	if err != nil {
+		return nil, fmt.Errorf("error reading directory: %v", err)
+	}
+
+	jwks := make([]jose.JSONWebKey, len(files))
+	for i, f := range files {
+		jwk, err := parseJWK(filepath.Join(dirname, f.Name()))
+		if err != nil {
+			return nil, err
+		}
+		jwks[i] = *jwk
+	}
+	return jwks, nil
 }
