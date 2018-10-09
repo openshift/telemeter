@@ -8,7 +8,7 @@
                     "subdir": "jsonnet/telemeter/client"
                 }
             },
-            "version": "d2e54c174935192066c51cf50e2f990c63dc143e"
+            "version": "3b283ef78cd9c70457008cbd9003037c60c192c4"
         },
         {
             "name": "ksonnet",
@@ -19,6 +19,16 @@
                 }
             },
             "version": "ed0796f3cb97ebc35ae54f543b1814a7c8dae305"
+        },
+        {
+            "name": "telemeter-server",
+            "source": {
+                "git": {
+                    "remote": "../",
+                    "subdir": "jsonnet/telemeter/server"
+                }
+            },
+            "version": "3b283ef78cd9c70457008cbd9003037c60c192c4"
         }
     ]
 }
