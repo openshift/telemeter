@@ -12,12 +12,13 @@ import (
 	"testing"
 
 	"github.com/openshift/telemeter/pkg/metricfamily"
-	"github.com/openshift/telemeter/pkg/untrusted"
+	"github.com/openshift/telemeter/pkg/store/memstore"
+	"github.com/openshift/telemeter/pkg/validator"
 
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 
-	"github.com/openshift/telemeter/pkg/authorizer"
+	"github.com/openshift/telemeter/pkg/authorize"
 	"github.com/openshift/telemeter/pkg/http/server"
 )
 
@@ -34,17 +35,17 @@ openshift_build_info{app="openshift-web-console",gitCommit="d911956",gitVersion=
 )
 
 func TestPost(t *testing.T) {
-	validator := untrusted.NewValidator("cluster", nil, 0, 0)
+	validator := validator.New("cluster", nil, 0, 0)
 	labels := map[string]string{"cluster": "test"}
 	testPost(t, validator, withLabels(sort(mustReadString(sampleMetrics)), labels), withLabels(sort(mustReadString(sampleMetrics)), labels))
 }
 
 func TestPostError(t *testing.T) {
-	validator := untrusted.NewValidator("cluster", nil, 4096, 0)
-	store := server.NewMemoryStore()
+	validator := validator.New("cluster", nil, 4096, 0)
+	store := memstore.New()
 	server := server.New(store, validator)
 
-	s := httptest.NewServer(fakeAuthorizeHandler(http.HandlerFunc(server.Post), &authorizer.User{ID: "test", Labels: map[string]string{"cluster": "test"}}))
+	s := httptest.NewServer(fakeAuthorizeHandler(http.HandlerFunc(server.Post), &authorize.Client{ID: "test", Labels: map[string]string{"cluster": "test"}}))
 	defer s.Close()
 
 	longName := strings.Repeat("abcd", 2048)
@@ -77,10 +78,10 @@ func TestPostError(t *testing.T) {
 func testPost(t *testing.T, validator server.UploadValidator, send, expect []*clientmodel.MetricFamily) {
 	t.Helper()
 
-	store := server.NewMemoryStore()
+	store := memstore.New()
 	server := server.New(store, validator)
 
-	s := httptest.NewServer(fakeAuthorizeHandler(http.HandlerFunc(server.Post), &authorizer.User{ID: "test", Labels: map[string]string{"cluster": "test"}}))
+	s := httptest.NewServer(fakeAuthorizeHandler(http.HandlerFunc(server.Post), &authorize.Client{ID: "test", Labels: map[string]string{"cluster": "test"}}))
 	defer s.Close()
 
 	mustPost(s.URL, expfmt.FmtProtoDelim, send)
@@ -102,8 +103,8 @@ func testPost(t *testing.T, validator server.UploadValidator, send, expect []*cl
 }
 
 func TestGet(t *testing.T) {
-	store := server.NewMemoryStore()
-	validator := untrusted.NewValidator("cluster", nil, 0, 0)
+	store := memstore.New()
+	validator := validator.New("cluster", nil, 0, 0)
 	server := server.NewNonExpiring(store, validator)
 	s := httptest.NewServer(http.HandlerFunc(server.Get))
 	defer s.Close()
@@ -232,9 +233,9 @@ func mustGet(addr string, format expfmt.Format) []*clientmodel.MetricFamily {
 	return mustRead(resp.Body, expfmt.ResponseFormat(resp.Header))
 }
 
-func fakeAuthorizeHandler(h http.Handler, user *authorizer.User) http.Handler {
+func fakeAuthorizeHandler(h http.Handler, client *authorize.Client) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		req = req.WithContext(authorizer.WithUser(req.Context(), user))
+		req = req.WithContext(authorize.WithClient(req.Context(), client))
 		h.ServeHTTP(w, req)
 	})
 }

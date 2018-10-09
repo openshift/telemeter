@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
@@ -23,19 +25,22 @@ import (
 
 	"github.com/cockroachdb/cmux"
 	oidc "github.com/coreos/go-oidc"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
 
-	"github.com/openshift/telemeter/pkg/authorizer/jwt"
-	"github.com/openshift/telemeter/pkg/authorizer/server"
+	"github.com/openshift/telemeter/pkg/authorize"
+	"github.com/openshift/telemeter/pkg/authorize/jwt"
+	"github.com/openshift/telemeter/pkg/authorize/stub"
+	"github.com/openshift/telemeter/pkg/authorize/tollbooth"
 	"github.com/openshift/telemeter/pkg/cluster"
-	telemeterhttp "github.com/openshift/telemeter/pkg/http"
-	httpauthorizer "github.com/openshift/telemeter/pkg/http/authorizer"
+	telemeter_http "github.com/openshift/telemeter/pkg/http"
 	httpserver "github.com/openshift/telemeter/pkg/http/server"
 	telemeter_oauth2 "github.com/openshift/telemeter/pkg/oauth2"
-	"github.com/openshift/telemeter/pkg/untrusted"
+	"github.com/openshift/telemeter/pkg/store"
+	"github.com/openshift/telemeter/pkg/store/diskstore"
+	"github.com/openshift/telemeter/pkg/store/instrumented"
+	"github.com/openshift/telemeter/pkg/store/memstore"
+	"github.com/openshift/telemeter/pkg/validator"
 )
 
 const desc = `
@@ -70,32 +75,7 @@ and the metrics from the client are stored in a snappy-compressed protobuf file
 (the Prometheus delimited format).
 `
 
-var (
-	requestDuration = prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name: "http_request_duration_seconds",
-			Help: "Tracks the latencies for HTTP requests.",
-		},
-		[]string{"code", "handler", "method"},
-	)
-	requestSize = prometheus.NewSummaryVec(
-		prometheus.SummaryOpts{
-			Name: "http_request_size_bytes",
-			Help: "Tracks the size of HTTP requests.",
-		},
-		[]string{"code", "handler", "method"},
-	)
-	requestsTotal = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "http_requests_total",
-			Help: "Tracks the number of HTTP requests.",
-		}, []string{"code", "handler", "method"},
-	)
-)
-
 func main() {
-	prometheus.MustRegister(requestDuration, requestSize, requestsTotal)
-
 	opt := &Options{
 		Listen:         "0.0.0.0:9003",
 		ListenInternal: "localhost:9004",
@@ -211,13 +191,21 @@ func (o *Options) Run() error {
 		}
 		authorizeURL = u
 
+		var transport http.RoundTripper
+
+		transport = &http.Transport{
+			Dial:                (&net.Dialer{Timeout: 10 * time.Second}).Dial,
+			MaxIdleConnsPerHost: 10,
+			IdleConnTimeout:     30 * time.Second,
+		}
+
+		if o.Verbose {
+			transport = telemeter_http.NewDebugRoundTripper(transport)
+		}
+
 		authorizeClient = &http.Client{
-			Timeout: 20 * time.Second,
-			Transport: &http.Transport{
-				Dial:                (&net.Dialer{Timeout: 10 * time.Second}).Dial,
-				MaxIdleConnsPerHost: 10,
-				IdleConnTimeout:     30 * time.Second,
-			},
+			Timeout:   20 * time.Second,
+			Transport: transport,
 		}
 
 		if o.AuthorizeIssuerURL != "" {
@@ -225,6 +213,13 @@ func (o *Options) Run() error {
 			if err != nil {
 				return fmt.Errorf("OIDC provider initialization failed: %v", err)
 			}
+
+			ctx = context.WithValue(ctx, oauth2.HTTPClient,
+				&http.Client{
+					Timeout:   20 * time.Second,
+					Transport: transport,
+				},
+			)
 
 			cfg := oauth2.Config{
 				ClientID: o.AuthorizeClientID,
@@ -252,57 +247,61 @@ func (o *Options) Run() error {
 	useInternalTLS := false
 
 	var (
-		signer     *jwt.Signer
-		authorizer *jwt.Authorizer
 		publicKey  crypto.PublicKey
 		privateKey crypto.PrivateKey
 		keyBytes   []byte
 	)
+
 	if len(o.SharedKey) > 0 {
 		data, err := ioutil.ReadFile(o.SharedKey)
 		if err != nil {
 			return fmt.Errorf("unable to read --shared-key: %v", err)
 		}
+
 		key, err := loadPrivateKey(data)
 		if err != nil {
 			return err
 		}
+
 		switch t := key.(type) {
 		case *ecdsa.PrivateKey:
-			privateKey = t
 			keyBytes, _ = x509.MarshalECPrivateKey(t)
-			publicKey = t.Public()
+			privateKey, publicKey = t, t.Public()
 		case *rsa.PrivateKey:
-			privateKey = t
 			keyBytes = x509.MarshalPKCS1PrivateKey(t)
-			publicKey = t.Public()
+			privateKey, publicKey = t, t.Public()
 		default:
 			return fmt.Errorf("unknown key type in --shared-key")
 		}
-
-		signer, authorizer, err = jwt.NewForKey("federate", privateKey, publicKey)
-		if err != nil {
-			return fmt.Errorf("unable to create signer: %v", err)
-		}
-
 	} else {
 		if len(o.Members) > 0 {
 			return fmt.Errorf("--shared-key must be specified when specifying a cluster to join")
 		}
+
 		log.Printf("warning: Using a generated shared-key")
-		var err error
-		var key *ecdsa.PrivateKey
-		signer, authorizer, publicKey, key, err = jwt.New("federate")
+
+		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		if err != nil {
-			return fmt.Errorf("unable to create signer: %v", err)
+			return fmt.Errorf("key generation failed: %v", err)
 		}
 
 		keyBytes, err = x509.MarshalECPrivateKey(key)
 		if err != nil {
 			return fmt.Errorf("unable to marshal private key")
 		}
-		privateKey = key
+
+		privateKey, publicKey = key, key.Public()
 	}
+
+	issuer := "telemeter.selfsigned"
+	audience := "federate"
+
+	jwtAuthorizer := jwt.NewClientAuthorizer(
+		issuer,
+		[]crypto.PublicKey{publicKey},
+		jwt.NewValidator([]string{audience}),
+	)
+	signer := jwt.NewSigner(issuer, privateKey)
 
 	// create a secret for the JWT key
 	h := sha256.New()
@@ -317,28 +316,38 @@ func (o *Options) Run() error {
 	internalPaths := []string{"/", "/federate", "/metrics", "/debug/pprof", "/healthz", "/healthz/ready"}
 
 	// configure the authenticator and incoming data validator
-	auth := server.New(o.PartitionKey, authorizeURL, authorizeClient, o.TokenExpireSeconds, signer, o.Labels)
-	validator := untrusted.NewValidator(o.PartitionKey, o.Labels, o.LimitBytes, 24*time.Hour)
+	var clusterAuth authorize.ClusterAuthorizer
+	clusterAuth = authorize.ClusterAuthorizerFunc(stub.Authorize)
+	if authorizeURL != nil {
+		clusterAuth = tollbooth.NewAuthorizer(authorizeClient, authorizeURL)
+	}
+
+	auth := jwt.NewAuthorizeClusterHandler(o.PartitionKey, o.TokenExpireSeconds, signer, o.Labels, clusterAuth)
+	validator := validator.New(o.PartitionKey, o.Labels, o.LimitBytes, 24*time.Hour)
 
 	// register a store
-	var store httpserver.Store
+	var store store.Store
 	if len(o.StorageDir) > 0 {
 		log.Printf("Storing metrics on disk at %s", o.StorageDir)
-		store = httpserver.NewDiskStore(o.StorageDir)
+		store = instrumented.New(diskstore.New(o.StorageDir), "disk")
 	} else {
 		log.Printf("warning: Using memory-backed store")
-		store = httpserver.NewMemoryStore()
+		store = instrumented.New(memstore.New(), "memory")
 	}
 
 	if len(o.ListenCluster) > 0 {
-		cluster, err := cluster.NewDynamic(o.Name, o.ListenCluster, secret, store, o.Verbose)
+		c := cluster.NewDynamic(o.Name, store)
+		ml, err := cluster.NewMemberlist(o.Name, o.ListenCluster, secret, o.Verbose, c)
 		if err != nil {
 			return fmt.Errorf("unable to configure cluster: %v", err)
 		}
+
+		c.Start(ml, context.Background())
+
 		if len(o.Members) > 0 {
 			go func() {
 				for {
-					if err := cluster.Join(o.Members); err != nil {
+					if err := c.Join(o.Members); err != nil {
 						log.Printf("error: Could not join any of %v: %v", o.Members, err)
 						time.Sleep(5 * time.Second)
 						continue
@@ -347,9 +356,9 @@ func (o *Options) Run() error {
 				}
 			}()
 		}
-		store = cluster
+		store = c
 		internalPaths = append(internalPaths, "/debug/cluster")
-		internalProtected.Handle("/debug/cluster", cluster)
+		internalProtected.Handle("/debug/cluster", c)
 	}
 
 	server := httpserver.New(store, validator)
@@ -358,7 +367,7 @@ func (o *Options) Run() error {
 	externalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/authorize", "/upload", "/healthz", "/healthz/ready"}}, "", "  ")
 
 	// TODO: add internal authorization
-	telemeterhttp.AddDebug(internalProtected)
+	telemeter_http.DebugRoutes(internalProtected)
 	internalProtected.Handle("/federate", http.HandlerFunc(server.Get))
 
 	internal.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -369,11 +378,11 @@ func (o *Options) Run() error {
 		}
 		internalProtected.ServeHTTP(w, req)
 	}))
-	telemeterhttp.AddMetrics(internal)
-	telemeterhttp.AddHealth(internal)
+	telemeter_http.MetricRoutes(internal)
+	telemeter_http.HealthRoutes(internal)
 
-	externalProtected.Handle("/upload", instrumentHandler("upload", http.HandlerFunc(server.Post)))
-	externalProtectedHandler := httpauthorizer.New(externalProtected, authorizer)
+	externalProtected.Handle("/upload", telemeter_http.NewInstrumentedHandler("upload", http.HandlerFunc(server.Post)))
+	externalProtectedHandler := authorize.NewAuthorizeClientHandler(jwtAuthorizer, externalProtected)
 
 	external.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.URL.Path == "/" && req.Method == "GET" {
@@ -383,8 +392,8 @@ func (o *Options) Run() error {
 		}
 		externalProtectedHandler.ServeHTTP(w, req)
 	}))
-	telemeterhttp.AddHealth(external)
-	external.Handle("/authorize", instrumentHandler("authorize", http.HandlerFunc(auth.AuthorizeHTTP)))
+	telemeter_http.HealthRoutes(external)
+	external.Handle("/authorize", telemeter_http.NewInstrumentedHandler("authorize", auth))
 
 	log.Printf("Starting telemeter-server %s on %s (internal=%s, cluster=%s)", o.Name, o.Listen, o.ListenInternal, o.ListenCluster)
 
@@ -457,7 +466,7 @@ func (o *Options) Run() error {
 }
 
 // loadPrivateKey loads a private key from PEM/DER-encoded data.
-func loadPrivateKey(data []byte) (interface{}, error) {
+func loadPrivateKey(data []byte) (crypto.PrivateKey, error) {
 	input := data
 
 	block, _ := pem.Decode(data)
@@ -482,18 +491,4 @@ func loadPrivateKey(data []byte) (interface{}, error) {
 	}
 
 	return nil, fmt.Errorf("unable to parse private key data: '%s', '%s' and '%s'", err0, err1, err2)
-}
-
-// instrumentHandler instruments an http.HandlerFunc.
-func instrumentHandler(handlerName string, handler http.HandlerFunc) http.HandlerFunc {
-	return promhttp.InstrumentHandlerDuration(
-		requestDuration.MustCurryWith(prometheus.Labels{"handler": handlerName}),
-		promhttp.InstrumentHandlerRequestSize(
-			requestSize.MustCurryWith(prometheus.Labels{"handler": handlerName}),
-			promhttp.InstrumentHandlerCounter(
-				requestsTotal.MustCurryWith(prometheus.Labels{"handler": handlerName}),
-				handler,
-			),
-		),
-	)
 }

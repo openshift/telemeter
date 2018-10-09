@@ -8,51 +8,37 @@ import (
 	"time"
 
 	"github.com/golang/snappy"
-	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 
 	"github.com/openshift/telemeter/pkg/metricfamily"
+	"github.com/openshift/telemeter/pkg/store"
+	"github.com/openshift/telemeter/pkg/store/instrumented"
 )
-
-var (
-	metricSamples = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "telemeter_server_samples",
-		Help: "Tracks the number of samples processed by this server.",
-	}, []string{"phase"})
-)
-
-func init() {
-	prometheus.MustRegister(metricSamples)
-}
 
 // maxSampleAge is the maximum age of a sample that we can report via federation.
 const maxSampleAge = 10 * time.Minute
 
-type Store interface {
-	ReadMetrics(ctx context.Context, minTimestampMs int64, fn func(partitionKey string, families []*clientmodel.MetricFamily) error) error
-	WriteMetrics(ctx context.Context, partitionKey string, families []*clientmodel.MetricFamily) error
-}
-
 type UploadValidator interface {
-	ValidateUpload(ctx context.Context, req *http.Request) (string, []metricfamily.Transformer, error)
+	ValidateUpload(ctx context.Context, req *http.Request) (string, metricfamily.Transformer, error)
 }
 
 type Server struct {
-	store     Store
-	validator UploadValidator
-	nowFn     func() time.Time
+	receiveStore, store store.Store
+	validator           UploadValidator
+	nowFn               func() time.Time
 }
 
-func New(store Store, validator UploadValidator) *Server {
+func New(store store.Store, validator UploadValidator) *Server {
 	return &Server{
-		store:     store,
-		validator: validator,
-		nowFn:     time.Now,
+		receiveStore: instrumented.New(nil, "received"),
+		store:        store,
+		validator:    validator,
+		nowFn:        time.Now,
 	}
 }
 
-func NewNonExpiring(store Store, validator UploadValidator) *Server {
+func NewNonExpiring(store store.Store, validator UploadValidator) *Server {
 	return &Server{
 		store:     store,
 		validator: validator,
@@ -71,14 +57,12 @@ func (s *Server) Get(w http.ResponseWriter, req *http.Request) {
 
 	// samples older than 10 minutes must be ignored
 	var minTimeMs int64
-	var filter metricfamily.AllTransformer
+	var filter metricfamily.MultiTransformer
 	if s.nowFn != nil {
 		minTime := s.nowFn().Add(-maxSampleAge)
 		minTimeMs = minTime.UnixNano() / int64(time.Millisecond)
-		filter = metricfamily.AllTransformer{
-			metricfamily.NewDropExpiredSamples(minTime),
-			metricfamily.TransformerFunc(metricfamily.PackMetrics),
-		}
+		filter.With(metricfamily.NewDropExpiredSamples(minTime))
+		filter.With(metricfamily.TransformerFunc(metricfamily.PackMetrics))
 	}
 
 	err := s.store.ReadMetrics(ctx, minTimeMs, func(partitionKey string, families []*clientmodel.MetricFamily) error {
@@ -126,7 +110,7 @@ func (s *Server) Post(w http.ResponseWriter, req *http.Request) {
 	decoder := expfmt.NewDecoder(r, format)
 
 	errCh := make(chan error)
-	go func() { errCh <- decodeAndStoreMetrics(ctx, partitionKey, decoder, transforms, s.store) }()
+	go func() { errCh <- s.decodeAndStoreMetrics(ctx, partitionKey, decoder, transforms) }()
 
 	select {
 	case <-ctx.Done():
@@ -141,7 +125,7 @@ func (s *Server) Post(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func decodeAndStoreMetrics(ctx context.Context, partitionKey string, decoder expfmt.Decoder, transforms []metricfamily.Transformer, store Store) error {
+func (s *Server) decodeAndStoreMetrics(ctx context.Context, partitionKey string, decoder expfmt.Decoder, transformer metricfamily.Transformer) error {
 	families := make([]*clientmodel.MetricFamily, 0, 100)
 	for {
 		family := &clientmodel.MetricFamily{}
@@ -154,23 +138,21 @@ func decodeAndStoreMetrics(ctx context.Context, partitionKey string, decoder exp
 		}
 	}
 
-	metricSamples.WithLabelValues("received").Add(float64(metricfamily.MetricsCount(families)))
+	s.receiveStore.WriteMetrics(ctx, partitionKey, families)
 
 	// filter the list
-	for _, transform := range transforms {
-		for i, family := range families {
-			ok, err := transform.Transform(family)
-			if err != nil {
-				return err
-			}
-			if !ok {
-				families[i] = nil
-				continue
-			}
+	for i, family := range families {
+		ok, err := transformer.Transform(family)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			families[i] = nil
+			continue
 		}
 	}
 
 	families = metricfamily.Pack(families)
 
-	return store.WriteMetrics(ctx, partitionKey, families)
+	return s.store.WriteMetrics(ctx, partitionKey, families)
 }

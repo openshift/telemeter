@@ -1,9 +1,11 @@
-package server
+package tollbooth
 
 import (
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"net/http"
+	"strconv"
 	"sync"
 )
 
@@ -12,20 +14,20 @@ type Key struct {
 	Cluster string
 }
 
-type Server struct {
+type mock struct {
 	mu        sync.Mutex
 	Tokens    map[string]struct{}
 	Responses map[Key]clusterRegistration
 }
 
-func NewServer(tokenSet map[string]struct{}) *Server {
-	return &Server{
+func NewMock(tokenSet map[string]struct{}) *mock {
+	return &mock{
 		Tokens:    tokenSet,
 		Responses: make(map[Key]clusterRegistration),
 	}
 }
 
-func (s *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (s *mock) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	defer req.Body.Close()
 	if req.Method != "POST" {
 		Write(w, http.StatusMethodNotAllowed, &registrationError{Name: "MethodNotAllowed", Reason: "Only requests of type 'POST' are accepted."})
@@ -80,4 +82,10 @@ func Write(w http.ResponseWriter, statusCode int, resp interface{}) error {
 	}
 	w.Write(data)
 	return nil
+}
+
+func fnvHash(text string) string {
+	h := fnv.New64a()
+	h.Write([]byte(text))
+	return strconv.FormatUint(h.Sum64(), 32)
 }

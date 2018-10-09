@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/openshift/telemeter/pkg/store"
+	"github.com/openshift/telemeter/pkg/store/memstore"
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 )
@@ -29,8 +31,8 @@ func metric(timestamp int64) *clientmodel.Metric {
 	}
 }
 
-func storeWithData(data map[string][]*clientmodel.MetricFamily) Store {
-	s := NewMemoryStore()
+func storeWithData(data map[string][]*clientmodel.MetricFamily) store.Store {
+	s := memstore.New()
 	for k, v := range data {
 		s.WriteMetrics(context.TODO(), k, v)
 	}
@@ -39,7 +41,7 @@ func storeWithData(data map[string][]*clientmodel.MetricFamily) Store {
 
 func TestServer_Get(t *testing.T) {
 	type fields struct {
-		store     Store
+		store     store.Store
 		validator UploadValidator
 		nowFn     func() time.Time
 	}

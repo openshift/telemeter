@@ -5,11 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
-	"net"
 	"net/http"
-	"strconv"
 	"sync"
 	"time"
 
@@ -21,6 +18,7 @@ import (
 
 	"github.com/openshift/telemeter/pkg/metricfamily"
 	"github.com/openshift/telemeter/pkg/metricsclient"
+	"github.com/openshift/telemeter/pkg/store"
 )
 
 var (
@@ -62,24 +60,45 @@ type metricMessageHeader struct {
 	PartitionKey string
 }
 
-type LocalStore interface {
-	ReadMetrics(ctx context.Context, minTimestampMs int64, fn func(partitionKey string, families []*clientmodel.MetricFamily) error) error
-	WriteMetrics(ctx context.Context, partitionKey string, families []*clientmodel.MetricFamily) error
-}
-
 type nodeData struct {
 	problems int
 	last     time.Time
 }
 
+type memberInfo struct {
+	Name string
+	Addr string
+}
+
+type debugInfo struct {
+	Name            string
+	ProtocolVersion int
+	Members         []memberInfo
+}
+
+type memberlister interface {
+	Members() []*memberlist.Node
+	NumMembers() (alive int)
+	Join(existing []string) (int, error)
+	SendReliable(to *memberlist.Node, msg []byte) error
+}
+
+// DynamicCluster is the struct that handles the gossip based hashring cluster state of telemeter server nodes.
+//
+// It wraps a store.Store and can be used as a drop-in store replacement to
+// forward collected metrics to the actual target node based on the current hashring state.
 type DynamicCluster struct {
 	name  string
-	store LocalStore
+	store store.Store
 	// skip problematic endpoints for at least this amount of time
 	expiration time.Duration
 
-	ml *memberlist.Memberlist
+	ml  memberlister
+	ctx context.Context
 
+	// queue is the pending message queue.
+	// It is populated in the #NotifyMsg callback
+	// and is processed in the #handleMessage function.
 	queue chan ([]byte)
 
 	lock      sync.Mutex
@@ -88,78 +107,41 @@ type DynamicCluster struct {
 	instances map[string]*nodeData
 }
 
-func NewDynamic(name string, addr string, secret []byte, store LocalStore, verbose bool) (*DynamicCluster, error) {
-	if len(secret) != 32 {
-		return nil, fmt.Errorf("invalid secret size, must be 32 bytes: %d", len(secret))
-	}
-
-	host, portString, err := net.SplitHostPort(addr)
-	if err != nil {
-		return nil, fmt.Errorf("address must be a host:port: %v", err)
-	}
-	port, err := strconv.Atoi(portString)
-	if err != nil {
-		return nil, fmt.Errorf("address must be a host:port: %v", err)
-	}
-
-	c := &DynamicCluster{
+// NewDynamic returns a new DynamicCluster struct for the given name and underlying store.
+func NewDynamic(name string, store store.Store) *DynamicCluster {
+	return &DynamicCluster{
 		name:       name,
 		store:      store,
 		expiration: 2 * time.Minute,
+		ring:       hashring.New(nil),
 
 		queue:     make(chan []byte, 100),
 		instances: make(map[string]*nodeData),
 	}
+}
 
-	cfg := memberlist.DefaultWANConfig()
-	cfg.DelegateProtocolVersion = protocolVersion
-	cfg.DelegateProtocolMax = protocolVersion
-	cfg.DelegateProtocolMin = protocolVersion
-
-	cfg.TCPTimeout = 10 * time.Second
-	cfg.BindAddr = host
-	cfg.BindPort = port
-	cfg.AdvertisePort = port
-
-	if !verbose {
-		cfg.LogOutput = ioutil.Discard
-	}
-
-	cfg.SecretKey = secret
-	cfg.Name = name
-
-	cfg.Events = c
-	cfg.Delegate = c
-
-	ml, err := memberlist.Create(cfg)
-	if err != nil {
-		return nil, err
-	}
-
+// Start starts processing the internal message queue
+// until the given context is done.
+func (c *DynamicCluster) Start(ml memberlister, ctx context.Context) {
 	c.ml = ml
+	c.ctx = ctx
 
 	go func() {
-		for data := range c.queue {
-			if err := c.handleMessage(data); err != nil {
-				log.Printf("error: Unable to handle incoming message: %v", err)
+		for {
+			select {
+			case data := <-c.queue:
+				if err := c.handleMessage(data); err != nil {
+					log.Printf("error: Unable to handle incoming message: %v", err)
+				}
+			case <-ctx.Done():
+				return
 			}
 		}
 	}()
-
-	return c, nil
 }
 
-type MemberInfo struct {
-	Name string
-	Addr string
-}
-
-type debugInfo struct {
-	Name            string
-	ProtocolVersion int
-	Members         []MemberInfo
-}
-
+// ServeHTTP implements a simple http handler exposing debug info about the
+// cluster state.
 func (c *DynamicCluster) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if req.Method != "GET" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -183,7 +165,7 @@ func (c *DynamicCluster) debugInfo() debugInfo {
 	defer c.lock.Unlock()
 	if c.ml != nil {
 		for _, n := range c.ml.Members() {
-			info.Members = append(info.Members, MemberInfo{Name: n.Name, Addr: n.Address()})
+			info.Members = append(info.Members, memberInfo{Name: n.Name, Addr: n.Address()})
 		}
 	}
 	return info
@@ -208,37 +190,56 @@ func (c *DynamicCluster) getNodeForKey(partitionKey string) (string, bool) {
 	c.refreshRing()
 	c.lock.Lock()
 	defer c.lock.Unlock()
+
 	return c.ring.GetNode(partitionKey)
 }
 
+// Join attempts to join a cluster by contacting all the given seed hosts.
+//
+// This simply delegates to github.com/hashicorp/memberlist#Memberlist.Join.
 func (c *DynamicCluster) Join(seeds []string) error {
 	_, err := c.ml.Join(seeds)
 	return err
 }
 
+// NotifyJoin is the callback that is invoked when a node is detected to have joined.
+//
+// See github.com/hashicorp/memberlist#EventDelegate.NotifyJoin
 func (c *DynamicCluster) NotifyJoin(node *memberlist.Node) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	if c.ml == nil {
-		c.ring = hashring.New([]string{node.Name})
-		return
-	}
 	log.Printf("[%s] node joined %s", c.name, node.Name)
 	c.ring.AddNode(node.Name)
 }
 
+// NotifyLeave is the callback that is invoked when a node is detected to have left.
+//
+// See github.com/hashicorp/memberlist#EventDelegate.NotifyLeave
 func (c *DynamicCluster) NotifyLeave(node *memberlist.Node) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	log.Printf("[%s] node left %s", c.name, node.Name)
 	c.ring.RemoveNode(node.Name)
 }
+
+// NotifyUpdate is the callback that is invoked when a node to have updated.
+//
+// See github.com/hashicorp/memberlist#EventDelegate.NotifyUpdate
 func (c *DynamicCluster) NotifyUpdate(node *memberlist.Node) {
 	log.Printf("[%s] node update %s", c.name, node.Name)
 }
 
+// NodeMeta is the callback that is invoked when metadata is retrieved about this node.
+// Currently, no metadata is returned.
+//
+// See github.com/hashicorp/memberlist#Delegate.NodeMeta
 func (c *DynamicCluster) NodeMeta(limit int) []byte { return nil }
 
+// NotifyMsg is the callback that is invoked, when a message is received.
+// Any data received here is enqueued in the message queue and processed
+// asynchronously in the #handleMessage method.
+//
+// See github.com/hashicorp/memberlist#Delegate.NotifyMsg
 func (c *DynamicCluster) NotifyMsg(data []byte) {
 	if len(data) == 0 {
 		return
@@ -252,10 +253,20 @@ func (c *DynamicCluster) NotifyMsg(data []byte) {
 	}
 }
 
+// GetBroadcasts is the callback that is invoked, when user data messages can be broadcast.
+// It is unused.
 func (c *DynamicCluster) GetBroadcasts(overhead, limit int) [][]byte { return nil }
-func (c *DynamicCluster) LocalState(join bool) []byte                { return nil }
-func (c *DynamicCluster) MergeRemoteState(buf []byte, join bool)     {}
 
+// LocalState is the callback that is invoked for a TCP Push/Pull.
+// It is unused.
+func (c *DynamicCluster) LocalState(join bool) []byte { return nil }
+
+// MergeRemoteState is the callback that is invoked after a TCP Push/Pull.
+// It is unused.
+func (c *DynamicCluster) MergeRemoteState(buf []byte, join bool) {}
+
+// handleMessage is invoked as soon as there is data available in the message queue.
+// It decodes the underlying metric families and stores it using the given metrics store.
 func (c *DynamicCluster) handleMessage(data []byte) error {
 	switch messageType(data[0]) {
 	case metricMessage:
@@ -277,7 +288,7 @@ func (c *DynamicCluster) handleMessage(data []byte) error {
 		if len(families) == 0 {
 			return nil
 		}
-		return c.store.WriteMetrics(context.TODO(), header.PartitionKey, families)
+		return c.store.WriteMetrics(c.ctx, header.PartitionKey, families)
 
 	default:
 		return fmt.Errorf("unrecognized message %0x, len=%d", data[0], len(data))
@@ -389,10 +400,13 @@ func (c *DynamicCluster) forwardMetrics(ctx context.Context, partitionKey string
 	return true, nil
 }
 
+// ReadMetrics simply forwards to the underlying store.
 func (c *DynamicCluster) ReadMetrics(ctx context.Context, minTimestampMs int64, fn func(partitionKey string, families []*clientmodel.MetricFamily) error) error {
 	return c.store.ReadMetrics(ctx, minTimestampMs, fn)
 }
 
+// WriteMetrics stores metrics locally if they were meant for this node
+// and forwards them to the target node matching the given partition key.
 func (c *DynamicCluster) WriteMetrics(ctx context.Context, partitionKey string, families []*clientmodel.MetricFamily) error {
 	ok, err := c.forwardMetrics(ctx, partitionKey, families)
 	if err != nil {

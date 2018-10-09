@@ -1,12 +1,10 @@
-package server
+package memstore
 
 import (
 	"context"
 	"sync"
 
 	clientmodel "github.com/prometheus/client_model/go"
-
-	"github.com/openshift/telemeter/pkg/metricfamily"
 )
 
 type clusterMetricSlice struct {
@@ -18,7 +16,7 @@ type memoryStore struct {
 	store map[string]*clusterMetricSlice
 }
 
-func NewMemoryStore() Store {
+func New() *memoryStore {
 	return &memoryStore{
 		store: make(map[string]*clusterMetricSlice),
 	}
@@ -47,8 +45,6 @@ func (s *memoryStore) WriteMetrics(ctx context.Context, partitionKey string, fam
 		m = &clusterMetricSlice{}
 		s.store[partitionKey] = m
 	}
-
-	metricSamples.WithLabelValues("memory").Add(float64(metricfamily.MetricsCount(families)))
 
 	m.families = families
 	return nil

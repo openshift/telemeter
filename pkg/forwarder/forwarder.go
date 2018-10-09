@@ -15,8 +15,7 @@ import (
 	"github.com/openshift/telemeter/pkg/metricsclient"
 )
 
-type Interface interface {
-	Transforms() []metricfamily.Transformer
+type RuleMatcher interface {
 	MatchRules() []string
 }
 
@@ -48,19 +47,23 @@ type Worker struct {
 	Timeout    time.Duration
 	MaxBytes   int64
 
-	from      url.URL
-	to        *url.URL
-	forwarder Interface
+	from url.URL
+	to   *url.URL
+
+	transformer metricfamily.Transformer
+	rules       []string
 
 	lock        sync.Mutex
 	lastMetrics []*clientmodel.MetricFamily
 }
 
-func New(from url.URL, to *url.URL, f Interface) *Worker {
+func New(from url.URL, to *url.URL, t metricfamily.Transformer, rules ...string) *Worker {
 	return &Worker{
-		from:      from,
-		to:        to,
-		forwarder: f,
+		from: from,
+		to:   to,
+
+		transformer: t,
+		rules:       rules,
 	}
 }
 
@@ -98,14 +101,12 @@ func (w *Worker) Run() {
 		// load the match rules each time
 		from := w.from
 		v := from.Query()
-		for _, rule := range w.forwarder.MatchRules() {
+		for _, rule := range w.rules {
 			v.Add("match[]", rule)
 		}
 		from.RawQuery = v.Encode()
 
-		transforms := w.forwarder.Transforms()
-
-		if err := w.forward(ctx, &from, transforms); err != nil {
+		if err := w.forward(ctx, &from, w.transformer); err != nil {
 			gaugeFederateErrors.Inc()
 			log.Printf("error: unable to forward results: %v", err)
 			time.Sleep(time.Minute)
@@ -115,7 +116,7 @@ func (w *Worker) Run() {
 	}
 }
 
-func (w *Worker) forward(ctx context.Context, from *url.URL, transforms []metricfamily.Transformer) error {
+func (w *Worker) forward(ctx context.Context, from *url.URL, t metricfamily.Transformer) error {
 	req := &http.Request{Method: "GET", URL: from}
 	families, err := w.FromClient.Retrieve(ctx, req)
 	if err != nil {
@@ -123,11 +124,10 @@ func (w *Worker) forward(ctx context.Context, from *url.URL, transforms []metric
 	}
 
 	before := metricfamily.MetricsCount(families)
-	for _, t := range transforms {
-		if err := metricfamily.Filter(families, t); err != nil {
-			return err
-		}
+	if err := metricfamily.Filter(families, t); err != nil {
+		return err
 	}
+
 	families = metricfamily.Pack(families)
 	after := metricfamily.MetricsCount(families)
 

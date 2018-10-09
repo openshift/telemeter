@@ -1,4 +1,4 @@
-package remote
+package authorize
 
 import (
 	"encoding/json"
@@ -11,7 +11,16 @@ import (
 	"time"
 )
 
-type token struct {
+type TokenResponse struct {
+	Version int `json:"version"`
+
+	Token            string `json:"token"`
+	ExpiresInSeconds int64  `json:"expiresInSeconds"`
+
+	Labels map[string]string `json:"labels"`
+}
+
+type tokenStore struct {
 	lock    sync.Mutex
 	value   string
 	expires time.Time
@@ -22,7 +31,7 @@ func now() time.Time {
 	return time.Now()
 }
 
-func (t *token) Load(endpoint *url.URL, initialToken string, rt http.RoundTripper) (string, error) {
+func (t *tokenStore) Load(endpoint *url.URL, initialToken string, rt http.RoundTripper) (string, error) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 	if len(t.value) > 0 && (t.expires.IsZero() || t.expires.After(time.Now())) {
@@ -66,7 +75,7 @@ func (t *token) Load(endpoint *url.URL, initialToken string, rt http.RoundTrippe
 	return t.value, nil
 }
 
-func (t *token) Invalidate(token string) {
+func (t *tokenStore) Invalidate(token string) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 	if token == t.value {
@@ -76,7 +85,7 @@ func (t *token) Invalidate(token string) {
 	}
 }
 
-func (t *token) Labels() (map[string]string, bool) {
+func (t *tokenStore) Labels() (map[string]string, bool) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 	if len(t.value) == 0 {
@@ -99,46 +108,4 @@ func parseTokenFromBody(r io.Reader, limitBytes int64) (*TokenResponse, error) {
 		return nil, fmt.Errorf("unable to parse the authentication response: %v", err)
 	}
 	return response, nil
-}
-
-type ServerRotatingRoundTripper struct {
-	endpoint     *url.URL
-	initialToken string
-	token        token
-
-	wrapper http.RoundTripper
-}
-
-func NewServerRotatingRoundTripper(initialToken string, endpoint *url.URL, rt http.RoundTripper) *ServerRotatingRoundTripper {
-	return &ServerRotatingRoundTripper{
-		initialToken: initialToken,
-		endpoint:     endpoint,
-		wrapper:      rt,
-	}
-}
-
-func (rt *ServerRotatingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	token, err := rt.token.Load(rt.endpoint, rt.initialToken, rt.wrapper)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", token))
-	resp, err := rt.wrapper.RoundTrip(req)
-	if resp != nil && resp.StatusCode == http.StatusUnauthorized {
-		rt.token.Invalidate(token)
-	}
-	return resp, err
-}
-
-func (rt *ServerRotatingRoundTripper) Labels() (map[string]string, error) {
-	_, err := rt.token.Load(rt.endpoint, rt.initialToken, rt.wrapper)
-	if err != nil {
-		return nil, fmt.Errorf("unable to authorize to server: %v", err)
-	}
-	labels, ok := rt.token.Labels()
-	if !ok {
-		return nil, fmt.Errorf("labels from server have expired")
-	}
-	return labels, nil
 }
