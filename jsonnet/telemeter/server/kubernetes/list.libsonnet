@@ -11,10 +11,10 @@
 
   withImage(_config):: {
     local setImage(object) =
-      if object.kind == 'StatefulSet' then object { image: '${IMAGE}:${IMAGE_TAG}' }
-      else object,
+      if object.kind == 'StatefulSet' then { image: '${IMAGE}:${IMAGE_TAG}' }
+      else {},
     objects: [
-      setImage(o)
+      o + setImage(o)
       for o in super.objects
     ],
     parameters+: [
@@ -24,8 +24,8 @@
   },
 
   withAuthorizeURL(_config):: {
-    local setImage(object) =
-      if object.kind == 'StatefulSet' then object {
+    local setAuthorizeURL(object) =
+      if object.kind == 'StatefulSet' then {
         spec+: {
           template+: {
             spec+: {
@@ -42,9 +42,9 @@
           },
         },
       }
-      else object,
+      else {},
     objects: [
-      setImage(o)
+      o + setAuthorizeURL(o)
       for o in super.objects
     ],
     parameters+: [
