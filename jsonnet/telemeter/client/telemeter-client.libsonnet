@@ -3,5 +3,8 @@
     jobs+: {
       TelemeterClient: 'job="telemeter-client"',
     },
+    telemeterClient+: {
+      matchRules+: (import 'metrics.json'),
+    },
   },
 }
