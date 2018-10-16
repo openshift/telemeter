@@ -56,7 +56,7 @@ local clusterPort = 8081;
         container.new('telemeter-server', $._config.imageRepos.telemeterServer + ':' + $._config.versions.telemeterServer) +
         container.withCommand([
           '/usr/bin/telemeter-server',
-          '--join=telemeter-cluster',
+          '--join=telemeter-server',
           '--name=$(NAME)',
           '--listen=0.0.0.0:8443',
           '--listen-internal=0.0.0.0:8081',
