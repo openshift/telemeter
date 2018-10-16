@@ -14,7 +14,7 @@
       if object.kind == 'Prometheus' then {
         spec+: {
           baseImage: '${IMAGE}',
-          version: ':${IMAGE_TAG}',
+          version: '${IMAGE_TAG}',
           containers: [
             if c.name == 'prometheus-proxy' then c {
               image: '${PROXY_IMAGE}:${PROXY_IMAGE_TAG}',
