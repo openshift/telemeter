@@ -80,7 +80,7 @@ objects:
         containers:
         - command:
           - /usr/bin/telemeter-server
-          - --join=telemeter-cluster
+          - --join=telemeter-server
           - --name=$(NAME)
           - --listen=0.0.0.0:8443
           - --listen-internal=0.0.0.0:8081
