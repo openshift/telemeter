@@ -119,7 +119,7 @@ local clusterPort = 8081;
       local service = k.core.v1.service;
       local servicePort = k.core.v1.service.mixin.spec.portsType;
 
-      local servicePortExternal = servicePort.newNamed('external;', externalPort, 'external');
+      local servicePortExternal = servicePort.newNamed('external', externalPort, 'external');
       local servicePortInternal = servicePort.newNamed('internal', internalPort, 'internal');
       local servicePortCluster = servicePort.newNamed('cluster', clusterPort, 'cluster');
 
