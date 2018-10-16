@@ -115,7 +115,7 @@ objects:
     serviceMonitorSelector:
       matchLabels:
         k8s-app: telemeter-server
-    version: :${IMAGE_TAG}
+    version: ${IMAGE_TAG}
 - apiVersion: v1
   data:
     session_secret: ""

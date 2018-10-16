@@ -28,7 +28,7 @@ objects:
   spec:
     clusterIP: None
     ports:
-    - name: external;
+    - name: external
       port: 8443
       targetPort: external
     - name: internal
