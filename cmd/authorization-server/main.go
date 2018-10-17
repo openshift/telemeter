@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/openshift/telemeter/pkg/authorizer/server"
+	"github.com/openshift/telemeter/pkg/authorize/tollbooth"
 )
 
 type tokenEntry struct {
@@ -34,7 +34,7 @@ func main() {
 		tokenSet[tokenEntries[i].Token] = struct{}{}
 	}
 
-	s := server.NewServer(tokenSet)
+	s := tollbooth.NewMock(tokenSet)
 
 	if err := http.ListenAndServe(os.Args[1], s); err != nil {
 		log.Fatalf("server exited: %v", err)

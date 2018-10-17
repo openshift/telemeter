@@ -16,7 +16,7 @@ import (
 	"github.com/prometheus/common/expfmt"
 	"github.com/spf13/cobra"
 
-	"github.com/openshift/telemeter/pkg/authorizer/remote"
+	"github.com/openshift/telemeter/pkg/authorize"
 	"github.com/openshift/telemeter/pkg/forwarder"
 	telemeterhttp "github.com/openshift/telemeter/pkg/http"
 	"github.com/openshift/telemeter/pkg/metricfamily"
@@ -63,6 +63,8 @@ func main() {
 	cmd.Flags().StringVar(&opt.AnonymizeSalt, "anonymize-salt", opt.AnonymizeSalt, "A secret and unguessable value used to anonymize the input data.")
 	cmd.Flags().StringVar(&opt.AnonymizeSaltFile, "anonymize-salt-file", opt.AnonymizeSaltFile, "A file containing a secret and unguessable value used to anonymize the input data.")
 
+	cmd.Flags().BoolVarP(&opt.Verbose, "verbose", "v", opt.Verbose, "Show verbose output.")
+
 	if err := cmd.Execute(); err != nil {
 		os.Exit(1)
 	}
@@ -71,6 +73,7 @@ func main() {
 type Options struct {
 	Listen     string
 	LimitBytes int64
+	Verbose    bool
 
 	From          string
 	To            string
@@ -99,29 +102,6 @@ type Options struct {
 	Interval time.Duration
 
 	LabelRetriever metricfamily.LabelRetriever
-}
-
-func (o *Options) Transforms() []metricfamily.Transformer {
-	var transforms metricfamily.AllTransformer
-	if len(o.Labels) > 0 || o.LabelRetriever != nil {
-		transforms = append(transforms, metricfamily.NewLabel(o.Labels, o.LabelRetriever))
-	}
-	if len(o.AnonymizeLabels) > 0 {
-		transforms = append(transforms, metricfamily.NewMetricsAnonymizer(o.AnonymizeSalt, o.AnonymizeLabels, nil))
-	}
-	if len(o.Renames) > 0 {
-		transforms = append(transforms, metricfamily.RenameMetrics{Names: o.Renames})
-	}
-	transforms = append(transforms,
-		metricfamily.NewDropInvalidFederateSamples(time.Now().Add(-24*time.Hour)),
-		metricfamily.TransformerFunc(metricfamily.PackMetrics),
-		metricfamily.TransformerFunc(metricfamily.SortMetrics),
-	)
-	return []metricfamily.Transformer{transforms}
-}
-
-func (o *Options) MatchRules() []string {
-	return o.Rules
 }
 
 func (o *Options) Run() error {
@@ -251,6 +231,7 @@ func (o *Options) Run() error {
 	}
 
 	fromTransport := metricsclient.DefaultTransport()
+
 	if len(o.FromCAFile) > 0 {
 		if fromTransport.TLSClientConfig == nil {
 			fromTransport.TLSClientConfig = &tls.Config{}
@@ -268,20 +249,59 @@ func (o *Options) Run() error {
 		}
 		fromTransport.TLSClientConfig.RootCAs = pool
 	}
+
 	fromClient := &http.Client{Transport: fromTransport}
+
+	if o.Verbose {
+		fromClient.Transport = telemeterhttp.NewDebugRoundTripper(fromClient.Transport)
+	}
+
 	if len(o.FromToken) > 0 {
 		fromClient.Transport = telemeterhttp.NewBearerRoundTripper(o.FromToken, fromClient.Transport)
 	}
+
 	toClient := &http.Client{Transport: metricsclient.DefaultTransport()}
+
+	if o.Verbose {
+		toClient.Transport = telemeterhttp.NewDebugRoundTripper(toClient.Transport)
+	}
+
 	if len(o.ToToken) > 0 {
 		// exchange our token for a token from the authorize endpoint, which also gives us a
 		// set of expected labels we must include
-		rt := remote.NewServerRotatingRoundTripper(o.ToToken, toAuthorize, toClient.Transport)
+		rt := authorize.NewServerRotatingRoundTripper(o.ToToken, toAuthorize, toClient.Transport)
 		o.LabelRetriever = rt
 		toClient.Transport = rt
 	}
 
-	worker := forwarder.New(*from, toUpload, o)
+	var transformer metricfamily.MultiTransformer
+
+	if len(o.Labels) > 0 || o.LabelRetriever != nil {
+		transformer.WithFunc(func() metricfamily.Transformer {
+			return metricfamily.NewLabel(o.Labels, o.LabelRetriever)
+		})
+	}
+
+	if len(o.AnonymizeLabels) > 0 {
+		transformer.WithFunc(func() metricfamily.Transformer {
+			return metricfamily.NewMetricsAnonymizer(o.AnonymizeSalt, o.AnonymizeLabels, nil)
+		})
+	}
+
+	if len(o.Renames) > 0 {
+		transformer.WithFunc(func() metricfamily.Transformer {
+			return metricfamily.RenameMetrics{Names: o.Renames}
+		})
+	}
+
+	transformer.WithFunc(func() metricfamily.Transformer {
+		return metricfamily.NewDropInvalidFederateSamples(time.Now().Add(-24 * time.Hour))
+	})
+
+	transformer.With(metricfamily.TransformerFunc(metricfamily.PackMetrics))
+	transformer.With(metricfamily.TransformerFunc(metricfamily.SortMetrics))
+
+	worker := forwarder.New(*from, toUpload, transformer, o.Rules...)
 	worker.ToClient = metricsclient.New(toClient, o.LimitBytes, o.Interval, "federate_to")
 	worker.FromClient = metricsclient.New(fromClient, o.LimitBytes, o.Interval, "federate_from")
 	worker.Interval = o.Interval
@@ -292,9 +312,9 @@ func (o *Options) Run() error {
 
 	if len(o.Listen) > 0 {
 		handlers := http.NewServeMux()
-		telemeterhttp.AddDebug(handlers)
-		telemeterhttp.AddHealth(handlers)
-		telemeterhttp.AddMetrics(handlers)
+		telemeterhttp.DebugRoutes(handlers)
+		telemeterhttp.HealthRoutes(handlers)
+		telemeterhttp.MetricRoutes(handlers)
 		handlers.Handle("/federate", serveLastMetrics(worker))
 		go func() {
 			if err := http.ListenAndServe(o.Listen, handlers); err != nil && err != http.ErrServerClosed {

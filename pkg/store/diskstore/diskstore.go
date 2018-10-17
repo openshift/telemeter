@@ -1,4 +1,4 @@
-package server
+package diskstore
 
 import (
 	"context"
@@ -11,18 +11,16 @@ import (
 	"strings"
 	"time"
 
-	clientmodel "github.com/prometheus/client_model/go"
-
-	"github.com/openshift/telemeter/pkg/metricfamily"
 	"github.com/openshift/telemeter/pkg/metricsclient"
+	clientmodel "github.com/prometheus/client_model/go"
 )
 
-type DiskStore struct {
+type diskStore struct {
 	path string
 }
 
-func NewDiskStore(path string) Store {
-	return &DiskStore{
+func New(path string) *diskStore {
+	return &diskStore{
 		path: path,
 	}
 }
@@ -37,7 +35,7 @@ func lastFile(files []os.FileInfo) os.FileInfo {
 	return nil
 }
 
-func (s *DiskStore) ReadMetrics(ctx context.Context, minTimestampMs int64, fn func(partitionKey string, families []*clientmodel.MetricFamily) error) error {
+func (s *diskStore) ReadMetrics(ctx context.Context, minTimestampMs int64, fn func(partitionKey string, families []*clientmodel.MetricFamily) error) error {
 	return filepath.Walk(s.path, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -100,7 +98,7 @@ func (s *DiskStore) ReadMetrics(ctx context.Context, minTimestampMs int64, fn fu
 	})
 }
 
-func (s *DiskStore) WriteMetrics(ctx context.Context, partitionKey string, families []*clientmodel.MetricFamily) error {
+func (s *diskStore) WriteMetrics(ctx context.Context, partitionKey string, families []*clientmodel.MetricFamily) error {
 	storageKey := filenameForFamilies(families)
 
 	path, err := pathForPartitionAndStorageKey(s.path, partitionKey, storageKey)
@@ -123,8 +121,6 @@ func (s *DiskStore) WriteMetrics(ctx context.Context, partitionKey string, famil
 	if err := f.Close(); err != nil {
 		return fmt.Errorf("unable to commit metrics to disk %s: %v", path, err)
 	}
-
-	metricSamples.WithLabelValues("disk").Add(float64(metricfamily.MetricsCount(families)))
 
 	return nil
 }
