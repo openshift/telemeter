@@ -11,7 +11,20 @@
 
   withImage(_config):: {
     local setImage(object) =
-      if object.kind == 'StatefulSet' then { image: '${IMAGE}:${IMAGE_TAG}' }
+      if object.kind == 'StatefulSet' then {
+        spec+: {
+          template+: {
+            spec+: {
+              containers: [
+                c {
+                  image: if c.name == 'telemeter-server' then '${IMAGE}:${IMAGE_TAG}' else c.image,
+                }
+                for c in super.containers
+              ],
+            },
+          },
+        },
+      }
       else {},
     objects: [
       o + setImage(o)
