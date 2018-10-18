@@ -60,7 +60,6 @@ objects:
       matchLabels:
         k8s-app: telemeter-server
 - apiVersion: apps/v1beta2
-  image: ${IMAGE}:${IMAGE_TAG}
   kind: StatefulSet
   metadata:
     name: telemeter-server
@@ -115,7 +114,7 @@ objects:
               secretKeyRef:
                 key: rhd.client_id
                 name: telemeter-server
-          image: quay.io/openshift/origin-telemeter:v4.0
+          image: ${IMAGE}:${IMAGE_TAG}
           livenessProbe:
             httpGet:
               path: /healthz
