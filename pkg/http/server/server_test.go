@@ -20,7 +20,11 @@ func family(name string, timestamps ...int64) *clientmodel.MetricFamily {
 	families := &clientmodel.MetricFamily{Name: &name}
 	for i := range timestamps {
 		one := float64(1)
-		families.Metric = append(families.Metric, &clientmodel.Metric{Counter: &clientmodel.Counter{Value: &one}, TimestampMs: &timestamps[i]})
+		ts := &timestamps[i]
+		if *ts < 0 {
+			ts = nil
+		}
+		families.Metric = append(families.Metric, &clientmodel.Metric{Counter: &clientmodel.Counter{Value: &one}, TimestampMs: ts})
 	}
 	return families
 }
@@ -67,8 +71,8 @@ func TestServer_Get(t *testing.T) {
 				Method: "GET",
 			},
 			wantFamilies: []*clientmodel.MetricFamily{
-				family("test_1", 1002000, 1004000),
-				family("test_2", 1002000, 1004000),
+				family("test_1", -1, -1),
+				family("test_2", -1, -1),
 			},
 			wantCode: 200,
 		},
@@ -92,7 +96,7 @@ func TestServer_Get(t *testing.T) {
 			sort.Slice(families, func(i, j int) bool { return families[i].GetName() < families[j].GetName() })
 			got, expected := familiesToText(families), familiesToText(tt.wantFamilies)
 			if got != expected {
-				t.Fatalf("unexpected result\n%s\n%s", got, expected)
+				t.Fatalf("got\n%s\nwant\n%s", got, expected)
 			}
 		})
 	}

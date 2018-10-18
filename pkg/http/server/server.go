@@ -65,6 +65,8 @@ func (s *Server) Get(w http.ResponseWriter, req *http.Request) {
 		filter.With(metricfamily.TransformerFunc(metricfamily.PackMetrics))
 	}
 
+	filter.With(metricfamily.TransformerFunc(metricfamily.DropTimestamp))
+
 	err := s.store.ReadMetrics(ctx, minTimeMs, func(partitionKey string, families []*clientmodel.MetricFamily) error {
 		for _, family := range families {
 			if family == nil {
