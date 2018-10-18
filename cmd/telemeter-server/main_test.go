@@ -114,6 +114,12 @@ func TestGet(t *testing.T) {
 	actual := mustGet(s.URL, expfmt.FmtText)
 	expected := mustReadString(sampleMetrics)
 
+	for _, mf := range expected {
+		for _, m := range mf.Metric {
+			m.TimestampMs = nil
+		}
+	}
+
 	if e, a := metricsAsStringOrDie(expected), metricsAsStringOrDie(actual); e != a {
 		t.Errorf("unexpected output metrics:\n%s\n%s", e, a)
 	}
