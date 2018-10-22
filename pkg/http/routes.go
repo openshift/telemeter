@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // DebugRoutes adds the debug handlers to a mux.
@@ -27,6 +27,6 @@ func HealthRoutes(mux *http.ServeMux) *http.ServeMux {
 
 // MetricRoutes adds the metrics endpoint to a mux.
 func MetricRoutes(mux *http.ServeMux) *http.ServeMux {
-	mux.Handle("/metrics", prometheus.UninstrumentedHandler())
+	mux.Handle("/metrics", promhttp.Handler())
 	return mux
 }

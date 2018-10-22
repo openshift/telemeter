@@ -79,10 +79,9 @@ func TestPasswordCredentialsTokenSource(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		init         func(*passwordCredentialsTokenSource)
-		name         string
-		check        checkFunc
-		refreshToken *oauth2.Token
+		init  func(*passwordCredentialsTokenSource)
+		name  string
+		check checkFunc
 	}{
 		{
 			name: "initial request",

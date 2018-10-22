@@ -27,10 +27,6 @@ type tokenStore struct {
 	labels  map[string]string
 }
 
-func now() time.Time {
-	return time.Now()
-}
-
 func (t *tokenStore) Load(endpoint *url.URL, initialToken string, rt http.RoundTripper) (string, error) {
 	t.lock.Lock()
 	defer t.lock.Unlock()

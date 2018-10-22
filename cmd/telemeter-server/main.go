@@ -191,9 +191,7 @@ func (o *Options) Run() error {
 		}
 		authorizeURL = u
 
-		var transport http.RoundTripper
-
-		transport = &http.Transport{
+		var transport http.RoundTripper = &http.Transport{
 			Dial:                (&net.Dialer{Timeout: 10 * time.Second}).Dial,
 			MaxIdleConnsPerHost: 10,
 			IdleConnTimeout:     30 * time.Second,
@@ -305,7 +303,9 @@ func (o *Options) Run() error {
 
 	// create a secret for the JWT key
 	h := sha256.New()
-	h.Write(keyBytes)
+	if _, err := h.Write(keyBytes); err != nil {
+		return fmt.Errorf("JWT secret generation failed: %v", err)
+	}
 	secret := h.Sum(nil)[:32]
 
 	external := http.NewServeMux()
@@ -316,8 +316,7 @@ func (o *Options) Run() error {
 	internalPaths := []string{"/", "/federate", "/metrics", "/debug/pprof", "/healthz", "/healthz/ready"}
 
 	// configure the authenticator and incoming data validator
-	var clusterAuth authorize.ClusterAuthorizer
-	clusterAuth = authorize.ClusterAuthorizerFunc(stub.Authorize)
+	var clusterAuth authorize.ClusterAuthorizer = authorize.ClusterAuthorizerFunc(stub.Authorize)
 	if authorizeURL != nil {
 		clusterAuth = tollbooth.NewAuthorizer(authorizeClient, authorizeURL)
 	}

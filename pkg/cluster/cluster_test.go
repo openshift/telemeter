@@ -136,7 +136,6 @@ func TestWriteMetrics(t *testing.T) {
 		name, partitionKey string
 		localStore         *testStore
 		memberlister       *testMemberlister
-		joinedNodes        []*memberlist.Node
 
 		initDynamicCluster func(*DynamicCluster)
 
@@ -302,7 +301,9 @@ func TestWriteMetrics(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			dc := NewDynamic("local", tc.localStore)
-			ctx, _ := context.WithTimeout(context.Background(), time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+
 			dc.Start(tc.memberlister, ctx)
 
 			if tc.initDynamicCluster != nil {

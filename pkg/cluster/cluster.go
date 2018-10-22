@@ -183,7 +183,6 @@ func (c *DynamicCluster) refreshRing() {
 		members = append(members, n.Name)
 	}
 	c.ring = hashring.New(members)
-	return
 }
 
 func (c *DynamicCluster) getNodeForKey(partitionKey string) (string, bool) {
@@ -392,9 +391,9 @@ func (c *DynamicCluster) forwardMetrics(ctx context.Context, partitionKey string
 		log.Printf("error: Failed to forward metrics to %s: %v", node, err)
 		c.problemDetected(node.Name, now)
 		metricForwardResult.WithLabelValues("send").Inc()
-		metricForwardLatency.WithLabelValues("send").Observe(time.Now().Sub(now).Seconds())
+		metricForwardLatency.WithLabelValues("send").Observe(time.Since(now).Seconds())
 	} else {
-		metricForwardLatency.WithLabelValues("").Observe(time.Now().Sub(now).Seconds())
+		metricForwardLatency.WithLabelValues("").Observe(time.Since(now).Seconds())
 	}
 
 	return true, nil

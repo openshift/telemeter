@@ -120,10 +120,7 @@ func (families PackedFamilyWithTimestampsByName) Less(i int, j int) bool {
 		return false
 	}
 	tA, tB := *families[i].Metric[0].TimestampMs, *families[j].Metric[0].TimestampMs
-	if tA < tB {
-		return true
-	}
-	return false
+	return tA < tB
 }
 
 func (families PackedFamilyWithTimestampsByName) Swap(i int, j int) {

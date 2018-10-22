@@ -140,7 +140,9 @@ func (s *Server) decodeAndStoreMetrics(ctx context.Context, partitionKey string,
 		}
 	}
 
-	s.receiveStore.WriteMetrics(ctx, partitionKey, families)
+	if err := s.receiveStore.WriteMetrics(ctx, partitionKey, families); err != nil {
+		return err
+	}
 
 	// filter the list
 	for i, family := range families {

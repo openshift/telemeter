@@ -7,9 +7,6 @@ import (
 	clientmodel "github.com/prometheus/client_model/go"
 )
 
-func int64p(i int64) *int64    { return &i }
-func stringp(s string) *string { return &s }
-
 func family(name string, timestamps ...int64) *clientmodel.MetricFamily {
 	families := &clientmodel.MetricFamily{Name: &name}
 	for i := range timestamps {
