@@ -13,7 +13,6 @@ import (
 	"github.com/hashicorp/go-msgpack/codec"
 	"github.com/hashicorp/memberlist"
 	"github.com/prometheus/client_golang/prometheus"
-	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/serialx/hashring"
 
 	"github.com/openshift/telemeter/pkg/metricfamily"
@@ -290,7 +289,10 @@ func (c *DynamicCluster) handleMessage(data []byte) error {
 		if len(families) == 0 {
 			return nil
 		}
-		return c.store.WriteMetrics(c.ctx, header.PartitionKey, families)
+		return c.store.WriteMetrics(c.ctx, &store.PartitionedMetrics{
+			PartitionKey: header.PartitionKey,
+			Families:     families,
+		})
 
 	default:
 		return fmt.Errorf("unrecognized message %0x, len=%d", data[0], len(data))
@@ -363,10 +365,10 @@ func (c *DynamicCluster) findRemote(partitionKey string, now time.Time) (*member
 	return node, true
 }
 
-func (c *DynamicCluster) forwardMetrics(ctx context.Context, partitionKey string, families []*clientmodel.MetricFamily) (ok bool, err error) {
+func (c *DynamicCluster) forwardMetrics(ctx context.Context, p *store.PartitionedMetrics) (ok bool, err error) {
 	now := time.Now()
 
-	node, ok := c.findRemote(partitionKey, now)
+	node, ok := c.findRemote(p.PartitionKey, now)
 	if !ok {
 		return false, fmt.Errorf("cannot forward")
 	}
@@ -379,16 +381,16 @@ func (c *DynamicCluster) forwardMetrics(ctx context.Context, partitionKey string
 
 	// write the metric message
 	buf.WriteByte(byte(metricMessage))
-	if err := enc.Encode(&metricMessageHeader{PartitionKey: partitionKey}); err != nil {
+	if err := enc.Encode(&metricMessageHeader{PartitionKey: p.PartitionKey}); err != nil {
 		metricForwardResult.WithLabelValues("encode_header").Inc()
 		return false, err
 	}
-	if err := metricsclient.Write(buf, families); err != nil {
+	if err := metricsclient.Write(buf, p.Families); err != nil {
 		metricForwardResult.WithLabelValues("encode").Inc()
 		return false, fmt.Errorf("unable to write metrics: %v", err)
 	}
 
-	metricForwardSamples.Add(float64(metricfamily.MetricsCount(families)))
+	metricForwardSamples.Add(float64(metricfamily.MetricsCount(p.Families)))
 
 	if err := c.ml.SendReliable(node, buf.Bytes()); err != nil {
 		log.Printf("error: Failed to forward metrics to %s: %v", node, err)
@@ -403,18 +405,18 @@ func (c *DynamicCluster) forwardMetrics(ctx context.Context, partitionKey string
 }
 
 // ReadMetrics simply forwards to the underlying store.
-func (c *DynamicCluster) ReadMetrics(ctx context.Context, minTimestampMs int64, fn func(partitionKey string, families []*clientmodel.MetricFamily) error) error {
-	return c.store.ReadMetrics(ctx, minTimestampMs, fn)
+func (c *DynamicCluster) ReadMetrics(ctx context.Context, minTimestampMs int64) ([]*store.PartitionedMetrics, error) {
+	return c.store.ReadMetrics(ctx, minTimestampMs)
 }
 
 // WriteMetrics stores metrics locally if they were meant for this node
 // and forwards them to the target node matching the given partition key.
-func (c *DynamicCluster) WriteMetrics(ctx context.Context, partitionKey string, families []*clientmodel.MetricFamily) error {
-	ok, err := c.forwardMetrics(ctx, partitionKey, families)
+func (c *DynamicCluster) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) error {
+	ok, err := c.forwardMetrics(ctx, p)
 	if err != nil {
 		// fallthrough to local metrics
 		log.Printf("error: Unable to write to remote metrics, falling back to local: %v", err)
-		return c.store.WriteMetrics(ctx, partitionKey, families)
+		return c.store.WriteMetrics(ctx, p)
 	}
 	if ok {
 		// metrics were forwarded successfully
@@ -423,5 +425,5 @@ func (c *DynamicCluster) WriteMetrics(ctx context.Context, partitionKey string, 
 	}
 
 	metricForwardResult.WithLabelValues("self").Inc()
-	return c.store.WriteMetrics(ctx, partitionKey, families)
+	return c.store.WriteMetrics(ctx, p)
 }

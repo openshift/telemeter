@@ -67,8 +67,15 @@ func (s *Server) Get(w http.ResponseWriter, req *http.Request) {
 
 	filter.With(metricfamily.TransformerFunc(metricfamily.DropTimestamp))
 
-	err := s.store.ReadMetrics(ctx, minTimeMs, func(partitionKey string, families []*clientmodel.MetricFamily) error {
-		for _, family := range families {
+	ps, err := s.store.ReadMetrics(ctx, minTimeMs)
+	if err != nil {
+		log.Printf("error reading metrics: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	for _, p := range ps {
+		for _, family := range p.Families {
 			if family == nil {
 				continue
 			}
@@ -76,14 +83,11 @@ func (s *Server) Get(w http.ResponseWriter, req *http.Request) {
 				continue
 			}
 			if err := encoder.Encode(family); err != nil {
-				return err
+				log.Printf("error encoding metrics family: %v", err)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				continue
 			}
 		}
-		return nil
-	})
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
 	}
 }
 
@@ -140,7 +144,10 @@ func (s *Server) decodeAndStoreMetrics(ctx context.Context, partitionKey string,
 		}
 	}
 
-	if err := s.receiveStore.WriteMetrics(ctx, partitionKey, families); err != nil {
+	if err := s.receiveStore.WriteMetrics(ctx, &store.PartitionedMetrics{
+		PartitionKey: partitionKey,
+		Families:     families,
+	}); err != nil {
 		return err
 	}
 
@@ -158,5 +165,8 @@ func (s *Server) decodeAndStoreMetrics(ctx context.Context, partitionKey string,
 
 	families = metricfamily.Pack(families)
 
-	return s.store.WriteMetrics(ctx, partitionKey, families)
+	return s.store.WriteMetrics(ctx, &store.PartitionedMetrics{
+		PartitionKey: partitionKey,
+		Families:     families,
+	})
 }

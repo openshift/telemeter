@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/openshift/telemeter/pkg/metricfamily"
+	"github.com/openshift/telemeter/pkg/store"
 	"github.com/openshift/telemeter/pkg/store/memstore"
 	"github.com/openshift/telemeter/pkg/validator"
 
@@ -78,8 +79,8 @@ func TestPostError(t *testing.T) {
 func testPost(t *testing.T, validator server.UploadValidator, send, expect []*clientmodel.MetricFamily) {
 	t.Helper()
 
-	store := memstore.New()
-	server := server.New(store, validator)
+	memStore := memstore.New()
+	server := server.New(memStore, validator)
 
 	s := httptest.NewServer(fakeAuthorizeHandler(http.HandlerFunc(server.Post), &authorize.Client{ID: "test", Labels: map[string]string{"cluster": "test"}}))
 	defer s.Close()
@@ -87,33 +88,37 @@ func testPost(t *testing.T, validator server.UploadValidator, send, expect []*cl
 	mustPost(s.URL, expfmt.FmtProtoDelim, send)
 
 	var actual []*clientmodel.MetricFamily
-	err := store.ReadMetrics(context.Background(), 0, func(partitionKey string, families []*clientmodel.MetricFamily) error {
-		if partitionKey != "test" {
-			t.Fatalf("unexpected partition key: %s", partitionKey)
-		}
-		actual = families
-		return nil
-	})
+	ps, err := memStore.ReadMetrics(context.Background(), 0)
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	p := ps[0]
+	if p.PartitionKey != "test" {
+		t.Fatalf("unexpected partition key: %s", p.PartitionKey)
+	}
+	actual = p.Families
+
 	if e, a := metricsAsStringOrDie(expect), metricsAsStringOrDie(actual); e != a {
 		t.Errorf("expected:\n%s\nactual:\n%s", e, a)
 	}
 }
 
 func TestGet(t *testing.T) {
-	store := memstore.New()
+	memStore := memstore.New()
 	validator := validator.New("cluster", nil, 0, 0)
-	server := server.NewNonExpiring(store, validator)
-	s := httptest.NewServer(http.HandlerFunc(server.Get))
-	defer s.Close()
+	server := server.NewNonExpiring(memStore, validator)
+	srv := httptest.NewServer(http.HandlerFunc(server.Get))
+	defer srv.Close()
 
-	if err := store.WriteMetrics(context.Background(), "test", mustReadString(sampleMetrics)); err != nil {
+	if err := memStore.WriteMetrics(context.Background(), &store.PartitionedMetrics{
+		PartitionKey: "test",
+		Families:     mustReadString(sampleMetrics),
+	}); err != nil {
 		t.Fatal(err)
 	}
 
-	actual := mustGet(s.URL, expfmt.FmtText)
+	actual := mustGet(srv.URL, expfmt.FmtText)
 	expected := mustReadString(sampleMetrics)
 
 	for _, mf := range expected {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/openshift/telemeter/pkg/store"
 	clientmodel "github.com/prometheus/client_model/go"
 )
 
@@ -22,30 +23,34 @@ func New() *memoryStore {
 	}
 }
 
-func (s *memoryStore) ReadMetrics(ctx context.Context, minTimestampMs int64, fn func(partitionKey string, families []*clientmodel.MetricFamily) error) error {
+func (s *memoryStore) ReadMetrics(ctx context.Context, minTimestampMs int64) ([]*store.PartitionedMetrics, error) {
 	s.lock.Lock()
-	store := s.store
+	oldStore := s.store
 	s.store = make(map[string]*clusterMetricSlice)
 	s.lock.Unlock()
 
-	for partitionKey, slice := range store {
-		if err := fn(partitionKey, slice.families); err != nil {
-			return err
-		}
+	var result []*store.PartitionedMetrics
+
+	for partitionKey, slice := range oldStore {
+		result = append(result, &store.PartitionedMetrics{
+			PartitionKey: partitionKey,
+			Families:     slice.families,
+		})
 	}
-	return nil
+
+	return result, nil
 }
 
-func (s *memoryStore) WriteMetrics(ctx context.Context, partitionKey string, families []*clientmodel.MetricFamily) error {
+func (s *memoryStore) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	m := s.store[partitionKey]
+	m := s.store[p.PartitionKey]
 	if m == nil {
 		m = &clusterMetricSlice{}
-		s.store[partitionKey] = m
+		s.store[p.PartitionKey] = m
 	}
 
-	m.families = families
+	m.families = p.Families
 	return nil
 }

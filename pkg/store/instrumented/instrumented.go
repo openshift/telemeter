@@ -6,7 +6,6 @@ import (
 	"github.com/openshift/telemeter/pkg/metricfamily"
 	"github.com/openshift/telemeter/pkg/store"
 	"github.com/prometheus/client_golang/prometheus"
-	clientmodel "github.com/prometheus/client_model/go"
 )
 
 var (
@@ -32,22 +31,22 @@ func New(target store.Store, labelValues ...string) *instrumented {
 	}
 }
 
-func (s *instrumented) ReadMetrics(ctx context.Context, minTimestampMs int64, fn func(partitionKey string, families []*clientmodel.MetricFamily) error) error {
+func (s *instrumented) ReadMetrics(ctx context.Context, minTimestampMs int64) ([]*store.PartitionedMetrics, error) {
 	if s.target != nil {
-		return s.target.ReadMetrics(ctx, minTimestampMs, fn)
+		return s.target.ReadMetrics(ctx, minTimestampMs)
 	}
-	return nil
+	return nil, nil
 }
 
-func (s *instrumented) WriteMetrics(ctx context.Context, partitionKey string, families []*clientmodel.MetricFamily) error {
+func (s *instrumented) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) error {
 	if s.target != nil {
-		err := s.target.WriteMetrics(ctx, partitionKey, families)
+		err := s.target.WriteMetrics(ctx, p)
 		if err != nil {
 			return err
 		}
 	}
 
-	s.gauge.Add(float64(metricfamily.MetricsCount(families)))
+	s.gauge.Add(float64(metricfamily.MetricsCount(p.Families)))
 
 	return nil
 }

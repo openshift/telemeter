@@ -11,6 +11,7 @@ import (
 
 	"github.com/openshift/telemeter/pkg/fnv"
 	"github.com/openshift/telemeter/pkg/metricsclient"
+	"github.com/openshift/telemeter/pkg/store"
 	clientmodel "github.com/prometheus/client_model/go"
 )
 
@@ -34,8 +35,10 @@ func lastFile(files []os.FileInfo) os.FileInfo {
 	return nil
 }
 
-func (s *diskStore) ReadMetrics(ctx context.Context, minTimestampMs int64, fn func(partitionKey string, families []*clientmodel.MetricFamily) error) error {
-	return filepath.Walk(s.path, func(path string, info os.FileInfo, err error) error {
+func (s *diskStore) ReadMetrics(ctx context.Context, minTimestampMs int64) ([]*store.PartitionedMetrics, error) {
+	var result []*store.PartitionedMetrics
+
+	return result, filepath.Walk(s.path, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -59,7 +62,7 @@ func (s *diskStore) ReadMetrics(ctx context.Context, minTimestampMs int64, fn fu
 		}
 		lastFile := lastFile(files)
 		if lastFile == nil {
-			return fn(partitionKey, nil)
+			return nil
 		}
 		originalPath := path
 		path = filepath.Join(path, lastFile.Name())
@@ -89,18 +92,19 @@ func (s *diskStore) ReadMetrics(ctx context.Context, minTimestampMs int64, fn fu
 			return nil
 		}
 
-		if err := fn(partitionKey, families); err != nil {
-			return err
-		}
+		result = append(result, &store.PartitionedMetrics{
+			PartitionKey: partitionKey,
+			Families:     families,
+		})
 
 		return filepath.SkipDir
 	})
 }
 
-func (s *diskStore) WriteMetrics(ctx context.Context, partitionKey string, families []*clientmodel.MetricFamily) error {
-	storageKey := filenameForFamilies(families)
+func (s *diskStore) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) error {
+	storageKey := filenameForFamilies(p.Families)
 
-	path, err := pathForPartitionAndStorageKey(s.path, partitionKey, storageKey)
+	path, err := pathForPartitionAndStorageKey(s.path, p.PartitionKey, storageKey)
 	if err != nil {
 		return err
 	}
@@ -114,7 +118,7 @@ func (s *diskStore) WriteMetrics(ctx context.Context, partitionKey string, famil
 		// TODO: retry
 		return fmt.Errorf("unable to open file for exclusive writing: %v", err)
 	}
-	if err := metricsclient.Write(f, families); err != nil {
+	if err := metricsclient.Write(f, p.Families); err != nil {
 		return fmt.Errorf("unable to write metrics to %s: %v", path, err)
 	}
 	if err := f.Close(); err != nil {

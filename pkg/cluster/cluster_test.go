@@ -11,6 +11,7 @@ import (
 	"reflect"
 
 	"github.com/hashicorp/memberlist"
+	"github.com/openshift/telemeter/pkg/store"
 	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
 )
@@ -22,13 +23,13 @@ type testStore struct {
 	families     []*clientmodel.MetricFamily
 }
 
-func (s *testStore) ReadMetrics(ctx context.Context, minTimestampMs int64, fn func(partitionKey string, families []*clientmodel.MetricFamily) error) error {
-	return s.readErr
+func (s *testStore) ReadMetrics(ctx context.Context, minTimestampMs int64) ([]*store.PartitionedMetrics, error) {
+	return nil, s.readErr
 }
 
-func (s *testStore) WriteMetrics(ctx context.Context, partitionKey string, families []*clientmodel.MetricFamily) error {
-	s.partitionKey = partitionKey
-	s.families = families
+func (s *testStore) WriteMetrics(_ context.Context, p *store.PartitionedMetrics) error {
+	s.partitionKey = p.PartitionKey
+	s.families = p.Families
 	return s.writeErr
 }
 
@@ -310,7 +311,10 @@ func TestWriteMetrics(t *testing.T) {
 				tc.initDynamicCluster(dc)
 			}
 
-			if err := tc.writeMetricsCheck(dc.WriteMetrics(ctx, tc.partitionKey, families)); err != nil {
+			if err := tc.writeMetricsCheck(dc.WriteMetrics(ctx, &store.PartitionedMetrics{
+				PartitionKey: tc.partitionKey,
+				Families:     families,
+			})); err != nil {
 				t.Error(err)
 			}
 
