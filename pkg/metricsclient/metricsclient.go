@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net"
 	"net/http"
 	"strconv"
@@ -59,7 +60,7 @@ func (c *Client) Retrieve(ctx context.Context, req *http.Request) ([]*clientmode
 	}
 	req.Header.Set("Accept", strings.Join([]string{string(expfmt.FmtProtoDelim), string(expfmt.FmtText)}, " , "))
 
-	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	req = req.WithContext(ctx)
 	defer cancel()
 
@@ -118,13 +119,15 @@ func (c *Client) Send(ctx context.Context, req *http.Request, families []*client
 	req.Header.Set("Content-Encoding", "snappy")
 	req.Body = ioutil.NopCloser(buf)
 
-	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	req = req.WithContext(ctx)
 	defer cancel()
 
 	return withCancel(ctx, c.client, req, func(resp *http.Response) error {
 		defer func() {
-			io.Copy(ioutil.Discard, resp.Body)
+			if _, err := io.Copy(ioutil.Discard, resp.Body); err != nil {
+				log.Printf("error copying body: %v", err)
+			}
 			resp.Body.Close()
 		}()
 

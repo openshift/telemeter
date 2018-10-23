@@ -29,16 +29,12 @@ func family(name string, timestamps ...int64) *clientmodel.MetricFamily {
 	return families
 }
 
-func metric(timestamp int64) *clientmodel.Metric {
-	return &clientmodel.Metric{
-		TimestampMs: &timestamp,
-	}
-}
-
 func storeWithData(data map[string][]*clientmodel.MetricFamily) store.Store {
 	s := memstore.New()
 	for k, v := range data {
-		s.WriteMetrics(context.TODO(), k, v)
+		if err := s.WriteMetrics(context.TODO(), k, v); err != nil {
+			panic(err)
+		}
 	}
 	return s
 }
@@ -105,7 +101,7 @@ func TestServer_Get(t *testing.T) {
 func familiesToText(families []*clientmodel.MetricFamily) string {
 	buf := &bytes.Buffer{}
 	for _, f := range families {
-		expfmt.MetricFamilyToText(buf, f)
+		_, _ = expfmt.MetricFamilyToText(buf, f)
 	}
 	return buf.String()
 }

@@ -109,7 +109,9 @@ func TestGet(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(server.Get))
 	defer s.Close()
 
-	store.WriteMetrics(context.Background(), "test", mustReadString(sampleMetrics))
+	if err := store.WriteMetrics(context.Background(), "test", mustReadString(sampleMetrics)); err != nil {
+		t.Fatal(err)
+	}
 
 	actual := mustGet(s.URL, expfmt.FmtText)
 	expected := mustReadString(sampleMetrics)
@@ -126,12 +128,12 @@ func TestGet(t *testing.T) {
 }
 
 func sort(families []*clientmodel.MetricFamily) []*clientmodel.MetricFamily {
-	metricfamily.Filter(families, metricfamily.TransformerFunc(metricfamily.SortMetrics))
+	_ = metricfamily.Filter(families, metricfamily.TransformerFunc(metricfamily.SortMetrics))
 	return metricfamily.Pack(families)
 }
 
 func withLabels(families []*clientmodel.MetricFamily, labels map[string]string) []*clientmodel.MetricFamily {
-	metricfamily.Filter(families, metricfamily.NewLabel(labels, nil))
+	_ = metricfamily.Filter(families, metricfamily.NewLabel(labels, nil))
 	return families
 }
 

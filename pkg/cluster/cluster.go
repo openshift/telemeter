@@ -150,10 +150,13 @@ func (c *DynamicCluster) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	info := c.debugInfo()
 	data, err := json.MarshalIndent(info, "", "  ")
 	if err != nil {
+		log.Printf("marshaling debug info failed: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Write(data)
+	if _, err := w.Write(data); err != nil {
+		log.Printf("writing debug info failed: %v", err)
+	}
 }
 
 func (c *DynamicCluster) debugInfo() debugInfo {
@@ -183,7 +186,6 @@ func (c *DynamicCluster) refreshRing() {
 		members = append(members, n.Name)
 	}
 	c.ring = hashring.New(members)
-	return
 }
 
 func (c *DynamicCluster) getNodeForKey(partitionKey string) (string, bool) {
@@ -392,9 +394,9 @@ func (c *DynamicCluster) forwardMetrics(ctx context.Context, partitionKey string
 		log.Printf("error: Failed to forward metrics to %s: %v", node, err)
 		c.problemDetected(node.Name, now)
 		metricForwardResult.WithLabelValues("send").Inc()
-		metricForwardLatency.WithLabelValues("send").Observe(time.Now().Sub(now).Seconds())
+		metricForwardLatency.WithLabelValues("send").Observe(time.Since(now).Seconds())
 	} else {
-		metricForwardLatency.WithLabelValues("").Observe(time.Now().Sub(now).Seconds())
+		metricForwardLatency.WithLabelValues("").Observe(time.Since(now).Seconds())
 	}
 
 	return true, nil

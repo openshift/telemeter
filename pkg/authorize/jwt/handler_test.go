@@ -35,11 +35,6 @@ func (e statusCodeErr) HTTPStatusCode() int {
 	return e.code
 }
 
-type testClusterAuthorizer struct {
-	subject string
-	err     error
-}
-
 func newTestClusterAuthorizer(subject string, err error) authorize.ClusterAuthorizer {
 	return authorize.ClusterAuthorizerFunc(func(token, cluster string) (string, error) {
 		return subject, err

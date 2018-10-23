@@ -82,12 +82,6 @@ func (t *errorInvalidFederateSamples) Transform(family *clientmodel.MetricFamily
 	return true, nil
 }
 
-const (
-	maxLabelName  = 255
-	maxLabelValue = 255
-	maxMetricName = 255
-)
-
 type dropInvalidFederateSamples struct {
 	min int64
 }

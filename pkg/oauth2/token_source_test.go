@@ -79,10 +79,9 @@ func TestPasswordCredentialsTokenSource(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		init         func(*passwordCredentialsTokenSource)
-		name         string
-		check        checkFunc
-		refreshToken *oauth2.Token
+		init  func(*passwordCredentialsTokenSource)
+		name  string
+		check checkFunc
 	}{
 		{
 			name: "initial request",
@@ -173,12 +172,14 @@ func newTestServer(t *testing.T) *httptest.Server {
 
 		cnt := int(atomic.AddUint64(&counter, 1))
 
-		w.Write([]byte(`{
+		if _, err := w.Write([]byte(`{
   "access_token": "access_token_` + strconv.Itoa(cnt) + `",
   "expires_in": ` + strconv.Itoa(cnt) + `00,
   "refresh_expires_in": ` + strconv.Itoa(cnt) + `00,
   "refresh_token": "refresh_token_` + strconv.Itoa(cnt) + `",
   "token_type": "bearer"
-}`))
+}`)); err != nil {
+			t.Errorf("error writing token: %v", err)
+		}
 	}))
 }

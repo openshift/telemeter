@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
+	"log"
 	"net/http"
 	"strconv"
 	"sync"
@@ -73,19 +74,25 @@ func (s *mock) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	Write(w, code, resp)
 }
 
-func Write(w http.ResponseWriter, statusCode int, resp interface{}) error {
+func Write(w http.ResponseWriter, statusCode int, resp interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	data, err := json.MarshalIndent(resp, "", "  ")
 	if err != nil {
-		return err
+		log.Printf("marshaling response failed: %v", err)
+		return
 	}
-	w.Write(data)
-	return nil
+	if _, err := w.Write(data); err != nil {
+		log.Printf("writing response failed %v", err)
+		return
+	}
 }
 
 func fnvHash(text string) string {
 	h := fnv.New64a()
-	h.Write([]byte(text))
+	if _, err := h.Write([]byte(text)); err != nil {
+		log.Printf("hashing failed: %v", err)
+		return ""
+	}
 	return strconv.FormatUint(h.Sum64(), 32)
 }

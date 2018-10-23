@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -158,6 +159,9 @@ func newestTimestamp(families []*clientmodel.MetricFamily) int64 {
 
 func fnvHash(text string) string {
 	h := fnv.New64a()
-	h.Write([]byte(text))
+	if _, err := h.Write([]byte(text)); err != nil {
+		log.Printf("hashing failed: %v", err)
+		return ""
+	}
 	return strconv.FormatUint(h.Sum64(), 32)
 }
