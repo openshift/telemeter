@@ -3,11 +3,11 @@ package tollbooth
 import (
 	"encoding/json"
 	"fmt"
-	"hash/fnv"
 	"log"
 	"net/http"
-	"strconv"
 	"sync"
+
+	"github.com/openshift/telemeter/pkg/fnv"
 )
 
 type Key struct {
@@ -61,9 +61,16 @@ func (s *mock) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	resp, clusterFound := s.Responses[key]
 	code := http.StatusOK
 
+	accountID, err := fnv.Hash(regRequest.ClusterID)
+	if err != nil {
+		log.Printf("hashing cluster ID failed: %v", err)
+		Write(w, http.StatusInternalServerError, &registrationError{Name: "", Reason: "hashing cluster ID failed"})
+		return
+	}
+
 	if !clusterFound {
 		resp = clusterRegistration{
-			AccountID:          fnvHash(regRequest.ClusterID),
+			AccountID:          accountID,
 			AuthorizationToken: regRequest.AuthorizationToken,
 			ClusterID:          regRequest.ClusterID,
 		}
@@ -86,13 +93,4 @@ func Write(w http.ResponseWriter, statusCode int, resp interface{}) {
 		log.Printf("writing response failed %v", err)
 		return
 	}
-}
-
-func fnvHash(text string) string {
-	h := fnv.New64a()
-	if _, err := h.Write([]byte(text)); err != nil {
-		log.Printf("hashing failed: %v", err)
-		return ""
-	}
-	return strconv.FormatUint(h.Sum64(), 32)
 }

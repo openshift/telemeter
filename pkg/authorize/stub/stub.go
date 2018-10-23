@@ -1,22 +1,17 @@
 package stub
 
 import (
-	"hash/fnv"
+	"fmt"
 	"log"
-	"strconv"
+
+	"github.com/openshift/telemeter/pkg/fnv"
 )
 
 func Authorize(token, cluster string) (string, error) {
-	subject := fnvHash(token)
+	subject, err := fnv.Hash(token)
+	if err != nil {
+		return "", fmt.Errorf("hashing token failed: %v", err)
+	}
 	log.Printf("warning: Performing no-op authentication, subject will be %s with cluster %s", subject, cluster)
 	return subject, nil
-}
-
-func fnvHash(text string) string {
-	h := fnv.New64a()
-	if _, err := h.Write([]byte(text)); err != nil {
-		log.Printf("hashing failed: %v", err)
-		return ""
-	}
-	return strconv.FormatUint(h.Sum64(), 32)
 }
