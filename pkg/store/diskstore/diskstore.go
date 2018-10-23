@@ -3,15 +3,13 @@ package diskstore
 import (
 	"context"
 	"fmt"
-	"hash/fnv"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
+	"github.com/openshift/telemeter/pkg/fnv"
 	"github.com/openshift/telemeter/pkg/metricsclient"
 	clientmodel "github.com/prometheus/client_model/go"
 )
@@ -127,7 +125,10 @@ func (s *diskStore) WriteMetrics(ctx context.Context, partitionKey string, famil
 }
 
 func pathForPartitionAndStorageKey(base, partitionKey, storageKey string) (string, error) {
-	keyHash := fnvHash(partitionKey)
+	keyHash, err := fnv.Hash(partitionKey)
+	if err != nil {
+		return "", fmt.Errorf("hashing partition key failed: %v", err)
+	}
 	segment := []string{base, keyHash[0:2], keyHash[2:4], partitionKey}
 	dir := filepath.Join(segment...)
 	if err := os.MkdirAll(dir, 0700); err != nil {
@@ -155,13 +156,4 @@ func newestTimestamp(families []*clientmodel.MetricFamily) int64 {
 		}
 	}
 	return newest
-}
-
-func fnvHash(text string) string {
-	h := fnv.New64a()
-	if _, err := h.Write([]byte(text)); err != nil {
-		log.Printf("hashing failed: %v", err)
-		return ""
-	}
-	return strconv.FormatUint(h.Sum64(), 32)
 }
