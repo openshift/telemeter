@@ -14,6 +14,9 @@ func Authorize(token, cluster string) (string, error) {
 
 func fnvHash(text string) string {
 	h := fnv.New64a()
-	h.Write([]byte(text))
+	if _, err := h.Write([]byte(text)); err != nil {
+		log.Printf("hashing failed: %v", err)
+		return ""
+	}
 	return strconv.FormatUint(h.Sum64(), 32)
 }

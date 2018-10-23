@@ -372,7 +372,9 @@ func (o *Options) Run() error {
 	internal.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.URL.Path == "/" && req.Method == "GET" {
 			w.Header().Add("Content-Type", "application/json")
-			w.Write(internalPathJSON)
+			if _, err := w.Write(internalPathJSON); err != nil {
+				log.Printf("error writing internal paths: %v", err)
+			}
 			return
 		}
 		internalProtected.ServeHTTP(w, req)
@@ -386,7 +388,9 @@ func (o *Options) Run() error {
 	external.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.URL.Path == "/" && req.Method == "GET" {
 			w.Header().Add("Content-Type", "application/json")
-			w.Write(externalPathJSON)
+			if _, err := w.Write(externalPathJSON); err != nil {
+				log.Printf("error writing external paths: %v", err)
+			}
 			return
 		}
 		externalProtectedHandler.ServeHTTP(w, req)

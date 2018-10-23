@@ -32,7 +32,9 @@ func family(name string, timestamps ...int64) *clientmodel.MetricFamily {
 func storeWithData(data map[string][]*clientmodel.MetricFamily) store.Store {
 	s := memstore.New()
 	for k, v := range data {
-		s.WriteMetrics(context.TODO(), k, v)
+		if err := s.WriteMetrics(context.TODO(), k, v); err != nil {
+			panic(err)
+		}
 	}
 	return s
 }

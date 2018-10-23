@@ -109,7 +109,9 @@ func TestGet(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(server.Get))
 	defer s.Close()
 
-	store.WriteMetrics(context.Background(), "test", mustReadString(sampleMetrics))
+	if err := store.WriteMetrics(context.Background(), "test", mustReadString(sampleMetrics)); err != nil {
+		t.Fatal(err)
+	}
 
 	actual := mustGet(s.URL, expfmt.FmtText)
 	expected := mustReadString(sampleMetrics)

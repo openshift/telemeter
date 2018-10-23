@@ -118,5 +118,7 @@ func (a *authorizeClusterHandler) ServeHTTP(w http.ResponseWriter, req *http.Req
 		return
 	}
 
-	w.Write(data)
+	if _, err := w.Write(data); err != nil {
+		log.Printf("writing auth token failed: %v", err)
+	}
 }

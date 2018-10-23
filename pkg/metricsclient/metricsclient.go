@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net"
 	"net/http"
 	"strconv"
@@ -124,7 +125,9 @@ func (c *Client) Send(ctx context.Context, req *http.Request, families []*client
 
 	return withCancel(ctx, c.client, req, func(resp *http.Response) error {
 		defer func() {
-			_, _ = io.Copy(ioutil.Discard, resp.Body)
+			if _, err := io.Copy(ioutil.Discard, resp.Body); err != nil {
+				log.Printf("error copying body: %v", err)
+			}
 			resp.Body.Close()
 		}()
 

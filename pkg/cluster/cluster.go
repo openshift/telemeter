@@ -150,10 +150,13 @@ func (c *DynamicCluster) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	info := c.debugInfo()
 	data, err := json.MarshalIndent(info, "", "  ")
 	if err != nil {
+		log.Printf("marshaling debug info failed: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Write(data)
+	if _, err := w.Write(data); err != nil {
+		log.Printf("writing debug info failed: %v", err)
+	}
 }
 
 func (c *DynamicCluster) debugInfo() debugInfo {

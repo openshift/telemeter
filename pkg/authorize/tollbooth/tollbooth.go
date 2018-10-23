@@ -59,7 +59,9 @@ func (a *authorizer) AuthorizeCluster(token, cluster string) (string, error) {
 	defer func() {
 		// read the body to keep the upstream connection open
 		if resp.Body != nil {
-			_, _ = io.Copy(ioutil.Discard, resp.Body)
+			if _, err := io.Copy(ioutil.Discard, resp.Body); err != nil {
+				log.Printf("error copying body: %v", err)
+			}
 			resp.Body.Close()
 		}
 	}()
