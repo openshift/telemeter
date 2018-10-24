@@ -192,7 +192,7 @@ func (o *Options) Run() error {
 	if len(o.ToUpload) > 0 {
 		to, err = url.Parse(o.ToUpload)
 		if err != nil {
-			return fmt.Errorf("--to is not a valid URL: %v", err)
+			return fmt.Errorf("--to-upload is not a valid URL: %v", err)
 		}
 	}
 	if len(o.ToAuthorize) > 0 {

@@ -18,7 +18,7 @@ local securePort = 8443;
     telemeterClient+:: {
       from: 'https://prometheus-k8s.%(namespace)s.svc:9091' % $._config,
       serverName: 'server-name-replaced-at-runtime',
-      to: '',
+      to: 'https://infogw.api.openshift.com',
       matchRules: [
         '{__name__="up"}',
         '{__name__="openshift_build_info"}',
