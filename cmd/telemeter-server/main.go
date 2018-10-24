@@ -37,7 +37,6 @@ import (
 	httpserver "github.com/openshift/telemeter/pkg/http/server"
 	telemeter_oauth2 "github.com/openshift/telemeter/pkg/oauth2"
 	"github.com/openshift/telemeter/pkg/store"
-	"github.com/openshift/telemeter/pkg/store/diskstore"
 	"github.com/openshift/telemeter/pkg/store/instrumented"
 	"github.com/openshift/telemeter/pkg/store/memstore"
 	"github.com/openshift/telemeter/pkg/validator"
@@ -100,7 +99,7 @@ func main() {
 	cmd.Flags().StringVar(&opt.TLSKeyPath, "tls-key", opt.TLSKeyPath, "Path to a private key to serve TLS for external traffic.")
 	cmd.Flags().StringVar(&opt.TLSCertificatePath, "tls-crt", opt.TLSCertificatePath, "Path to a certificate to serve TLS for external traffic.")
 
-	cmd.Flags().StringVar(&opt.StorageDir, "storage-dir", opt.StorageDir, "The directory to persist incoming metrics. If not specified metrics will only live in memory.")
+	cmd.Flags().StringVar(&opt.StorageDir, "storage-dir", opt.StorageDir, "DEPRECATED: The directory to persist incoming metrics. If not specified metrics will only live in memory.")
 
 	cmd.Flags().StringArrayVar(&opt.LabelFlag, "label", opt.LabelFlag, "Labels to add to each outgoing metric, in key=value form.")
 	cmd.Flags().StringVar(&opt.PartitionKey, "partition-label", opt.PartitionKey, "The label to separate incoming data on. This label will be required for callers to include.")
@@ -325,14 +324,7 @@ func (o *Options) Run() error {
 	validator := validator.New(o.PartitionKey, o.Labels, o.LimitBytes, 24*time.Hour)
 
 	// register a store
-	var store store.Store
-	if len(o.StorageDir) > 0 {
-		log.Printf("Storing metrics on disk at %s", o.StorageDir)
-		store = instrumented.New(diskstore.New(o.StorageDir), "disk")
-	} else {
-		log.Printf("warning: Using memory-backed store")
-		store = instrumented.New(memstore.New(), "memory")
-	}
+	var store store.Store = instrumented.New(memstore.New(), "memory")
 
 	if len(o.ListenCluster) > 0 {
 		c := cluster.NewDynamic(o.Name, store)
