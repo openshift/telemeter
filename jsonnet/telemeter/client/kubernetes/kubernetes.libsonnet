@@ -62,17 +62,19 @@ local securePort = 8443;
                                 ]) +
                                 policyRule.withVerbs(['create']);
 
-      local coreRule = policyRule.new() +
-                       policyRule.withApiGroups(['']) +
-                       policyRule.withResources([
-                         'namespaces',
-                       ]) +
-                       policyRule.withVerbs(['get']);
-
-
       clusterRole.new() +
       clusterRole.mixin.metadata.withName('telemeter-client') +
-      clusterRole.withRules([authenticationRule, authorizationRule, coreRule]),
+      clusterRole.withRules([authenticationRule, authorizationRule]),
+
+    clusterRoleBindingView:
+      local clusterRoleBinding = k.rbac.v1.clusterRoleBinding;
+
+      clusterRoleBinding.new() +
+      clusterRoleBinding.mixin.metadata.withName('telemeter-client-view') +
+      clusterRoleBinding.mixin.roleRef.withApiGroup('rbac.authorization.k8s.io') +
+      clusterRoleBinding.mixin.roleRef.withName('cluster-monitoring-view') +
+      clusterRoleBinding.mixin.roleRef.mixinInstance({ kind: 'ClusterRole' }) +
+      clusterRoleBinding.withSubjects([{ kind: 'ServiceAccount', name: 'telemeter-client', namespace: $._config.namespace }]),
 
     deployment:
       local deployment = k.apps.v1beta2.deployment;
