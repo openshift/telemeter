@@ -19,14 +19,7 @@ local securePort = 8443;
       from: 'https://prometheus-k8s.%(namespace)s.svc:9091' % $._config,
       serverName: 'server-name-replaced-at-runtime',
       to: 'https://infogw.api.openshift.com',
-      matchRules: [
-        '{__name__="up"}',
-        '{__name__="openshift_build_info"}',
-        '{__name__="machine_cpu_cores"}',
-        '{__name__="machine_memory_bytes"}',
-        '{__name__="etcd_object_counts"}',
-        '{__name__="ALERTS",alertstate="firing"}',
-      ],
+      matchRules: [],
     },
 
     versions+:: {
