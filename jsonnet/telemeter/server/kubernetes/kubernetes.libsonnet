@@ -94,7 +94,7 @@ local clusterPort = 8081;
           },
         };
 
-      statefulSet.new('telemeter-server', 3, [telemeterServer], {}, podLabels) +
+      statefulSet.new('telemeter-server', 3, [telemeterServer], [], podLabels) +
       statefulSet.mixin.metadata.withNamespace($._config.namespace) +
       statefulSet.mixin.spec.selector.withMatchLabels(podLabels) +
       statefulSet.mixin.spec.withPodManagementPolicy('Parallel') +
