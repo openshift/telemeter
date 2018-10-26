@@ -17,9 +17,11 @@ local securePort = 8443;
 
     telemeterClient+:: {
       from: 'https://prometheus-k8s.%(namespace)s.svc:9091' % $._config,
+      matchRules: [],
+      salt: '',
       serverName: 'server-name-replaced-at-runtime',
       to: 'https://infogw.api.openshift.com',
-      matchRules: [],
+      token: '',
     },
 
     versions+:: {
@@ -104,6 +106,7 @@ local securePort = 8443;
           '--to-token-file=%s/token' % secretMountPath,
           '--listen=localhost:' + metricsPort,
           '--match-file=%s/%s' % [secretMountPath, matchFileName],
+          '--anonymize-salt-file=%s/salt' % secretMountPath,
         ]) +
         container.withPorts(containerPort.newNamed('http', metricsPort)) +
         container.withVolumeMounts([secretMount]) +
@@ -134,7 +137,9 @@ local securePort = 8443;
 
       secret.new(secretName, {
         [matchFileName]: std.base64(std.join('\n', $._config.telemeterClient.matchRules)),
+        salt: std.base64($._config.telemeterClient.salt),
         to: std.base64($._config.telemeterClient.to),
+        token: std.base64($._config.telemeterClient.token),
       }) +
       secret.mixin.metadata.withNamespace($._config.namespace) +
       secret.mixin.metadata.withLabels({ 'k8s-app': 'telemeter-client' }),
