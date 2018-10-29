@@ -8,7 +8,7 @@
                     "subdir": "jsonnet/telemeter/client"
                 }
             },
-            "version": "e715bf437ef93e5c285e98fa6fbae49b8555f445"
+            "version": "7ae19324562a0f66e3edc51df55bc13bd4912a36"
         },
         {
             "name": "ksonnet",
@@ -28,7 +28,7 @@
                     "subdir": "jsonnet/telemeter/server"
                 }
             },
-            "version": "e715bf437ef93e5c285e98fa6fbae49b8555f445"
+            "version": "7ae19324562a0f66e3edc51df55bc13bd4912a36"
         },
         {
             "name": "prometheus-telemeter",
@@ -38,7 +38,7 @@
                     "subdir": "jsonnet/telemeter/prometheus"
                 }
             },
-            "version": "e715bf437ef93e5c285e98fa6fbae49b8555f445"
+            "version": "7ae19324562a0f66e3edc51df55bc13bd4912a36"
         }
     ]
 }
