@@ -131,6 +131,13 @@ local clusterPort = 8081;
         'service.alpha.openshift.io/serving-cert-secret-name': tlsSecret,
       }),
 
+    serviceAccount:
+      local serviceAccount = k.core.v1.serviceAccount;
+
+      serviceAccount.new('telemeter-server') +
+      serviceAccount.mixin.metadata.withNamespace($._config.namespace),
+
+
     serviceMonitor:
       {
         apiVersion: 'monitoring.coreos.com/v1',

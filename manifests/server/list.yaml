@@ -39,6 +39,11 @@ objects:
       targetPort: cluster
     selector:
       k8s-app: telemeter-server
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: telemeter-server
+    namespace: telemeter
 - apiVersion: monitoring.coreos.com/v1
   kind: ServiceMonitor
   metadata:
