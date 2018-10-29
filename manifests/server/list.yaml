@@ -99,6 +99,10 @@ objects:
           - --authorize-username=$(RHD_USERNAME)
           - --authorize-password=$(RHD_PASSWORD)
           env:
+          - name: NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
           - name: RHD_URL
             valueFrom:
               secretKeyRef:
