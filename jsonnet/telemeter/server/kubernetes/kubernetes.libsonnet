@@ -46,7 +46,6 @@ local clusterPort = 8081;
       local tlsMount = containerVolumeMount.new(tlsVolumeName, tlsMountPath);
       local tlsVolume = volume.fromSecret(tlsVolumeName, tlsSecret);
       local name = containerEnv.fromFieldPath('NAME', 'metadata.name');
-      local namespace = containerEnv.fromFieldPath('NAMESPACE', 'metadata.namespace');
       local rhdURL = containerEnv.fromSecretRef('RHD_URL', secretName, 'rhd.url');
       local rhdUsername = containerEnv.fromSecretRef('RHD_USERNAME', secretName, 'rhd.username');
       local rhdPassword = containerEnv.fromSecretRef('RHD_PASSWORD', secretName, 'rhd.password');
@@ -77,7 +76,7 @@ local clusterPort = 8081;
           containerPort.newNamed('cluster', clusterPort),
         ]) +
         container.withVolumeMounts([tlsMount, localMount]) +
-        container.withEnv([rhdURL, rhdUsername, rhdPassword, rhdClientID]) + {
+        container.withEnv([name, rhdURL, rhdUsername, rhdPassword, rhdClientID]) + {
           livenessProbe: {
             httpGet: {
               path: '/healthz',
