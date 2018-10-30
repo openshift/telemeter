@@ -90,4 +90,3 @@ spec:
       - name: telemeter-server-tls
         secret:
           secretName: telemeter-server-shared
-  volumeClaimTemplates: []

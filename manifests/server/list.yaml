@@ -156,7 +156,6 @@ objects:
         - name: telemeter-server-tls
           secret:
             secretName: telemeter-server-shared
-    volumeClaimTemplates: []
 parameters:
 - name: IMAGE
   value: quay.io/openshift/origin-telemeter
