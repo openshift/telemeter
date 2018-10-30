@@ -1,4 +1,4 @@
-.PHONY: all build image check test-integration vendor dependencies manifests
+.PHONY: all build image fmt check check-fmt lint test-integration vendor dependencies manifests
 
 BIN=bin
 GOLANGCI_LINT_BIN=$(BIN)/golangci-lint
@@ -22,9 +22,15 @@ image:
 lint: $(GOLANGCI_LINT_BIN)
 	# megacheck fails to respect build flags, causing compilation failure during linting.
 	# instead, use the unused, gosimple, and staticcheck linters directly
-	$(BIN)/golangci-lint run -D megacheck -E unused,gosimple,staticcheck
+	$(GOLANGCI_LINT_BIN) run -D megacheck -E unused,gosimple,staticcheck
 
-check: lint
+fmt: $(JSONNET_BIN)
+	find jsonnet/ -type f -not -path "*/vendor/*" \( -name *.jsonnet -o -name *.libsonnet \) | xargs -l $(JSONNET_BIN) fmt -i
+	
+check-fmt: $(JSONNET_BIN)
+	find jsonnet/ -type f -not -path "*/vendor/*" \( -name *.jsonnet -o -name *.libsonnet \) | xargs -l $(JSONNET_BIN) fmt --test
+
+check: lint check-fmt
 	go test -race ./...
 
 test-integration: build
