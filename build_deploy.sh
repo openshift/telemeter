@@ -5,9 +5,9 @@ set -exv
 IMAGE_BUILD="telemeter-build"
 DOCKERFILE_BUILD="dockerfiles/Dockerfile.build"
 
-IMAGE_DEPLOY="quay.io/app-sre/app-interface"
-DOCKERFILE_DEPLOY="dockerfiles/Dockerfile.deploy"
+IMAGE="quay.io/app-sre/telemeter"
 IMAGE_TAG=$(git rev-parse --short=7 HEAD)
+DOCKERFILE_DEPLOY="dockerfiles/Dockerfile.deploy"
 
 BINARIES="telemeter-client telemeter-server authorization-server"
 
