@@ -99,7 +99,12 @@ local clusterPort = 8081;
       statefulSet.mixin.spec.withPodManagementPolicy('Parallel') +
       statefulSet.mixin.spec.withServiceName('telemeter-server') +
       statefulSet.mixin.spec.template.spec.withServiceAccountName('telemeter-server') +
-      statefulSet.mixin.spec.template.spec.withVolumes([localVolume, tlsVolume]),
+      statefulSet.mixin.spec.template.spec.withVolumes([localVolume, tlsVolume]) +
+      {
+        spec+: {
+          volumeClaimTemplates:: null,
+        },
+      },
 
     secret:
       local secret = k.core.v1.secret;
