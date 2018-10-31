@@ -1,7 +1,5 @@
 local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
 local secretName = 'telemeter-server';
-local localVolumeName = 'local';
-local localMountPath = '/var/lib/telemeter';
 local tlsSecret = 'telemeter-server-shared';
 local tlsVolumeName = 'telemeter-server-tls';
 local tlsMountPath = '/etc/pki/service';
@@ -41,8 +39,6 @@ local clusterPort = 8081;
       local containerEnv = container.envType;
 
       local podLabels = { 'k8s-app': 'telemeter-server' };
-      local localMount = containerVolumeMount.new(localVolumeName, localMountPath);
-      local localVolume = volume.fromEmptyDir(localVolumeName, {});
       local tlsMount = containerVolumeMount.new(tlsVolumeName, tlsMountPath);
       local tlsVolume = volume.fromSecret(tlsVolumeName, tlsSecret);
       local name = containerEnv.fromFieldPath('NAME', 'metadata.name');
@@ -60,7 +56,6 @@ local clusterPort = 8081;
           '--listen=0.0.0.0:8443',
           '--listen-internal=0.0.0.0:8081',
           '--listen-cluster=0.0.0.0:8082',
-          '--storage-dir=' + localMountPath,
           '--shared-key=%s/tls.key' % tlsMountPath,
           '--tls-key=%s/tls.key' % tlsMountPath,
           '--tls-crt=%s/tls.crt' % tlsMountPath,
@@ -75,7 +70,7 @@ local clusterPort = 8081;
           containerPort.newNamed('internal', internalPort),
           containerPort.newNamed('cluster', clusterPort),
         ]) +
-        container.withVolumeMounts([tlsMount, localMount]) +
+        container.withVolumeMounts([tlsMount]) +
         container.withEnv([name, rhdURL, rhdUsername, rhdPassword, rhdClientID]) + {
           livenessProbe: {
             httpGet: {
@@ -99,7 +94,7 @@ local clusterPort = 8081;
       statefulSet.mixin.spec.withPodManagementPolicy('Parallel') +
       statefulSet.mixin.spec.withServiceName('telemeter-server') +
       statefulSet.mixin.spec.template.spec.withServiceAccountName('telemeter-server') +
-      statefulSet.mixin.spec.template.spec.withVolumes([localVolume, tlsVolume]) +
+      statefulSet.mixin.spec.template.spec.withVolumes([tlsVolume]) +
       {
         spec+: {
           volumeClaimTemplates:: null,

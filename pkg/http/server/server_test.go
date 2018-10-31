@@ -30,9 +30,13 @@ func family(name string, timestamps ...int64) *clientmodel.MetricFamily {
 }
 
 func storeWithData(data map[string][]*clientmodel.MetricFamily) store.Store {
-	s := memstore.New()
+	s := memstore.New(10 * time.Minute)
 	for k, v := range data {
-		if err := s.WriteMetrics(context.TODO(), k, v); err != nil {
+		err := s.WriteMetrics(context.TODO(), &store.PartitionedMetrics{
+			PartitionKey: k,
+			Families:     v,
+		})
+		if err != nil {
 			panic(err)
 		}
 	}
@@ -76,9 +80,10 @@ func TestServer_Get(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := &Server{
-				store:     tt.fields.store,
-				validator: tt.fields.validator,
-				nowFn:     tt.fields.nowFn,
+				maxSampleAge: 10 * time.Minute,
+				store:        tt.fields.store,
+				validator:    tt.fields.validator,
+				nowFn:        tt.fields.nowFn,
 			}
 			w := httptest.NewRecorder()
 			s.Get(w, tt.req)

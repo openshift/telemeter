@@ -89,7 +89,6 @@ objects:
           - --listen=0.0.0.0:8443
           - --listen-internal=0.0.0.0:8081
           - --listen-cluster=0.0.0.0:8082
-          - --storage-dir=/var/lib/telemeter
           - --shared-key=/etc/pki/service/tls.key
           - --tls-key=/etc/pki/service/tls.key
           - --tls-crt=/etc/pki/service/tls.crt
@@ -146,13 +145,8 @@ objects:
           - mountPath: /etc/pki/service
             name: telemeter-server-tls
             readOnly: false
-          - mountPath: /var/lib/telemeter
-            name: local
-            readOnly: false
         serviceAccountName: telemeter-server
         volumes:
-        - emptyDir: {}
-          name: local
         - name: telemeter-server-tls
           secret:
             secretName: telemeter-server-shared

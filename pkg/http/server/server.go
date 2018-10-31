@@ -16,21 +16,20 @@ import (
 	"github.com/openshift/telemeter/pkg/store/instrumented"
 )
 
-// maxSampleAge is the maximum age of a sample that we can report via federation.
-const maxSampleAge = 10 * time.Minute
-
 type UploadValidator interface {
 	ValidateUpload(ctx context.Context, req *http.Request) (string, metricfamily.Transformer, error)
 }
 
 type Server struct {
+	maxSampleAge        time.Duration
 	receiveStore, store store.Store
 	validator           UploadValidator
 	nowFn               func() time.Time
 }
 
-func New(store store.Store, validator UploadValidator) *Server {
+func New(store store.Store, validator UploadValidator, maxSampleAge time.Duration) *Server {
 	return &Server{
+		maxSampleAge: maxSampleAge,
 		receiveStore: instrumented.New(nil, "received"),
 		store:        store,
 		validator:    validator,
@@ -38,11 +37,12 @@ func New(store store.Store, validator UploadValidator) *Server {
 	}
 }
 
-func NewNonExpiring(store store.Store, validator UploadValidator) *Server {
+func NewNonExpiring(store store.Store, validator UploadValidator, maxSampleAge time.Duration) *Server {
 	return &Server{
-		store:     store,
-		validator: validator,
-		nowFn:     nil,
+		maxSampleAge: maxSampleAge,
+		store:        store,
+		validator:    validator,
+		nowFn:        nil,
 	}
 }
 
@@ -59,7 +59,7 @@ func (s *Server) Get(w http.ResponseWriter, req *http.Request) {
 	var minTimeMs int64
 	var filter metricfamily.MultiTransformer
 	if s.nowFn != nil {
-		minTime := s.nowFn().Add(-maxSampleAge)
+		minTime := s.nowFn().Add(-s.maxSampleAge)
 		minTimeMs = minTime.UnixNano() / int64(time.Millisecond)
 		filter.With(metricfamily.NewDropExpiredSamples(minTime))
 		filter.With(metricfamily.TransformerFunc(metricfamily.PackMetrics))
@@ -67,8 +67,15 @@ func (s *Server) Get(w http.ResponseWriter, req *http.Request) {
 
 	filter.With(metricfamily.TransformerFunc(metricfamily.DropTimestamp))
 
-	err := s.store.ReadMetrics(ctx, minTimeMs, func(partitionKey string, families []*clientmodel.MetricFamily) error {
-		for _, family := range families {
+	ps, err := s.store.ReadMetrics(ctx, minTimeMs)
+	if err != nil {
+		log.Printf("error reading metrics: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	for _, p := range ps {
+		for _, family := range p.Families {
 			if family == nil {
 				continue
 			}
@@ -76,14 +83,11 @@ func (s *Server) Get(w http.ResponseWriter, req *http.Request) {
 				continue
 			}
 			if err := encoder.Encode(family); err != nil {
-				return err
+				log.Printf("error encoding metrics family: %v", err)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				continue
 			}
 		}
-		return nil
-	})
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
 	}
 }
 
@@ -140,7 +144,10 @@ func (s *Server) decodeAndStoreMetrics(ctx context.Context, partitionKey string,
 		}
 	}
 
-	if err := s.receiveStore.WriteMetrics(ctx, partitionKey, families); err != nil {
+	if err := s.receiveStore.WriteMetrics(ctx, &store.PartitionedMetrics{
+		PartitionKey: partitionKey,
+		Families:     families,
+	}); err != nil {
 		return err
 	}
 
@@ -158,5 +165,8 @@ func (s *Server) decodeAndStoreMetrics(ctx context.Context, partitionKey string,
 
 	families = metricfamily.Pack(families)
 
-	return s.store.WriteMetrics(ctx, partitionKey, families)
+	return s.store.WriteMetrics(ctx, &store.PartitionedMetrics{
+		PartitionKey: partitionKey,
+		Families:     families,
+	})
 }
