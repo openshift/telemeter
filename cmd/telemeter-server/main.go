@@ -67,11 +67,6 @@ To form a cluster, a --shared-key, a --listen-cluster address, and an optional e
 cluster member to --join must be provided. The --name of this server is used to
 identify the server within the cluster - if it changes client data may be sent to
 another cluster member.
-
-Client data is stored temporarily on disk if --storage-dir is set until scraped. The
-structure of the data directory a two level tree based on a hash of the partition key
-and the metrics from the client are stored in a snappy-compressed protobuf file 
-(the Prometheus delimited format).
 `
 
 func main() {
@@ -98,8 +93,6 @@ func main() {
 
 	cmd.Flags().StringVar(&opt.TLSKeyPath, "tls-key", opt.TLSKeyPath, "Path to a private key to serve TLS for external traffic.")
 	cmd.Flags().StringVar(&opt.TLSCertificatePath, "tls-crt", opt.TLSCertificatePath, "Path to a certificate to serve TLS for external traffic.")
-
-	cmd.Flags().StringVar(&opt.StorageDir, "storage-dir", opt.StorageDir, "DEPRECATED: The directory to persist incoming metrics. If not specified metrics will only live in memory.")
 
 	cmd.Flags().StringArrayVar(&opt.LabelFlag, "label", opt.LabelFlag, "Labels to add to each outgoing metric, in key=value form.")
 	cmd.Flags().StringVar(&opt.PartitionKey, "partition-label", opt.PartitionKey, "The label to separate incoming data on. This label will be required for callers to include.")
@@ -149,8 +142,6 @@ type Options struct {
 	LabelFlag    []string
 	Labels       map[string]string
 	LimitBytes   int64
-
-	StorageDir string
 
 	Verbose bool
 }
