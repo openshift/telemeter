@@ -16,21 +16,20 @@ import (
 	"github.com/openshift/telemeter/pkg/store/instrumented"
 )
 
-// maxSampleAge is the maximum age of a sample that we can report via federation.
-const maxSampleAge = 10 * time.Minute
-
 type UploadValidator interface {
 	ValidateUpload(ctx context.Context, req *http.Request) (string, metricfamily.Transformer, error)
 }
 
 type Server struct {
+	maxSampleAge        time.Duration
 	receiveStore, store store.Store
 	validator           UploadValidator
 	nowFn               func() time.Time
 }
 
-func New(store store.Store, validator UploadValidator) *Server {
+func New(store store.Store, validator UploadValidator, maxSampleAge time.Duration) *Server {
 	return &Server{
+		maxSampleAge: maxSampleAge,
 		receiveStore: instrumented.New(nil, "received"),
 		store:        store,
 		validator:    validator,
@@ -38,11 +37,12 @@ func New(store store.Store, validator UploadValidator) *Server {
 	}
 }
 
-func NewNonExpiring(store store.Store, validator UploadValidator) *Server {
+func NewNonExpiring(store store.Store, validator UploadValidator, maxSampleAge time.Duration) *Server {
 	return &Server{
-		store:     store,
-		validator: validator,
-		nowFn:     nil,
+		maxSampleAge: maxSampleAge,
+		store:        store,
+		validator:    validator,
+		nowFn:        nil,
 	}
 }
 
@@ -59,7 +59,7 @@ func (s *Server) Get(w http.ResponseWriter, req *http.Request) {
 	var minTimeMs int64
 	var filter metricfamily.MultiTransformer
 	if s.nowFn != nil {
-		minTime := s.nowFn().Add(-maxSampleAge)
+		minTime := s.nowFn().Add(-s.maxSampleAge)
 		minTimeMs = minTime.UnixNano() / int64(time.Millisecond)
 		filter.With(metricfamily.NewDropExpiredSamples(minTime))
 		filter.With(metricfamily.TransformerFunc(metricfamily.PackMetrics))

@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/openshift/telemeter/pkg/metricfamily"
 	"github.com/openshift/telemeter/pkg/store"
@@ -43,8 +44,9 @@ func TestPost(t *testing.T) {
 
 func TestPostError(t *testing.T) {
 	validator := validator.New("cluster", nil, 4096, 0)
-	store := memstore.New()
-	server := server.New(store, validator)
+	ttl := 10 * time.Minute
+	store := memstore.New(ttl)
+	server := server.New(store, validator, ttl)
 
 	s := httptest.NewServer(fakeAuthorizeHandler(http.HandlerFunc(server.Post), &authorize.Client{ID: "test", Labels: map[string]string{"cluster": "test"}}))
 	defer s.Close()
@@ -79,8 +81,9 @@ func TestPostError(t *testing.T) {
 func testPost(t *testing.T, validator server.UploadValidator, send, expect []*clientmodel.MetricFamily) {
 	t.Helper()
 
-	memStore := memstore.New()
-	server := server.New(memStore, validator)
+	ttl := 10 * time.Minute
+	memStore := memstore.New(ttl)
+	server := server.New(memStore, validator, ttl)
 
 	s := httptest.NewServer(fakeAuthorizeHandler(http.HandlerFunc(server.Post), &authorize.Client{ID: "test", Labels: map[string]string{"cluster": "test"}}))
 	defer s.Close()
@@ -105,9 +108,10 @@ func testPost(t *testing.T, validator server.UploadValidator, send, expect []*cl
 }
 
 func TestGet(t *testing.T) {
-	memStore := memstore.New()
+	ttl := 10 * time.Minute
+	memStore := memstore.New(ttl)
 	validator := validator.New("cluster", nil, 0, 0)
-	server := server.NewNonExpiring(memStore, validator)
+	server := server.NewNonExpiring(memStore, validator, ttl)
 	srv := httptest.NewServer(http.HandlerFunc(server.Get))
 	defer srv.Close()
 

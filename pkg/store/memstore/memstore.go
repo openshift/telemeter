@@ -10,20 +10,20 @@ import (
 	clientmodel "github.com/prometheus/client_model/go"
 )
 
-const ttl = 20 * time.Minute
-
 type clusterMetricSlice struct {
 	newest   int64
 	families []*clientmodel.MetricFamily
 }
 
 type memoryStore struct {
+	ttl   time.Duration
 	mu    sync.RWMutex
 	store map[string]*clusterMetricSlice
 }
 
-func New() *memoryStore {
+func New(ttl time.Duration) *memoryStore {
 	return &memoryStore{
+		ttl:   ttl,
 		store: make(map[string]*clusterMetricSlice),
 	}
 }
@@ -52,7 +52,7 @@ func (s *memoryStore) cleanup(now time.Time) {
 	defer s.mu.Unlock()
 
 	for partitionKey, slice := range s.store {
-		ttlTimestampMs := now.Add(-ttl).UnixNano() / int64(time.Millisecond)
+		ttlTimestampMs := now.Add(-s.ttl).UnixNano() / int64(time.Millisecond)
 
 		if slice.newest < ttlTimestampMs {
 			delete(s.store, partitionKey)

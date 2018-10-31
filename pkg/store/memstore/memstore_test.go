@@ -105,7 +105,7 @@ func TestCleanup(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			s := New()
+			s := New(20 * time.Minute)
 
 			for _, d := range data {
 				if err := s.WriteMetrics(context.Background(), d); err != nil {
@@ -240,7 +240,7 @@ func TestReadWriteMetrics(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			s := New()
+			s := New(time.Second)
 
 			if err := s.WriteMetrics(context.Background(), tc.data); err != nil {
 				t.Error(err)

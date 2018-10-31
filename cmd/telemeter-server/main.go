@@ -323,8 +323,10 @@ func (o *Options) Run() error {
 	auth := jwt.NewAuthorizeClusterHandler(o.PartitionKey, o.TokenExpireSeconds, signer, o.Labels, clusterAuth)
 	validator := validator.New(o.PartitionKey, o.Labels, o.LimitBytes, 24*time.Hour)
 
+	ttl := 10 * time.Minute
+
 	// register a store
-	var store store.Store = instrumented.New(memstore.New(), "memory")
+	var store store.Store = instrumented.New(memstore.New(ttl), "memory")
 
 	if len(o.ListenCluster) > 0 {
 		c := cluster.NewDynamic(o.Name, store)
@@ -352,7 +354,7 @@ func (o *Options) Run() error {
 		internalProtected.Handle("/debug/cluster", c)
 	}
 
-	server := httpserver.New(store, validator)
+	server := httpserver.New(store, validator, ttl)
 
 	internalPathJSON, _ := json.MarshalIndent(Paths{Paths: internalPaths}, "", "  ")
 	externalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/authorize", "/upload", "/healthz", "/healthz/ready"}}, "", "  ")
