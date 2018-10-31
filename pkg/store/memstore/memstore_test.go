@@ -114,7 +114,7 @@ func TestCleanup(t *testing.T) {
 				}
 			}
 
-			s.cleanup(func() time.Time { return tc.now })
+			s.cleanup(tc.now)
 
 			if err := tc.check(data, s); err != nil {
 				t.Error(err)

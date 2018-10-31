@@ -38,7 +38,7 @@ func (s *memoryStore) StartCleaner(ctx context.Context, interval time.Duration) 
 		for {
 			select {
 			case <-ticker.C:
-				s.cleanup(time.Now)
+				s.cleanup(time.Now())
 			case <-ctx.Done():
 				ticker.Stop()
 				return
@@ -47,12 +47,12 @@ func (s *memoryStore) StartCleaner(ctx context.Context, interval time.Duration) 
 	}()
 }
 
-func (s *memoryStore) cleanup(now func() time.Time) {
+func (s *memoryStore) cleanup(now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	for partitionKey, slice := range s.store {
-		ttlTimestampMs := now().Add(-ttl).UnixNano() / int64(time.Millisecond)
+		ttlTimestampMs := now.Add(-ttl).UnixNano() / int64(time.Millisecond)
 
 		if slice.newest < ttlTimestampMs {
 			delete(s.store, partitionKey)
