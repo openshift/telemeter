@@ -1,8 +1,8 @@
-hash: 79feda9a2c26e26857c5a23aface0a8c6dd5e12068f34c43ff58e99fd3bfbad2
-updated: 2018-10-02T17:38:44.317618624+02:00
+hash: c24b9509bf0868c6d2538513af997c4769f39216683376586e4a39a65d1aa866
+updated: 2018-11-01T15:51:43.434668419+01:00
 imports:
 - name: github.com/armon/go-metrics
-  version: 3c58d8115a78a6879e5df75ae900846768d36895
+  version: f0300d1749da6fa982027e449ec0c7a145510c3c
 - name: github.com/beorn7/perks
   version: 3a771d992973f24aa725d07868b467d1ddfceafb
   subpackages:
@@ -11,10 +11,6 @@ imports:
   version: 30d10be492927e2dcae0089c374c455d42414fcb
 - name: github.com/coreos/go-oidc
   version: 1180514eaf4d9f38d0d19eef639a1d695e066e72
-- name: github.com/gogo/protobuf
-  version: c0656edd0d9eab7c66d1eb0c568f9039345796f7
-  subpackages:
-  - proto
 - name: github.com/golang/protobuf
   version: aa810b61a9c79d51363740d207bb46cf8e620ed5
   subpackages:
@@ -22,7 +18,7 @@ imports:
 - name: github.com/golang/snappy
   version: 2e65f85255dbc3072edf28d6b5b8efc472979f5a
 - name: github.com/hashicorp/errwrap
-  version: 7554cd9344cec97297fa6649b055a8c98c2a1e55
+  version: 8a6fb523712970c966eefc6b39ed2c5e74880354
 - name: github.com/hashicorp/go-immutable-radix
   version: 27df80928bb34bb1b0d6d0e01b9e679902e7a6b5
 - name: github.com/hashicorp/go-msgpack
@@ -30,7 +26,7 @@ imports:
   subpackages:
   - codec
 - name: github.com/hashicorp/go-multierror
-  version: b7773ae218740a7be65057fc60b366a49b538a44
+  version: 886a7fbe3eb1c874d46f623bfa70af45f425b3d1
 - name: github.com/hashicorp/go-sockaddr
   version: 6d291a969b86c4b633730bfc6b8b9d64c3aafed9
 - name: github.com/hashicorp/golang-lru
@@ -38,7 +34,7 @@ imports:
   subpackages:
   - simplelru
 - name: github.com/hashicorp/memberlist
-  version: b195c8e4fcc6284fff1583fd6ab09e68ca207551
+  version: 2072f3a3ff4b7b3d830be77678d5d4b978362bc4
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/matttproud/golang_protobuf_extensions
@@ -46,13 +42,13 @@ imports:
   subpackages:
   - pbutil
 - name: github.com/miekg/dns
-  version: e875a31a5cfbcd646131e625f24818cbae228913
+  version: 915ca3d5ffd945235828a097c917311a9d86ebb4
 - name: github.com/pquerna/cachecontrol
   version: 1555304b9b35fdd2b425bccf1a5613677705e7d0
   subpackages:
   - cacheobject
 - name: github.com/prometheus/client_golang
-  version: 7858729281ec582767b20e0d696b6041d995d5e0
+  version: f30f428035633da15d00d3dfefb0128c5e569ef4
   subpackages:
   - prometheus
   - prometheus/internal
@@ -62,13 +58,13 @@ imports:
   subpackages:
   - go
 - name: github.com/prometheus/common
-  version: c7de2306084e37d54b8be01f3541a8464345e9a5
+  version: 7e9e6cabbd393fc208072eedef99188d0ce788b6
   subpackages:
   - expfmt
   - internal/bitbucket.org/ww/goautoneg
   - model
 - name: github.com/prometheus/procfs
-  version: 05ee40e3a273f7245e8777337fc7b46e533a9a92
+  version: 185b4288413d2a0dd0806f78c90dde719829e5ae
   subpackages:
   - internal/util
   - nfs
@@ -82,17 +78,18 @@ imports:
 - name: github.com/spf13/pflag
   version: 9a97c102cda95a86cec2345a6f09f55a939babf5
 - name: golang.org/x/crypto
-  version: df8d4716b3472e4a531c33cedbe537dae921a1a9
+  version: 4d3f4d9ffa16a13f451c3b2999e9c49e9750bf06
   subpackages:
   - ed25519
   - ed25519/internal/edwards25519
   - pbkdf2
 - name: golang.org/x/net
-  version: 1c05540f6879653db88113bc4a2b70aec4bd491f
+  version: c44066c5c816ec500d459a2a324a753f78531ae0
   subpackages:
   - bpf
   - context
   - context/ctxhttp
+  - http/httpguts
   - http2
   - http2/hpack
   - idna
@@ -100,24 +97,25 @@ imports:
   - internal/socket
   - ipv4
   - ipv6
-  - lex/httplex
 - name: golang.org/x/oauth2
-  version: fdc9e635145ae97e6c2cb777c48305600cf515cb
+  version: 8527f56f71077909d6ead7facfe18fbf05ebdf83
   subpackages:
   - internal
 - name: golang.org/x/sys
-  version: 95c6576299259db960f6c5b9b69ea52422860fce
+  version: 9b800f95dbbc54abff0acf7ee32d88ba4e328c89
   subpackages:
   - unix
 - name: golang.org/x/text
-  version: b19bf474d317b857955b12035d2c5acb57ce8b01
+  version: 6f44c5a2ea40ee3593d98cdcc905cc1fdaa660e2
   subpackages:
   - secure/bidirule
   - transform
   - unicode/bidi
   - unicode/norm
+- name: golang.org/x/time
+  version: fbb02b2291d28baffd63558aa44b4b56f178d650
 - name: google.golang.org/appengine
-  version: 5bee14b453b4c71be47ec1781b0fa61c2ea182db
+  version: 4a4468ece617fc8205e99368fa2200e9d1fad421
   subpackages:
   - internal
   - internal/base
@@ -127,7 +125,7 @@ imports:
   - internal/urlfetch
   - urlfetch
 - name: gopkg.in/square/go-jose.v2
-  version: 8254d6c783765f38c8675fae4427a1fe73fbd09d
+  version: ef984e69dd356202fd4e4910d4d9c24468bdf0b8
   subpackages:
   - cipher
   - json
