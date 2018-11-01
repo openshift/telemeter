@@ -6,7 +6,9 @@ local matchFileName = 'match-rules';
 local tlsSecret = 'telemeter-client-tls';
 local tlsVolumeName = 'telemeter-client-tls';
 local tlsMountPath = '/etc/tls/private';
-local fromCAFile = '/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt';
+local servingCertsCABundle = 'serving-certs-ca-bundle';
+local servingCertsCABundleFileName = 'service-ca.crt';
+local servingCertsCABundleMountPath = '/etc/%s' % servingCertsCABundle;
 local fromTokenFile = '/var/run/secrets/kubernetes.io/serviceaccount/token';
 local metricsPort = 8080;
 local securePort = 8443;
@@ -91,6 +93,8 @@ local securePort = 8443;
       local secretVolume = volume.fromSecret(secretVolumeName, secretName);
       local tlsMount = containerVolumeMount.new(tlsVolumeName, tlsMountPath);
       local tlsVolume = volume.fromSecret(tlsVolumeName, tlsSecret);
+      local sccabMount = containerVolumeMount.new(servingCertsCABundle, servingCertsCABundleMountPath);
+      local sccabVolume = volume.fromConfigMap(servingCertsCABundle, servingCertsCABundle, servingCertsCABundleFileName);
       local id = containerEnv.fromSecretRef('ID', secretName, 'id');
       local to = containerEnv.fromSecretRef('TO', secretName, 'to');
 
@@ -100,7 +104,7 @@ local securePort = 8443;
           '/usr/bin/telemeter-client',
           '--id=$(ID)',
           '--from=' + $._config.telemeterClient.from,
-          '--from-ca-file=' + fromCAFile,
+          '--from-ca-file=%s/%s' % [servingCertsCABundleMountPath, servingCertsCABundleFileName],
           '--from-token-file=' + fromTokenFile,
           '--to=$(TO)',
           '--to-token-file=%s/token' % secretMountPath,
@@ -109,7 +113,7 @@ local securePort = 8443;
           '--anonymize-salt-file=%s/salt' % secretMountPath,
         ]) +
         container.withPorts(containerPort.newNamed('http', metricsPort)) +
-        container.withVolumeMounts([secretMount]) +
+        container.withVolumeMounts([sccabMount, secretMount]) +
         container.withEnv([id, to]);
 
       local proxy =
@@ -130,7 +134,7 @@ local securePort = 8443;
       deployment.mixin.metadata.withLabels(podLabels) +
       deployment.mixin.spec.selector.withMatchLabels(podLabels) +
       deployment.mixin.spec.template.spec.withServiceAccountName('telemeter-client') +
-      deployment.mixin.spec.template.spec.withVolumes([secretVolume, tlsVolume]),
+      deployment.mixin.spec.template.spec.withVolumes([sccabVolume, secretVolume, tlsVolume]),
 
     secret:
       local secret = k.core.v1.secret;
@@ -196,5 +200,12 @@ local securePort = 8443;
           ],
         },
       },
+
+    servingCertsCABundle+:
+      local configmap = k.core.v1.configMap;
+
+      configmap.new('telemeter-serving-certs-ca-bundle', { [servingCertsCABundleFileName]: '' }) +
+      configmap.mixin.metadata.withNamespace($._config.namespace) +
+      configmap.mixin.metadata.withAnnotations({ 'service.alpha.openshift.io/inject-cabundle': 'true' }),
   },
 }
