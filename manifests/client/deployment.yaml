@@ -20,7 +20,7 @@ spec:
         - /usr/bin/telemeter-client
         - --id=$(ID)
         - --from=https://prometheus-k8s.openshift-monitoring.svc:9091
-        - --from-ca-file=/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
+        - --from-ca-file=/etc/serving-certs-ca-bundle/service-ca.crt
         - --from-token-file=/var/run/secrets/kubernetes.io/serviceaccount/token
         - --to=$(TO)
         - --to-token-file=/etc/telemeter/token
@@ -44,6 +44,9 @@ spec:
         - containerPort: 8080
           name: http
         volumeMounts:
+        - mountPath: /etc/serving-certs-ca-bundle
+          name: serving-certs-ca-bundle
+          readOnly: false
         - mountPath: /etc/telemeter
           name: secret-telemeter-client
           readOnly: false
@@ -70,6 +73,11 @@ spec:
           readOnly: false
       serviceAccountName: telemeter-client
       volumes:
+      - configMap:
+          items:
+          - service-ca.crt
+          name: serving-certs-ca-bundle
+        name: serving-certs-ca-bundle
       - name: secret-telemeter-client
         secret:
           secretName: telemeter-client
