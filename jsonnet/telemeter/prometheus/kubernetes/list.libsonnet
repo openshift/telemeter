@@ -37,6 +37,24 @@
   },
 
   withNamespace(_config):: {
+    local setPermissions(object) =
+      if object.kind == 'Prometheus' then {
+        spec+: {
+          containers: [
+            c {
+              args: [
+                if std.startsWith(arg, '-openshift-sar') then
+                  '-openshift-sar={"resource": "namespaces", "verb": "get", "resourceName": "${NAMESPACE}", "namespace": "${NAMESPACE}"}'
+                else if std.startsWith(arg, '-openshift-delegate-urls') then
+                  '-openshift-delegate-urls={"/": {"resource": "namespaces", "verb": "get", "resourceName": "${NAMESPACE}", "namespace": "${NAMESPACE}"}}'
+                else arg for arg in super.args
+              ],
+            }
+            for c in super.containers
+          ],
+        },
+      }
+      else {},
     local setNamespace(object) =
       if std.objectHas(object, 'metadata') && std.objectHas(object.metadata, 'namespace') then {
         metadata+: {
@@ -53,7 +71,7 @@
       }
       else {},
     objects: [
-      o + setNamespace(o) + setSubjectNamespace(o)
+      o + setNamespace(o) + setSubjectNamespace(o) + setPermissions(o)
       for o in super.objects
     ],
     parameters+: [
