@@ -2,15 +2,23 @@ package forwarder
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"errors"
+	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
 
+	"github.com/openshift/telemeter/pkg/authorize"
+	telemeterhttp "github.com/openshift/telemeter/pkg/http"
 	"github.com/openshift/telemeter/pkg/metricfamily"
 	"github.com/openshift/telemeter/pkg/metricsclient"
 )
@@ -40,31 +48,196 @@ func init() {
 	)
 }
 
+// Config defines the parameters that can be used to configure a worker.
+// The only required field is `From`.
+type Config struct {
+	From          *url.URL
+	ToAuthorize   *url.URL
+	ToUpload      *url.URL
+	FromToken     string
+	ToToken       string
+	FromTokenFile string
+	ToTokenFile   string
+	FromCAFile    string
+
+	AnonymizeLabels   []string
+	AnonymizeSalt     string
+	AnonymizeSaltFile string
+	Debug             bool
+	Interval          time.Duration
+	LimitBytes        int64
+	Rules             []string
+	RulesFile         string
+	Transformer       metricfamily.Transformer
+}
+
+// Worker represents a metrics forwarding agent. It collects metrics from a source URL and forwards them to a sink.
+// A Worker should be configured with a `Config` and instantiated with the `New` func.
+// Workers are thread safe; all access to shared fields are synchronized.
 type Worker struct {
-	FromClient *metricsclient.Client
-	ToClient   *metricsclient.Client
-	Interval   time.Duration
-	Timeout    time.Duration
-	MaxBytes   int64
+	fromClient *metricsclient.Client
+	toClient   *metricsclient.Client
+	from       *url.URL
+	to         *url.URL
 
-	from url.URL
-	to   *url.URL
-
+	interval    time.Duration
 	transformer metricfamily.Transformer
 	rules       []string
 
-	lock        sync.Mutex
 	lastMetrics []*clientmodel.MetricFamily
+	lock        sync.Mutex
+	reconfigure chan struct{}
 }
 
-func New(from url.URL, to *url.URL, t metricfamily.Transformer, rules ...string) *Worker {
-	return &Worker{
-		from: from,
-		to:   to,
-
-		transformer: t,
-		rules:       rules,
+// New creates a new Worker based on the provided Config. If the Config contains invalid
+// values, then an error is returned.
+func New(cfg Config) (*Worker, error) {
+	if cfg.From == nil {
+		return nil, errors.New("a URL from which to scrape is required")
 	}
+	w := Worker{
+		from:        cfg.From,
+		interval:    cfg.Interval,
+		reconfigure: make(chan struct{}),
+		to:          cfg.ToUpload,
+	}
+
+	if w.interval == 0 {
+		w.interval = 4*time.Minute + 30*time.Second
+	}
+
+	// Configure the anonymization.
+	anonymizeSalt := cfg.AnonymizeSalt
+	if len(cfg.AnonymizeSalt) == 0 && len(cfg.AnonymizeSaltFile) > 0 {
+		data, err := ioutil.ReadFile(cfg.AnonymizeSaltFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read anonymize-salt-file: %v", err)
+		}
+		anonymizeSalt = strings.TrimSpace(string(data))
+	}
+	if (len(cfg.AnonymizeLabels) != 0) != (len(anonymizeSalt) != 0) {
+		return nil, fmt.Errorf("both anonymize-salt and anonymize-labels must be either specified or empty")
+	}
+
+	// Configure a transformer.
+	var transformer metricfamily.MultiTransformer
+	if cfg.Transformer != nil {
+		transformer.With(cfg.Transformer)
+	}
+	if len(cfg.AnonymizeLabels) > 0 {
+		transformer.WithFunc(func() metricfamily.Transformer {
+			return metricfamily.NewMetricsAnonymizer(anonymizeSalt, cfg.AnonymizeLabels, nil)
+		})
+	}
+
+	// Create the `fromClient`.
+	fromTransport := metricsclient.DefaultTransport()
+	if len(cfg.FromCAFile) > 0 {
+		if fromTransport.TLSClientConfig == nil {
+			fromTransport.TLSClientConfig = &tls.Config{}
+		}
+		pool, err := x509.SystemCertPool()
+		if err != nil {
+			return nil, fmt.Errorf("failed to read system certificates: %v", err)
+		}
+		data, err := ioutil.ReadFile(cfg.FromCAFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read from-ca-file: %v", err)
+		}
+		if !pool.AppendCertsFromPEM(data) {
+			log.Printf("warning: no certs found in from-ca-file")
+		}
+		fromTransport.TLSClientConfig.RootCAs = pool
+	}
+	fromClient := &http.Client{Transport: fromTransport}
+	if cfg.Debug {
+		fromClient.Transport = telemeterhttp.NewDebugRoundTripper(fromClient.Transport)
+	}
+	if len(cfg.FromToken) == 0 && len(cfg.FromTokenFile) > 0 {
+		data, err := ioutil.ReadFile(cfg.FromTokenFile)
+		if err != nil {
+			return nil, fmt.Errorf("unable to read from-token-file: %v", err)
+		}
+		cfg.FromToken = strings.TrimSpace(string(data))
+	}
+	if len(cfg.FromToken) > 0 {
+		fromClient.Transport = telemeterhttp.NewBearerRoundTripper(cfg.FromToken, fromClient.Transport)
+	}
+	w.fromClient = metricsclient.New(fromClient, cfg.LimitBytes, w.interval, "federate_from")
+
+	// Create the `toClient`.
+	toClient := &http.Client{Transport: metricsclient.DefaultTransport()}
+	if cfg.Debug {
+		toClient.Transport = telemeterhttp.NewDebugRoundTripper(toClient.Transport)
+	}
+	if len(cfg.ToToken) == 0 && len(cfg.ToTokenFile) > 0 {
+		data, err := ioutil.ReadFile(cfg.ToTokenFile)
+		if err != nil {
+			return nil, fmt.Errorf("unable to read to-token-file: %v", err)
+		}
+		cfg.ToToken = strings.TrimSpace(string(data))
+	}
+	if (len(cfg.ToToken) > 0) != (cfg.ToAuthorize != nil) {
+		return nil, errors.New("an authorization URL and authorization token must both specified or empty")
+	}
+	if len(cfg.ToToken) > 0 {
+		// Exchange our token for a token from the authorize endpoint, which also gives us a
+		// set of expected labels we must include.
+		rt := authorize.NewServerRotatingRoundTripper(cfg.ToToken, cfg.ToAuthorize, toClient.Transport)
+		toClient.Transport = rt
+		transformer.WithFunc(func() metricfamily.Transformer {
+			return metricfamily.NewLabel(nil, rt)
+		})
+	}
+	w.toClient = metricsclient.New(toClient, cfg.LimitBytes, w.interval, "federate_to")
+	w.transformer = transformer
+
+	// Configure the matching rules.
+	var rules []string
+	if len(cfg.RulesFile) > 0 {
+		data, err := ioutil.ReadFile(cfg.RulesFile)
+		if err != nil {
+			return nil, fmt.Errorf("unable to read match-file: %v", err)
+		}
+		rules = append(cfg.Rules, strings.Split(string(data), "\n")...)
+	}
+	for i := 0; i < len(rules); {
+		s := strings.TrimSpace(rules[i])
+		if len(s) == 0 {
+			rules = append(rules[:i], rules[i+1:]...)
+			continue
+		}
+		rules[i] = s
+		i++
+	}
+	w.rules = rules
+
+	return &w, nil
+}
+
+// Reconfigure temporarily stops a worker and reconfigures is with the provided Config.
+// Is thread safe and can run concurrently with `LastMetrics` and `Run`.
+func (w *Worker) Reconfigure(cfg Config) error {
+	worker, err := New(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to reconfigure: %v", err)
+	}
+
+	w.lock.Lock()
+	defer w.lock.Unlock()
+
+	w.fromClient = worker.fromClient
+	w.toClient = worker.toClient
+	w.interval = worker.interval
+	w.from = worker.from
+	w.to = worker.to
+	w.transformer = worker.transformer
+	w.rules = worker.rules
+
+	// Signal a restart to Run func.
+	// Do this in a goroutine since we do not care if restarting the Run loop is asynchronous.
+	go func() { w.reconfigure <- struct{}{} }()
+	return nil
 }
 
 func (w *Worker) LastMetrics() []*clientmodel.MetricFamily {
@@ -73,58 +246,51 @@ func (w *Worker) LastMetrics() []*clientmodel.MetricFamily {
 	return w.lastMetrics
 }
 
-func (w *Worker) setLastMetrics(families []*clientmodel.MetricFamily) {
-	w.lock.Lock()
-	defer w.lock.Unlock()
-	w.lastMetrics = families
-}
-
-func (w *Worker) Run() {
-	if w.Interval == 0 {
-		w.Interval = 4*time.Minute + 30*time.Second
-	}
-	if w.Timeout == 0 {
-		w.Timeout = 15 * time.Second
-	}
-	if w.MaxBytes == 0 {
-		w.MaxBytes = 500 * 1024
-	}
-	if w.FromClient == nil {
-		w.FromClient = metricsclient.New(&http.Client{Transport: metricsclient.DefaultTransport()}, w.MaxBytes, w.Timeout, "federate_from")
-	}
-	if w.ToClient == nil {
-		w.ToClient = metricsclient.New(&http.Client{Transport: metricsclient.DefaultTransport()}, w.MaxBytes, w.Timeout, "federate_to")
-	}
-
-	ctx := context.Background()
+func (w *Worker) Run(ctx context.Context) {
 	for {
-		// load the match rules each time
-		from := w.from
-		v := from.Query()
-		for _, rule := range w.rules {
-			v.Add("match[]", rule)
-		}
-		from.RawQuery = v.Encode()
+		// Ensure that the Worker does not access critical configuration during a reconfiguration.
+		w.lock.Lock()
+		wait := w.interval
+		// The critical section ends here.
+		w.lock.Unlock()
 
-		if err := w.forward(ctx, &from, w.transformer); err != nil {
+		if err := w.forward(ctx); err != nil {
 			gaugeFederateErrors.Inc()
 			log.Printf("error: unable to forward results: %v", err)
-			time.Sleep(time.Minute)
-			continue
+			wait = time.Minute
 		}
-		time.Sleep(w.Interval)
+
+		select {
+		// If the context is cancelled, then we're done.
+		case <-ctx.Done():
+			return
+		case <-time.After(wait):
+		// We want to be able to interrupt a sleep to immediately apply a new configuration.
+		case <-w.reconfigure:
+		}
 	}
 }
 
-func (w *Worker) forward(ctx context.Context, from *url.URL, t metricfamily.Transformer) error {
+func (w *Worker) forward(ctx context.Context) error {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+
+	// Load the match rules each time.
+	from := w.from
+	v := from.Query()
+	for _, rule := range w.rules {
+		v.Add("match[]", rule)
+	}
+	from.RawQuery = v.Encode()
+
 	req := &http.Request{Method: "GET", URL: from}
-	families, err := w.FromClient.Retrieve(ctx, req)
+	families, err := w.fromClient.Retrieve(ctx, req)
 	if err != nil {
 		return err
 	}
 
 	before := metricfamily.MetricsCount(families)
-	if err := metricfamily.Filter(families, t); err != nil {
+	if err := metricfamily.Filter(families, w.transformer); err != nil {
 		return err
 	}
 
@@ -134,7 +300,7 @@ func (w *Worker) forward(ctx context.Context, from *url.URL, t metricfamily.Tran
 	gaugeFederateSamples.Set(float64(before))
 	gaugeFederateFilteredSamples.Set(float64(before - after))
 
-	w.setLastMetrics(families)
+	w.lastMetrics = families
 
 	if len(families) == 0 {
 		log.Printf("warning: no metrics to send, doing nothing")
@@ -146,5 +312,5 @@ func (w *Worker) forward(ctx context.Context, from *url.URL, t metricfamily.Tran
 	}
 
 	req = &http.Request{Method: "POST", URL: w.to}
-	return w.ToClient.Send(ctx, req, families)
+	return w.toClient.Send(ctx, req, families)
 }
