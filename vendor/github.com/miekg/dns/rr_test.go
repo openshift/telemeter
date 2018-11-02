@@ -1,11 +1,7 @@
 package dns
 
-// testRR is a helper that wraps a call to NewRR and panics if the error is non-nil.
+// testRR returns the RR from string s. The error is thrown away.
 func testRR(s string) RR {
-	r, err := NewRR(s)
-	if err != nil {
-		panic(err)
-	}
-
+	r, _ := NewRR(s)
 	return r
 }

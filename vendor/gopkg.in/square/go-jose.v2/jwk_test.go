@@ -121,42 +121,6 @@ func TestRoundtripRsaPrivate(t *testing.T) {
 	}
 }
 
-func TestRoundtripRsaPrivatePrecomputed(t *testing.T) {
-	// Isolate a shallow copy of the rsaTestKey to avoid polluting it with Precompute
-	localKey := &(*rsaTestKey)
-	localKey.Precompute()
-
-	jwk, err := fromRsaPrivateKey(localKey)
-	if err != nil {
-		t.Error("problem constructing JWK from rsa key", err)
-	}
-
-	rsa2, err := jwk.rsaPrivateKey()
-	if err != nil {
-		t.Error("problem converting RSA private -> JWK", err)
-	}
-
-	if rsa2.Precomputed.Dp == nil {
-		t.Error("RSA private Dp nil")
-	}
-	if rsa2.Precomputed.Dq == nil {
-		t.Error("RSA private Dq nil")
-	}
-	if rsa2.Precomputed.Qinv == nil {
-		t.Error("RSA private Qinv nil")
-	}
-
-	if rsa2.Precomputed.Dp.Cmp(localKey.Precomputed.Dp) != 0 {
-		t.Error("RSA private Dp mismatch")
-	}
-	if rsa2.Precomputed.Dq.Cmp(localKey.Precomputed.Dq) != 0 {
-		t.Error("RSA private Dq mismatch")
-	}
-	if rsa2.Precomputed.Qinv.Cmp(localKey.Precomputed.Qinv) != 0 {
-		t.Error("RSA private Qinv mismatch")
-	}
-}
-
 func TestRsaPrivateInsufficientPrimes(t *testing.T) {
 	brokenRsaPrivateKey := rsa.PrivateKey{
 		PublicKey: rsa.PublicKey{
@@ -693,8 +657,8 @@ func TestJWKIsPublic(t *testing.T) {
 		{&ecdsa.PrivateKey{eccPub, bigInt}, false},
 		{&rsaPub, true},
 		{&rsa.PrivateKey{rsaPub, bigInt, []*big.Int{bigInt, bigInt}, rsa.PrecomputedValues{}}, false},
-		{ed25519PublicKey, true},
-		{ed25519PrivateKey, false},
+		{&ed25519PublicKey, true},
+		{&ed25519PrivateKey, false},
 	}
 
 	for _, tc := range cases {
@@ -725,41 +689,16 @@ func TestJWKValid(t *testing.T) {
 		{&rsaPub, true},
 		{&rsa.PrivateKey{}, false},
 		{&rsa.PrivateKey{rsaPub, bigInt, []*big.Int{bigInt, bigInt}, rsa.PrecomputedValues{}}, true},
-		{ed25519PublicKey, true},
-		{ed25519PrivateKey, true},
-		{edPubEmpty, false},
-		{edPrivEmpty, false},
+		{&ed25519PublicKey, true},
+		{&ed25519PrivateKey, true},
+		{&edPubEmpty, false},
+		{&edPrivEmpty, false},
 	}
 
 	for _, tc := range cases {
 		k := &JSONWebKey{Key: tc.key}
-		valid := k.Valid()
-		if valid != tc.expectedValidity {
+		if valid := k.Valid(); valid != tc.expectedValidity {
 			t.Errorf("expected Valid to return %t, got %t", tc.expectedValidity, valid)
 		}
-		if valid {
-			wasPublic := k.IsPublic()
-			p := k.Public() // all aforemention keys are asymmetric
-			if !p.Valid() {
-				t.Errorf("unable to derive public key from valid asymmetric key")
-			}
-			if wasPublic != k.IsPublic() {
-				t.Errorf("original key was touched during public key derivation")
-			}
-		}
 	}
-}
-
-func TestJWKBufferSizeCheck(t *testing.T) {
-	key := `{
-		"kty":"EC",
-		"crv":"P-256",
-		"x":"m9GSmJ5iGmAYlMlaOJGSFN_CjN9cIn8GGYExP-C0FBiIXlWTNvGN38R9WdrHcppfsKF0FXMOMyutpHIRaiMxYSA",
-		"y":"ZaPcRZ3q_7T3h-Gwz2i-T2JjJXfj6YVGgKHcFz5zqmg"}`
-	var jwk JSONWebKey
-	jwk.UnmarshalJSON([]byte(key))
-	jwk.Valid() // true
-	// panic: square/go-jose: invalid call to newFixedSizeBuffer (len(data) > length)
-	// github.com/square/go-jose.newFixedSizeBuffer(0xc420014557, 0x41, 0x41, 0x20, 0x0)
-	jwk.Thumbprint(crypto.SHA256)
 }

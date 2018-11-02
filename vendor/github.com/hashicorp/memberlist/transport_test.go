@@ -15,7 +15,6 @@ func TestTransport_Join(t *testing.T) {
 	c1 := DefaultLANConfig()
 	c1.Name = "node1"
 	c1.Transport = t1
-	c1.Logger = testLogger(t)
 	m1, err := Create(c1)
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -27,7 +26,6 @@ func TestTransport_Join(t *testing.T) {
 	c2 := DefaultLANConfig()
 	c2.Name = "node2"
 	c2.Transport = net.NewTransport()
-	c2.Logger = testLogger(t)
 	m2, err := Create(c2)
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -63,7 +61,6 @@ func TestTransport_Send(t *testing.T) {
 	c1.Name = "node1"
 	c1.Transport = t1
 	c1.Delegate = d1
-	c1.Logger = testLogger(t)
 	m1, err := Create(c1)
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -75,7 +72,6 @@ func TestTransport_Send(t *testing.T) {
 	c2 := DefaultLANConfig()
 	c2.Name = "node2"
 	c2.Transport = net.NewTransport()
-	c2.Logger = testLogger(t)
 	m2, err := Create(c2)
 	if err != nil {
 		t.Fatalf("err: %v", err)
@@ -123,10 +119,8 @@ func TestTransport_Send(t *testing.T) {
 
 	expected := []string{"SendTo", "SendToUDP", "SendToTCP", "SendBestEffort", "SendReliable"}
 
-	msgs1 := d1.getMessages()
-
-	received := make([]string, len(msgs1))
-	for i, bs := range msgs1 {
+	received := make([]string, len(d1.msgs))
+	for i, bs := range d1.msgs {
 		received[i] = string(bs)
 	}
 	// Some of these are UDP so often get re-ordered making the test flaky if we

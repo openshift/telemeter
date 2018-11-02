@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// +build appenginevm appengine
+
 package google_test
 
 import (
@@ -10,7 +12,6 @@ import (
 	"log"
 	"net/http"
 
-	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"golang.org/x/oauth2/jwt"
@@ -146,17 +147,4 @@ func ExampleComputeTokenSource() {
 		},
 	}
 	client.Get("...")
-}
-
-func ExampleCredentialsFromJSON() {
-	ctx := context.Background()
-	data, err := ioutil.ReadFile("/path/to/key-file.json")
-	if err != nil {
-		log.Fatal(err)
-	}
-	creds, err := google.CredentialsFromJSON(ctx, data, "https://www.googleapis.com/auth/bigquery")
-	if err != nil {
-		log.Fatal(err)
-	}
-	_ = creds // TODO: Use creds.
 }

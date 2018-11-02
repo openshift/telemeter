@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-msgpack/codec"
-	"github.com/stretchr/testify/require"
 )
 
 // As a regression we left this test very low-level and network-ey, even after
@@ -22,9 +21,8 @@ import (
 // outside of NetTransport.
 
 func TestHandleCompoundPing(t *testing.T) {
-	m := GetMemberlist(t, func(c *Config) {
-		c.EnableCompression = false
-	})
+	m := GetMemberlist(t)
+	m.config.EnableCompression = false
 	defer m.Shutdown()
 
 	var udp *net.UDPConn
@@ -92,9 +90,8 @@ func TestHandleCompoundPing(t *testing.T) {
 }
 
 func TestHandlePing(t *testing.T) {
-	m := GetMemberlist(t, func(c *Config) {
-		c.EnableCompression = false
-	})
+	m := GetMemberlist(t)
+	m.config.EnableCompression = false
 	defer m.Shutdown()
 
 	var udp *net.UDPConn
@@ -157,9 +154,8 @@ func TestHandlePing(t *testing.T) {
 }
 
 func TestHandlePing_WrongNode(t *testing.T) {
-	m := GetMemberlist(t, func(c *Config) {
-		c.EnableCompression = false
-	})
+	m := GetMemberlist(t)
+	m.config.EnableCompression = false
 	defer m.Shutdown()
 
 	var udp *net.UDPConn
@@ -199,9 +195,8 @@ func TestHandlePing_WrongNode(t *testing.T) {
 }
 
 func TestHandleIndirectPing(t *testing.T) {
-	m := GetMemberlist(t, func(c *Config) {
-		c.EnableCompression = false
-	})
+	m := GetMemberlist(t)
+	m.config.EnableCompression = false
 	defer m.Shutdown()
 
 	var udp *net.UDPConn
@@ -285,9 +280,8 @@ func TestTCPPing(t *testing.T) {
 	// Note that tcp gets closed in the last test, so we avoid a deferred
 	// Close() call here.
 
-	m := GetMemberlist(t, nil)
+	m := GetMemberlist(t)
 	defer m.Shutdown()
-
 	pingTimeout := m.config.ProbeInterval
 	pingTimeMax := m.config.ProbeInterval + 10*time.Millisecond
 
@@ -435,9 +429,8 @@ func TestTCPPing(t *testing.T) {
 }
 
 func TestTCPPushPull(t *testing.T) {
-	m := GetMemberlist(t, nil)
+	m := GetMemberlist(t)
 	defer m.Shutdown()
-
 	m.nodes = append(m.nodes, &nodeState{
 		Node: Node{
 			Name: "Test 0",
@@ -560,7 +553,7 @@ func TestTCPPushPull(t *testing.T) {
 }
 
 func TestSendMsg_Piggyback(t *testing.T) {
-	m := GetMemberlist(t, nil)
+	m := GetMemberlist(t)
 	defer m.Shutdown()
 
 	// Add a message to be broadcast
@@ -654,7 +647,6 @@ func TestEncryptDecryptState(t *testing.T) {
 		SecretKey:       []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
 		ProtocolVersion: ProtocolVersionMax,
 	}
-	config.Logger = testLogger(t)
 
 	m, err := Create(config)
 	if err != nil {
@@ -682,9 +674,8 @@ func TestEncryptDecryptState(t *testing.T) {
 }
 
 func TestRawSendUdp_CRC(t *testing.T) {
-	m := GetMemberlist(t, func(c *Config) {
-		c.EnableCompression = false
-	})
+	m := GetMemberlist(t)
+	m.config.EnableCompression = false
 	defer m.Shutdown()
 
 	var udp *net.UDPConn
@@ -749,9 +740,8 @@ func TestRawSendUdp_CRC(t *testing.T) {
 }
 
 func TestIngestPacket_CRC(t *testing.T) {
-	m := GetMemberlist(t, func(c *Config) {
-		c.EnableCompression = false
-	})
+	m := GetMemberlist(t)
+	m.config.EnableCompression = false
 	defer m.Shutdown()
 
 	var udp *net.UDPConn
@@ -797,22 +787,23 @@ func TestIngestPacket_CRC(t *testing.T) {
 }
 
 func TestGossip_MismatchedKeys(t *testing.T) {
+	c1 := testConfig()
+	c2 := testConfig()
+
 	// Create two agents with different gossip keys
-	c1 := testConfig(t)
 	c1.SecretKey = []byte("4W6DGn2VQVqDEceOdmuRTQ==")
-
-	m1, err := Create(c1)
-	require.NoError(t, err)
-	defer m1.Shutdown()
-
-	bindPort := m1.config.BindPort
-
-	c2 := testConfig(t)
-	c2.BindPort = bindPort
 	c2.SecretKey = []byte("XhX/w702/JKKK7/7OtM9Ww==")
 
+	m1, err := Create(c1)
+	if err != nil {
+		t.Fatalf("err: %s", err)
+	}
+	defer m1.Shutdown()
+
 	m2, err := Create(c2)
-	require.NoError(t, err)
+	if err != nil {
+		t.Fatalf("err: %s", err)
+	}
 	defer m2.Shutdown()
 
 	// Make sure we get this error on the joining side
