@@ -16,7 +16,7 @@ else
   echo "Running integration test"
   server="http://localhost:9005"
   token=""
-  test=1
+  test="${TEST:-1}"
 fi
 
 # Download prometheus if necessary
@@ -33,7 +33,7 @@ fi
 
 trap 'kill $(jobs -p); exit 0' EXIT
 
-( ./authorization-server localhost:9001 ./test/responses.json ) &
+( ./authorization-server localhost:9001 ./test/tokens.json ) &
 
 ( 
   sleep 5
@@ -49,8 +49,8 @@ trap 'kill $(jobs -p); exit 0' EXIT
     --match '{__name__="scrape_samples_scraped"}'
 ) &
 
-( ./telemeter-server --authorize http://localhost:9001 --name instance-0 "--storage-dir=$(mktemp -d)" --shared-key=test/test.key --listen localhost:9003 --listen-internal localhost:9004 --listen-cluster 127.0.0.1:9006 --join 127.0.0.1:9016 -v ) &
-( ./telemeter-server --authorize http://localhost:9001 --name instance-1 "--storage-dir=$(mktemp -d)" --shared-key=test/test.key --listen localhost:9013 --listen-internal localhost:9014 --listen-cluster 127.0.0.1:9016 --join 127.0.0.1:9006 -v ) &
+( ./telemeter-server --authorize http://localhost:9001 --name instance-0 --shared-key=test/test.key --listen localhost:9003 --listen-internal localhost:9004 --listen-cluster 127.0.0.1:9006 --join 127.0.0.1:9016 -v ) &
+( ./telemeter-server --authorize http://localhost:9001 --name instance-1 --shared-key=test/test.key --listen localhost:9013 --listen-internal localhost:9014 --listen-cluster 127.0.0.1:9016 --join 127.0.0.1:9006 -v ) &
 
 ( prometheus --config.file=./test/prom-local.conf --web.listen-address=localhost:9005 "--storage.tsdb.path=$(mktemp -d)" --log.level=warn ) &
 
