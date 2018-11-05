@@ -39,6 +39,7 @@ import (
 	"github.com/openshift/telemeter/pkg/store"
 	"github.com/openshift/telemeter/pkg/store/instrumented"
 	"github.com/openshift/telemeter/pkg/store/memstore"
+	"github.com/openshift/telemeter/pkg/store/ratelimited"
 	"github.com/openshift/telemeter/pkg/validator"
 )
 
@@ -314,10 +315,13 @@ func (o *Options) Run() error {
 	auth := jwt.NewAuthorizeClusterHandler(o.PartitionKey, o.TokenExpireSeconds, signer, o.Labels, clusterAuth)
 	validator := validator.New(o.PartitionKey, o.Labels, o.LimitBytes, 24*time.Hour)
 
-	ttl := 10 * time.Minute
+	var (
+		ratelimit = 4*time.Minute + 30*time.Second
+		ttl       = 10 * time.Minute
+	)
 
 	// register a store
-	var store store.Store = instrumented.New(memstore.New(ttl), "memory")
+	var store store.Store = ratelimited.New(ratelimit, instrumented.New(memstore.New(ttl), "memory"))
 
 	if len(o.ListenCluster) > 0 {
 		c := cluster.NewDynamic(o.Name, store)
