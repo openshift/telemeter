@@ -14,6 +14,7 @@ import (
 	"github.com/openshift/telemeter/pkg/metricfamily"
 	"github.com/openshift/telemeter/pkg/store"
 	"github.com/openshift/telemeter/pkg/store/instrumented"
+	"github.com/openshift/telemeter/pkg/store/ratelimited"
 )
 
 type UploadValidator interface {
@@ -124,7 +125,12 @@ func (s *Server) Post(w http.ResponseWriter, req *http.Request) {
 		log.Printf("timeout processing incoming request")
 		return
 	case err := <-errCh:
-		if err != nil {
+		switch err {
+		case nil:
+			break
+		case ratelimited.ErrWriteLimitReached:
+			http.Error(w, err.Error(), http.StatusTooManyRequests)
+		default:
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 		return
