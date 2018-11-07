@@ -186,6 +186,9 @@ objects:
 - apiVersion: v1
   kind: Route
   metadata:
+    annotations:
+      kubernetes.io/tls-acme: "true"
+      kubernetes.io/tls-acme-secretname: prometheus-telemeter-acme
     name: prometheus-telemeter
     namespace: ${NAMESPACE}
   spec:
