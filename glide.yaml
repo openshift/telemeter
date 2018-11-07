@@ -1,6 +1,7 @@
 package: github.com/openshift/telemeter
 import:
 - package: github.com/prometheus/client_golang
+  version: 0.9.0
   subpackages:
   - prometheus
 - package: github.com/spf13/cobra
@@ -17,3 +18,4 @@ import:
   subpackages:
   - internal
 - package: golang.org/x/time
+- package: github.com/oklog/run

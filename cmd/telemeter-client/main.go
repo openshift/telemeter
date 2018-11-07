@@ -1,26 +1,26 @@
 package main
 
 import (
-	"crypto/tls"
-	"crypto/x509"
+	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"path"
 	"strings"
+	"syscall"
 	"time"
 
+	"github.com/oklog/run"
 	"github.com/prometheus/common/expfmt"
 	"github.com/spf13/cobra"
 
-	"github.com/openshift/telemeter/pkg/authorize"
 	"github.com/openshift/telemeter/pkg/forwarder"
 	telemeterhttp "github.com/openshift/telemeter/pkg/http"
 	"github.com/openshift/telemeter/pkg/metricfamily"
-	"github.com/openshift/telemeter/pkg/metricsclient"
 )
 
 func main() {
@@ -100,8 +100,6 @@ type Options struct {
 	Labels    map[string]string
 
 	Interval time.Duration
-
-	LabelRetriever metricfamily.LabelRetriever
 }
 
 func (o *Options) Run() error {
@@ -109,31 +107,6 @@ func (o *Options) Run() error {
 		return fmt.Errorf("you must specify a Prometheus server to federate from (e.g. http://localhost:9090)")
 	}
 
-	if len(o.ToToken) == 0 && len(o.ToTokenFile) > 0 {
-		data, err := ioutil.ReadFile(o.ToTokenFile)
-		if err != nil {
-			return fmt.Errorf("unable to read --to-token-file: %v", err)
-		}
-		o.ToToken = strings.TrimSpace(string(data))
-	}
-	if len(o.FromToken) == 0 && len(o.FromTokenFile) > 0 {
-		data, err := ioutil.ReadFile(o.FromTokenFile)
-		if err != nil {
-			return fmt.Errorf("unable to read --from-token-file: %v", err)
-		}
-		o.FromToken = strings.TrimSpace(string(data))
-	}
-	if len(o.AnonymizeSalt) == 0 && len(o.AnonymizeSaltFile) > 0 {
-		data, err := ioutil.ReadFile(o.AnonymizeSaltFile)
-		if err != nil {
-			return fmt.Errorf("unable to read --anonymize-salt-file: %v", err)
-		}
-		o.AnonymizeSalt = strings.TrimSpace(string(data))
-	}
-
-	if len(o.AnonymizeLabels) > 0 && len(o.AnonymizeSalt) == 0 {
-		return fmt.Errorf("you must specify --anonymize-salt when --anonymize-labels is used")
-	}
 	for _, flag := range o.LabelFlag {
 		values := strings.SplitN(flag, "=", 2)
 		if len(values) != 2 {
@@ -161,23 +134,6 @@ func (o *Options) Run() error {
 		}
 		o.Renames[values[0]] = values[1]
 	}
-
-	if len(o.RulesFile) > 0 {
-		data, err := ioutil.ReadFile(o.RulesFile)
-		if err != nil {
-			return fmt.Errorf("--match-file could not be loaded: %v", err)
-		}
-		o.Rules = append(o.Rules, strings.Split(string(data), "\n")...)
-	}
-	var rules []string
-	for _, s := range o.Rules {
-		s = strings.TrimSpace(s)
-		if len(s) == 0 {
-			continue
-		}
-		rules = append(rules, s)
-	}
-	o.Rules = rules
 
 	from, err := url.Parse(o.From)
 	if err != nil {
@@ -230,61 +186,11 @@ func (o *Options) Run() error {
 		return fmt.Errorf("either --to or --to-auth and --to-upload must be specified")
 	}
 
-	fromTransport := metricsclient.DefaultTransport()
-
-	if len(o.FromCAFile) > 0 {
-		if fromTransport.TLSClientConfig == nil {
-			fromTransport.TLSClientConfig = &tls.Config{}
-		}
-		pool, err := x509.SystemCertPool()
-		if err != nil {
-			return fmt.Errorf("can't read system certificates when --from-ca-file was specified: %v", err)
-		}
-		data, err := ioutil.ReadFile(o.FromCAFile)
-		if err != nil {
-			return fmt.Errorf("can't read --from-ca-file: %v", err)
-		}
-		if !pool.AppendCertsFromPEM(data) {
-			log.Printf("warning: No certs found in --from-ca-file")
-		}
-		fromTransport.TLSClientConfig.RootCAs = pool
-	}
-
-	fromClient := &http.Client{Transport: fromTransport}
-
-	if o.Verbose {
-		fromClient.Transport = telemeterhttp.NewDebugRoundTripper(fromClient.Transport)
-	}
-
-	if len(o.FromToken) > 0 {
-		fromClient.Transport = telemeterhttp.NewBearerRoundTripper(o.FromToken, fromClient.Transport)
-	}
-
-	toClient := &http.Client{Transport: metricsclient.DefaultTransport()}
-
-	if o.Verbose {
-		toClient.Transport = telemeterhttp.NewDebugRoundTripper(toClient.Transport)
-	}
-
-	if len(o.ToToken) > 0 {
-		// exchange our token for a token from the authorize endpoint, which also gives us a
-		// set of expected labels we must include
-		rt := authorize.NewServerRotatingRoundTripper(o.ToToken, toAuthorize, toClient.Transport)
-		o.LabelRetriever = rt
-		toClient.Transport = rt
-	}
-
 	var transformer metricfamily.MultiTransformer
 
-	if len(o.Labels) > 0 || o.LabelRetriever != nil {
+	if len(o.Labels) > 0 {
 		transformer.WithFunc(func() metricfamily.Transformer {
-			return metricfamily.NewLabel(o.Labels, o.LabelRetriever)
-		})
-	}
-
-	if len(o.AnonymizeLabels) > 0 {
-		transformer.WithFunc(func() metricfamily.Transformer {
-			return metricfamily.NewMetricsAnonymizer(o.AnonymizeSalt, o.AnonymizeLabels, nil)
+			return metricfamily.NewLabel(o.Labels, nil)
 		})
 	}
 
@@ -301,30 +207,96 @@ func (o *Options) Run() error {
 	transformer.With(metricfamily.TransformerFunc(metricfamily.PackMetrics))
 	transformer.With(metricfamily.TransformerFunc(metricfamily.SortMetrics))
 
-	worker := forwarder.New(*from, toUpload, transformer, o.Rules...)
-	worker.ToClient = metricsclient.New(toClient, o.LimitBytes, o.Interval, "federate_to")
-	worker.FromClient = metricsclient.New(fromClient, o.LimitBytes, o.Interval, "federate_from")
-	worker.Interval = o.Interval
+	cfg := forwarder.Config{
+		From:          from,
+		ToAuthorize:   toAuthorize,
+		ToUpload:      toUpload,
+		FromToken:     o.FromToken,
+		ToToken:       o.ToToken,
+		FromTokenFile: o.FromTokenFile,
+		ToTokenFile:   o.ToTokenFile,
+		FromCAFile:    o.FromCAFile,
+
+		AnonymizeLabels:   o.AnonymizeLabels,
+		AnonymizeSalt:     o.AnonymizeSalt,
+		AnonymizeSaltFile: o.AnonymizeSaltFile,
+		Interval:          o.Interval,
+		LimitBytes:        o.LimitBytes,
+		Rules:             o.Rules,
+		RulesFile:         o.RulesFile,
+		Transformer:       transformer,
+	}
+
+	worker, err := forwarder.New(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to configure Telemeter client: %v", err)
+	}
 
 	log.Printf("Starting telemeter-client reading from %s and sending to %s (listen=%s)", o.From, o.To, o.Listen)
 
-	go worker.Run()
+	var g run.Group
+	{
+		// Execute the worker's `Run` func.
+		ctx, cancel := context.WithCancel(context.Background())
+		g.Add(func() error {
+			worker.Run(ctx)
+			return nil
+		}, func(error) {
+			cancel()
+		})
+	}
+
+	{
+		// Notify and reload on SIGHUP.
+		hup := make(chan os.Signal, 1)
+		signal.Notify(hup, syscall.SIGHUP)
+		cancel := make(chan struct{})
+		g.Add(func() error {
+			for {
+				select {
+				case <-hup:
+					if err := worker.Reconfigure(cfg); err != nil {
+						log.Printf("error: failed to reload config: %v", err)
+						return err
+					}
+				case <-cancel:
+					return nil
+				}
+			}
+		}, func(error) {
+			close(cancel)
+		})
+	}
 
 	if len(o.Listen) > 0 {
 		handlers := http.NewServeMux()
 		telemeterhttp.DebugRoutes(handlers)
 		telemeterhttp.HealthRoutes(handlers)
 		telemeterhttp.MetricRoutes(handlers)
+		telemeterhttp.ReloadRoutes(handlers, func() error {
+			return worker.Reconfigure(cfg)
+		})
 		handlers.Handle("/federate", serveLastMetrics(worker))
-		go func() {
-			if err := http.ListenAndServe(o.Listen, handlers); err != nil && err != http.ErrServerClosed {
-				log.Printf("error: server exited: %v", err)
-				os.Exit(1)
-			}
-		}()
+		l, err := net.Listen("tcp", o.Listen)
+		if err != nil {
+			return fmt.Errorf("failed to listen: %v", err)
+		}
+
+		{
+			// Run the HTTP server.
+			g.Add(func() error {
+				if err := http.Serve(l, handlers); err != nil && err != http.ErrServerClosed {
+					log.Printf("error: server exited unexpectedly: %v", err)
+					return err
+				}
+				return nil
+			}, func(error) {
+				l.Close()
+			})
+		}
 	}
 
-	select {}
+	return g.Run()
 }
 
 // serveLastMetrics retrieves the last set of metrics served

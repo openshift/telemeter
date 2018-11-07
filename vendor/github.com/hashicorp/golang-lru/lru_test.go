@@ -72,7 +72,7 @@ func TestLRU(t *testing.T) {
 		if k != v {
 			t.Fatalf("Evict values not equal (%v!=%v)", k, v)
 		}
-		evictCounter++
+		evictCounter += 1
 	}
 	l, err := NewWithEvict(128, onEvicted)
 	if err != nil {
@@ -132,11 +132,11 @@ func TestLRU(t *testing.T) {
 	}
 }
 
-// test that Add returns true/false if an eviction occurred
+// test that Add returns true/false if an eviction occured
 func TestLRUAdd(t *testing.T) {
 	evictCounter := 0
 	onEvicted := func(k interface{}, v interface{}) {
-		evictCounter++
+		evictCounter += 1
 	}
 
 	l, err := NewWithEvict(1, onEvicted)

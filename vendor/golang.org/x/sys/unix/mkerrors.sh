@@ -17,48 +17,27 @@ if test -z "$GOARCH" -o -z "$GOOS"; then
 fi
 
 # Check that we are using the new build system if we should
-if [[ "$GOOS" = "linux" ]] && [[ "$GOARCH" != "sparc64" ]]; then
-	if [[ "$GOLANG_SYS_BUILD" != "docker" ]]; then
+if [[ "$GOOS" -eq "linux" ]] && [[ "$GOARCH" != "sparc64" ]]; then
+	if [[ "$GOLANG_SYS_BUILD" -ne "docker" ]]; then
 		echo 1>&2 "In the new build system, mkerrors should not be called directly."
 		echo 1>&2 "See README.md"
 		exit 1
 	fi
 fi
 
-if [[ "$GOOS" = "aix" ]]; then
-	CC=${CC:-gcc}
-else
-	CC=${CC:-cc}
-fi
+CC=${CC:-cc}
 
-if [[ "$GOOS" = "solaris" ]]; then
+if [[ "$GOOS" -eq "solaris" ]]; then
 	# Assumes GNU versions of utilities in PATH.
 	export PATH=/usr/gnu/bin:$PATH
 fi
 
 uname=$(uname)
 
-includes_AIX='
-#include <net/if.h>
-#include <net/netopt.h>
-#include <netinet/ip_mroute.h>
-#include <sys/protosw.h>
-#include <sys/stropts.h>
-#include <sys/mman.h>
-#include <sys/poll.h>
-#include <sys/termio.h>
-#include <termios.h>
-#include <fcntl.h>
-
-#define AF_LOCAL AF_UNIX
-'
-
 includes_Darwin='
 #define _DARWIN_C_SOURCE
 #define KERNEL
 #define _DARWIN_USE_64_BIT_INODE
-#include <stdint.h>
-#include <sys/attr.h>
 #include <sys/types.h>
 #include <sys/event.h>
 #include <sys/ptrace.h>
@@ -67,9 +46,7 @@ includes_Darwin='
 #include <sys/sysctl.h>
 #include <sys/mman.h>
 #include <sys/mount.h>
-#include <sys/utsname.h>
 #include <sys/wait.h>
-#include <sys/xattr.h>
 #include <net/bpf.h>
 #include <net/if.h>
 #include <net/if_types.h>
@@ -84,10 +61,8 @@ includes_DragonFly='
 #include <sys/event.h>
 #include <sys/socket.h>
 #include <sys/sockio.h>
-#include <sys/stat.h>
 #include <sys/sysctl.h>
 #include <sys/mman.h>
-#include <sys/mount.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
 #include <net/bpf.h>
@@ -107,10 +82,8 @@ includes_FreeBSD='
 #include <sys/event.h>
 #include <sys/socket.h>
 #include <sys/sockio.h>
-#include <sys/stat.h>
 #include <sys/sysctl.h>
 #include <sys/mman.h>
-#include <sys/mount.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
 #include <net/bpf.h>
@@ -193,14 +166,8 @@ struct ltchars {
 #include <linux/falloc.h>
 #include <linux/filter.h>
 #include <linux/fs.h>
-#include <linux/kexec.h>
 #include <linux/keyctl.h>
-#include <linux/magic.h>
-#include <linux/memfd.h>
-#include <linux/module.h>
-#include <linux/netfilter/nfnetlink.h>
 #include <linux/netlink.h>
-#include <linux/net_namespace.h>
 #include <linux/perf_event.h>
 #include <linux/random.h>
 #include <linux/reboot.h>
@@ -216,11 +183,6 @@ struct ltchars {
 #include <linux/vm_sockets.h>
 #include <linux/taskstats.h>
 #include <linux/genetlink.h>
-#include <linux/watchdog.h>
-#include <linux/hdreg.h>
-#include <linux/rtc.h>
-#include <linux/if_xdp.h>
-#include <mtd/ubi-user.h>
 #include <net/route.h>
 #include <asm/termbits.h>
 
@@ -250,25 +212,13 @@ struct ltchars {
 #define FS_KEY_DESC_PREFIX              "fscrypt:"
 #define FS_KEY_DESC_PREFIX_SIZE         8
 #define FS_MAX_KEY_SIZE                 64
-
-// XDP socket constants do not appear to be picked up otherwise.
-// Copied from samples/bpf/xdpsock_user.c.
-#ifndef SOL_XDP
-#define SOL_XDP 283
-#endif
-
-#ifndef AF_XDP
-#define AF_XDP 44
-#endif
 '
 
 includes_NetBSD='
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/event.h>
-#include <sys/extattr.h>
 #include <sys/mman.h>
-#include <sys/mount.h>
 #include <sys/socket.h>
 #include <sys/sockio.h>
 #include <sys/sysctl.h>
@@ -294,14 +244,11 @@ includes_OpenBSD='
 #include <sys/param.h>
 #include <sys/event.h>
 #include <sys/mman.h>
-#include <sys/mount.h>
 #include <sys/socket.h>
 #include <sys/sockio.h>
-#include <sys/stat.h>
 #include <sys/sysctl.h>
 #include <sys/termios.h>
 #include <sys/ttycom.h>
-#include <sys/unistd.h>
 #include <sys/wait.h>
 #include <net/bpf.h>
 #include <net/if.h>
@@ -333,11 +280,9 @@ includes_SunOS='
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/sockio.h>
-#include <sys/stat.h>
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
-#include <sys/mkdev.h>
 #include <net/bpf.h>
 #include <net/if.h>
 #include <net/if_arp.h>
@@ -396,14 +341,12 @@ ccflags="$@"
 		$2 ~ /^EXTATTR_NAMESPACE_NAMES/ ||
 		$2 ~ /^EXTATTR_NAMESPACE_[A-Z]+_STRING/ {next}
 
-		$2 !~ /^ECCAPBITS/ &&
 		$2 !~ /^ETH_/ &&
 		$2 !~ /^EPROC_/ &&
 		$2 !~ /^EQUIV_/ &&
 		$2 !~ /^EXPR_/ &&
 		$2 ~ /^E[A-Z0-9_]+$/ ||
 		$2 ~ /^B[0-9_]+$/ ||
-		$2 ~ /^(OLD|NEW)DEV$/ ||
 		$2 == "BOTHER" ||
 		$2 ~ /^CI?BAUD(EX)?$/ ||
 		$2 == "IBSHIFT" ||
@@ -413,7 +356,6 @@ ccflags="$@"
 		$2 ~ /^IGN/ ||
 		$2 ~ /^IX(ON|ANY|OFF)$/ ||
 		$2 ~ /^IN(LCR|PCK)$/ ||
-		$2 !~ "X86_CR3_PCID_NOFLUSH" &&
 		$2 ~ /(^FLU?SH)|(FLU?SH$)/ ||
 		$2 ~ /^C(LOCAL|READ|MSPAR|RTSCTS)$/ ||
 		$2 == "BRKINT" ||
@@ -432,27 +374,21 @@ ccflags="$@"
 		$2 ~ /^TC[IO](ON|OFF)$/ ||
 		$2 ~ /^IN_/ ||
 		$2 ~ /^LOCK_(SH|EX|NB|UN)$/ ||
-		$2 ~ /^(AF|SOCK|SO|SOL|IPPROTO|IP|IPV6|ICMP6|TCP|EVFILT|NOTE|EV|SHUT|PROT|MAP|MFD|T?PACKET|MSG|SCM|MCL|DT|MADV|PR)_/ ||
-		$2 ~ /^TP_STATUS_/ ||
+		$2 ~ /^(AF|SOCK|SO|SOL|IPPROTO|IP|IPV6|ICMP6|TCP|EVFILT|NOTE|EV|SHUT|PROT|MAP|PACKET|MSG|SCM|MCL|DT|MADV|PR)_/ ||
 		$2 ~ /^FALLOC_/ ||
 		$2 == "ICMPV6_FILTER" ||
 		$2 == "SOMAXCONN" ||
 		$2 == "NAME_MAX" ||
 		$2 == "IFNAMSIZ" ||
-		$2 ~ /^CTL_(HW|KERN|MAXNAME|NET|QUERY)$/ ||
-		$2 ~ /^KERN_(HOSTNAME|OS(RELEASE|TYPE)|VERSION)$/ ||
-		$2 ~ /^HW_MACHINE$/ ||
+		$2 ~ /^CTL_(MAXNAME|NET|QUERY)$/ ||
 		$2 ~ /^SYSCTL_VERS/ ||
-		$2 !~ "MNT_BITS" &&
 		$2 ~ /^(MS|MNT|UMOUNT)_/ ||
 		$2 ~ /^TUN(SET|GET|ATTACH|DETACH)/ ||
 		$2 ~ /^(O|F|E?FD|NAME|S|PTRACE|PT)_/ ||
-		$2 ~ /^KEXEC_/ ||
 		$2 ~ /^LINUX_REBOOT_CMD_/ ||
 		$2 ~ /^LINUX_REBOOT_MAGIC[12]$/ ||
-		$2 ~ /^MODULE_INIT_/ ||
 		$2 !~ "NLA_TYPE_MASK" &&
-		$2 ~ /^(NETLINK|NLM|NLMSG|NLA|IFA|IFAN|RT|RTC|RTCF|RTN|RTPROT|RTNH|ARPHRD|ETH_P|NETNSA)_/ ||
+		$2 ~ /^(NETLINK|NLM|NLMSG|NLA|IFA|IFAN|RT|RTCF|RTN|RTPROT|RTNH|ARPHRD|ETH_P)_/ ||
 		$2 ~ /^SIOC/ ||
 		$2 ~ /^TIOC/ ||
 		$2 ~ /^TCGET/ ||
@@ -478,26 +414,10 @@ ccflags="$@"
 		$2 ~ /^PERF_EVENT_IOC_/ ||
 		$2 ~ /^SECCOMP_MODE_/ ||
 		$2 ~ /^SPLICE_/ ||
-		$2 ~ /^SYNC_FILE_RANGE_/ ||
-		$2 !~ /^AUDIT_RECORD_MAGIC/ &&
-		$2 !~ /IOC_MAGIC/ &&
-		$2 ~ /^[A-Z][A-Z0-9_]+_MAGIC2?$/ ||
 		$2 ~ /^(VM|VMADDR)_/ ||
-		$2 ~ /^IOCTL_VM_SOCKETS_/ ||
 		$2 ~ /^(TASKSTATS|TS)_/ ||
-		$2 ~ /^CGROUPSTATS_/ ||
 		$2 ~ /^GENL_/ ||
-		$2 ~ /^STATX_/ ||
-		$2 ~ /^RENAME/ ||
-		$2 ~ /^UBI_IOC[A-Z]/ ||
-		$2 ~ /^UTIME_/ ||
-		$2 ~ /^XATTR_(CREATE|REPLACE|NO(DEFAULT|FOLLOW|SECURITY)|SHOWCOMPRESSION)/ ||
-		$2 ~ /^ATTR_(BIT_MAP_COUNT|(CMN|VOL|FILE)_)/ ||
-		$2 ~ /^FSOPT_/ ||
-		$2 ~ /^WDIOC_/ ||
-		$2 ~ /^NFN/ ||
-		$2 ~ /^XDP_/ ||
-		$2 ~ /^(HDIO|WIN|SMART)_/ ||
+		$2 ~ /^XATTR_(CREATE|REPLACE)/ ||
 		$2 !~ "WMESGLEN" &&
 		$2 ~ /^W[A-Z0-9]+$/ ||
 		$2 ~ /^BLK[A-Z]*(GET$|SET$|BUF$|PART$|SIZE)/ {printf("\t%s = C.%s\n", $2, $2)}
@@ -521,7 +441,7 @@ errors=$(
 signals=$(
 	echo '#include <signal.h>' | $CC -x c - -E -dM $ccflags |
 	awk '$1=="#define" && $2 ~ /^SIG[A-Z0-9]+$/ { print $2 }' |
-	egrep -v '(SIGSTKSIZE|SIGSTKSZ|SIGRT|SIGMAX64)' |
+	egrep -v '(SIGSTKSIZE|SIGSTKSZ|SIGRT)' |
 	sort
 )
 
@@ -531,7 +451,7 @@ echo '#include <errno.h>' | $CC -x c - -E -dM $ccflags |
 	sort >_error.grep
 echo '#include <signal.h>' | $CC -x c - -E -dM $ccflags |
 	awk '$1=="#define" && $2 ~ /^SIG[A-Z0-9]+$/ { print "^\t" $2 "[ \t]*=" }' |
-	egrep -v '(SIGSTKSIZE|SIGSTKSZ|SIGRT|SIGMAX64)' |
+	egrep -v '(SIGSTKSIZE|SIGSTKSZ|SIGRT)' |
 	sort >_signal.grep
 
 echo '// mkerrors.sh' "$@"
@@ -567,26 +487,21 @@ echo ')'
 
 enum { A = 'A', Z = 'Z', a = 'a', z = 'z' }; // avoid need for single quotes below
 
-struct tuple {
-	int num;
-	const char *name;
-};
-
-struct tuple errors[] = {
+int errors[] = {
 "
 	for i in $errors
 	do
-		echo -E '	{'$i', "'$i'" },'
+		echo -E '	'$i,
 	done
 
 	echo -E "
 };
 
-struct tuple signals[] = {
+int signals[] = {
 "
 	for i in $signals
 	do
-		echo -E '	{'$i', "'$i'" },'
+		echo -E '	'$i,
 	done
 
 	# Use -E because on some systems bash builtin interprets \n itself.
@@ -594,9 +509,9 @@ struct tuple signals[] = {
 };
 
 static int
-tuplecmp(const void *a, const void *b)
+intcmp(const void *a, const void *b)
 {
-	return ((struct tuple *)a)->num - ((struct tuple *)b)->num;
+	return *(int*)a - *(int*)b;
 }
 
 int
@@ -606,34 +521,26 @@ main(void)
 	char buf[1024], *p;
 
 	printf("\n\n// Error table\n");
-	printf("var errorList = [...]struct {\n");
-	printf("\tnum  syscall.Errno\n");
-	printf("\tname string\n");
-	printf("\tdesc string\n");
-	printf("} {\n");
-	qsort(errors, nelem(errors), sizeof errors[0], tuplecmp);
+	printf("var errors = [...]string {\n");
+	qsort(errors, nelem(errors), sizeof errors[0], intcmp);
 	for(i=0; i<nelem(errors); i++) {
-		e = errors[i].num;
-		if(i > 0 && errors[i-1].num == e)
+		e = errors[i];
+		if(i > 0 && errors[i-1] == e)
 			continue;
 		strcpy(buf, strerror(e));
 		// lowercase first letter: Bad -> bad, but STREAM -> STREAM.
 		if(A <= buf[0] && buf[0] <= Z && a <= buf[1] && buf[1] <= z)
 			buf[0] += a - A;
-		printf("\t{ %d, \"%s\", \"%s\" },\n", e, errors[i].name, buf);
+		printf("\t%d: \"%s\",\n", e, buf);
 	}
 	printf("}\n\n");
 
 	printf("\n\n// Signal table\n");
-	printf("var signalList = [...]struct {\n");
-	printf("\tnum  syscall.Signal\n");
-	printf("\tname string\n");
-	printf("\tdesc string\n");
-	printf("} {\n");
-	qsort(signals, nelem(signals), sizeof signals[0], tuplecmp);
+	printf("var signals = [...]string {\n");
+	qsort(signals, nelem(signals), sizeof signals[0], intcmp);
 	for(i=0; i<nelem(signals); i++) {
-		e = signals[i].num;
-		if(i > 0 && signals[i-1].num == e)
+		e = signals[i];
+		if(i > 0 && signals[i-1] == e)
 			continue;
 		strcpy(buf, strsignal(e));
 		// lowercase first letter: Bad -> bad, but STREAM -> STREAM.
@@ -643,7 +550,7 @@ main(void)
 		p = strrchr(buf, ":"[0]);
 		if(p)
 			*p = '\0';
-		printf("\t{ %d, \"%s\", \"%s\" },\n", e, signals[i].name, buf);
+		printf("\t%d: \"%s\",\n", e, buf);
 	}
 	printf("}\n\n");
 

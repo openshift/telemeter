@@ -250,7 +250,7 @@ metric: <
 		},
 	}
 
-	expectedMetricFamilyInvalidLabelValueAsText := []byte(`An error has occurred while serving metrics:
+	expectedMetricFamilyInvalidLabelValueAsText := []byte(`An error has occurred during metrics gathering:
 
 collected metric "name" { label:<name:"constname" value:"\377" > label:<name:"labelname" value:"different_val" > counter:<value:42 > } has a label named "constname" whose value is not utf8: "\xff"
 `)
@@ -299,15 +299,15 @@ complex_bucket 1
 			},
 		},
 	}
-	bucketCollisionMsg := []byte(`An error has occurred while serving metrics:
+	bucketCollisionMsg := []byte(`An error has occurred during metrics gathering:
 
 collected metric named "complex_bucket" collides with previously collected histogram named "complex"
 `)
-	summaryCountCollisionMsg := []byte(`An error has occurred while serving metrics:
+	summaryCountCollisionMsg := []byte(`An error has occurred during metrics gathering:
 
 collected metric named "complex_count" collides with previously collected summary named "complex"
 `)
-	histogramCountCollisionMsg := []byte(`An error has occurred while serving metrics:
+	histogramCountCollisionMsg := []byte(`An error has occurred during metrics gathering:
 
 collected metric named "complex_count" collides with previously collected histogram named "complex"
 `)
@@ -333,7 +333,7 @@ collected metric named "complex_count" collides with previously collected histog
 			},
 		},
 	}
-	duplicateLabelMsg := []byte(`An error has occurred while serving metrics:
+	duplicateLabelMsg := []byte(`An error has occurred during metrics gathering:
 
 collected metric "broken_metric" { label:<name:"foo" value:"bar" > label:<name:"foo" value:"baz" > counter:<value:2.7 > } has two or more labels with the same name: foo
 `)

@@ -10,23 +10,40 @@ import (
 
 // DebugRoutes adds the debug handlers to a mux.
 func DebugRoutes(mux *http.ServeMux) *http.ServeMux {
-	mux.Handle("/debug/pprof/", http.HandlerFunc(pprof.Index))
-	mux.Handle("/debug/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
-	mux.Handle("/debug/pprof/profile", http.HandlerFunc(pprof.Profile))
-	mux.Handle("/debug/pprof/symbol", http.HandlerFunc(pprof.Symbol))
-	mux.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 	return mux
 }
 
 // HealthRoutes adds the health checks to a mux.
 func HealthRoutes(mux *http.ServeMux) *http.ServeMux {
-	mux.Handle("/healthz", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) { fmt.Fprintln(w, "ok") }))
-	mux.Handle("/healthz/ready", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) { fmt.Fprintln(w, "ok") }))
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, req *http.Request) { fmt.Fprintln(w, "ok") })
+	mux.HandleFunc("/healthz/ready", func(w http.ResponseWriter, req *http.Request) { fmt.Fprintln(w, "ok") })
 	return mux
 }
 
 // MetricRoutes adds the metrics endpoint to a mux.
 func MetricRoutes(mux *http.ServeMux) *http.ServeMux {
 	mux.Handle("/metrics", promhttp.Handler())
+	return mux
+}
+
+// ReloadRoutes adds the reload endpoint to a mux.
+func ReloadRoutes(mux *http.ServeMux, reload func() error) *http.ServeMux {
+	mux.HandleFunc("/-/reload", func(w http.ResponseWriter, req *http.Request) {
+		if req.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
+		if err := reload(); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
 	return mux
 }
