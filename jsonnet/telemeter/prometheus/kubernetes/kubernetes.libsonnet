@@ -47,6 +47,10 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
       apiVersion: 'v1',
       kind: 'Route',
       metadata: {
+        annotations: {
+          'kubernetes.io/tls-acme': 'true',
+          'kubernetes.io/tls-acme-secretname': 'prometheus-%s-acme' % $._config.prometheus.name,
+        },
         name: 'prometheus-' + $._config.prometheus.name,
         namespace: $._config.namespace,
       },
