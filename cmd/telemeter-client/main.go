@@ -273,43 +273,15 @@ func (o *Options) Run() error {
 		telemeterhttp.DebugRoutes(handlers)
 		telemeterhttp.HealthRoutes(handlers)
 		telemeterhttp.MetricRoutes(handlers)
+		telemeterhttp.ReloadRoutes(handlers, func() error {
+			return worker.Reconfigure(cfg)
+		})
 		handlers.Handle("/federate", serveLastMetrics(worker))
 		l, err := net.Listen("tcp", o.Listen)
 		if err != nil {
 			return fmt.Errorf("failed to listen: %v", err)
 		}
 
-		{
-			// Listen for reloads via the HTTP server.
-			reload := make(chan func(error))
-			cancel := make(chan struct{})
-			reloader := func() error {
-				errors := make(chan error)
-				reload <- func(err error) {
-					errors <- err
-					close(errors)
-				}
-				return <-errors
-			}
-			telemeterhttp.ReloadRoutes(handlers, reloader)
-			g.Add(func() error {
-				for {
-					select {
-					case fn := <-reload:
-						err := worker.Reconfigure(cfg)
-						fn(err)
-						if err != nil {
-							log.Printf("error: failed to reload config: %v", err)
-							return err
-						}
-					case <-cancel:
-						return nil
-					}
-				}
-			}, func(error) {
-				close(cancel)
-			})
-		}
 		{
 			// Run the HTTP server.
 			g.Add(func() error {
