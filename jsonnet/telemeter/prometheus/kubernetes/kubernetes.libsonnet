@@ -138,7 +138,6 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
       roleBinding.mixin.roleRef.mixinInstance({ kind: 'Role' }) +
       roleBinding.withSubjects([{ kind: 'ServiceAccount', name: 'prometheus-' + $._config.prometheus.name, namespace: $._config.namespace }]),
 
-
     roleConfig:
       local role = k.rbac.v1.role;
       local policyRule = role.rulesType;
@@ -250,8 +249,10 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
             'prometheus-%s-proxy' % $._config.prometheus.name,
             'prometheus-%s-htpasswd' % $._config.prometheus.name,
           ],
-          serviceMonitorSelector: selector.withMatchLabels({ 'k8s-app': 'telemeter-server' }),
-          serviceMonitorNamespaceSelector: selector.withMatchLabels({ 'k8s-app': 'telemeter-server' }),
+          serviceMonitorSelector: selector.withMatchLabels({
+            'k8s-app': 'telemeter-server',
+            endpoint: 'federate',
+          }),
           listenLocal: true,
           containers: [
             {

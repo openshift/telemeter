@@ -136,7 +136,6 @@ local clusterPort = 8081;
       serviceAccount.new('telemeter-server') +
       serviceAccount.mixin.metadata.withNamespace($._config.namespace),
 
-
     serviceMonitor:
       {
         apiVersion: 'monitoring.coreos.com/v1',
@@ -146,6 +145,7 @@ local clusterPort = 8081;
           namespace: $._config.namespace,
           labels: {
             'k8s-app': 'telemeter-server',
+            endpoint: 'metrics',
           },
         },
         spec: {
@@ -159,6 +159,44 @@ local clusterPort = 8081;
             {
               bearerTokenFile: '/var/run/secrets/kubernetes.io/serviceaccount/token',
               interval: '30s',
+              port: 'external',
+              scheme: 'https',
+              tlsConfig: {
+                caFile: '/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt',
+                serverName: $._config.telemeterServer.serverName,
+              },
+            },
+          ],
+        },
+      },
+    serviceMonitorFederate:
+      {
+        apiVersion: 'monitoring.coreos.com/v1',
+        kind: 'ServiceMonitor',
+        metadata: {
+          name: 'telemeter-server-feredate',
+          namespace: $._config.namespace,
+          labels: {
+            'k8s-app': 'telemeter-server',
+            endpoint: 'federate',
+          },
+        },
+        spec: {
+          jobLabel: 'k8s-app',
+          selector: {
+            matchLabels: {
+              'k8s-app': 'telemeter-server',
+            },
+          },
+          endpoints: [
+            {
+              bearerTokenFile: '/var/run/secrets/kubernetes.io/serviceaccount/token',
+              honorLabels: true,
+              interval: '15s',
+              params: {
+                'match[]': ['{__name__=~".*"}'],
+              },
+              path: '/federate',
               port: 'external',
               scheme: 'https',
               tlsConfig: {
