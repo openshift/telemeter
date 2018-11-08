@@ -28,11 +28,13 @@ local securePort = 8443;
     },
 
     versions+:: {
+      configmapReload: 'v3.11',
       kubeRbacProxy: 'v0.3.1',
       telemeterClient: 'v4.0',
     },
 
     imageRepos+:: {
+      configmapReload: 'quay.io/openshift/origin-configmap-reload',
       kubeRbacProxy: 'quay.io/coreos/kube-rbac-proxy',
       telemeterClient: 'quay.io/openshift/origin-telemeter',
     },
@@ -119,6 +121,14 @@ local securePort = 8443;
         container.withVolumeMounts([sccabMount, secretMount]) +
         container.withEnv([anonymize, id, to]);
 
+      local reload =
+        container.new('reload', $._config.imageRepos.configmapReload + ':' + $._config.versions.configmapReload) +
+        container.withArgs([
+          '--webhook-url=http://localhost:9000/-/reload',
+          '--volume-dir=' + servingCertsCABundleMountPath,
+        ]) +
+        container.withVolumeMounts([sccabMount]);
+
       local proxy =
         container.new('kube-rbac-proxy', $._config.imageRepos.kubeRbacProxy + ':' + $._config.versions.kubeRbacProxy) +
         container.withArgs([
@@ -132,7 +142,7 @@ local securePort = 8443;
         container.mixin.resources.withLimits({ cpu: '20m', memory: '40Mi' }) +
         container.withVolumeMounts([tlsMount]);
 
-      deployment.new('telemeter-client', 1, [telemeterClient, proxy], podLabels) +
+      deployment.new('telemeter-client', 1, [telemeterClient, reload, proxy], podLabels) +
       deployment.mixin.metadata.withNamespace($._config.namespace) +
       deployment.mixin.metadata.withLabels(podLabels) +
       deployment.mixin.spec.selector.withMatchLabels(podLabels) +
