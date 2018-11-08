@@ -2,14 +2,19 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   labels:
-    endpoint: metrics
+    endpoint: federate
     k8s-app: telemeter-server
-  name: telemeter-server
+  name: telemeter-server-feredate
   namespace: telemeter
 spec:
   endpoints:
   - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
-    interval: 30s
+    honorLabels: true
+    interval: 15s
+    params:
+      match[]:
+      - '{__name__=~".*"}'
+    path: /federate
     port: external
     scheme: https
     tlsConfig:

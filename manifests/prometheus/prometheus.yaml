@@ -55,10 +55,8 @@ spec:
   - prometheus-telemeter-htpasswd
   securityContext: {}
   serviceAccountName: prometheus-telemeter
-  serviceMonitorNamespaceSelector:
-    matchLabels:
-      k8s-app: telemeter-server
   serviceMonitorSelector:
     matchLabels:
+      endpoint: federate
       k8s-app: telemeter-server
   version: v2.3.2
