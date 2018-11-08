@@ -18,6 +18,7 @@ local securePort = 8443;
     namespace: 'openshift-monitoring',
 
     telemeterClient+:: {
+      anonymizeLabels: [],
       from: 'https://prometheus-k8s.%(namespace)s.svc:9091' % $._config,
       matchRules: [],
       salt: '',
@@ -95,6 +96,7 @@ local securePort = 8443;
       local tlsVolume = volume.fromSecret(tlsVolumeName, tlsSecret);
       local sccabMount = containerVolumeMount.new(servingCertsCABundle, servingCertsCABundleMountPath);
       local sccabVolume = volume.fromConfigMap(servingCertsCABundle, servingCertsCABundle, servingCertsCABundleFileName);
+      local anonymize = containerEnv.fromSecretRef('ANONYMIZE_LABELS', secretName, 'anonymizeLabels');
       local id = containerEnv.fromSecretRef('ID', secretName, 'id');
       local to = containerEnv.fromSecretRef('TO', secretName, 'to');
 
@@ -111,10 +113,11 @@ local securePort = 8443;
           '--listen=localhost:' + metricsPort,
           '--match-file=%s/%s' % [secretMountPath, matchFileName],
           '--anonymize-salt-file=%s/salt' % secretMountPath,
+          '--anonymize-labels=$(ANONYMIZE_LABELS)',
         ]) +
         container.withPorts(containerPort.newNamed('http', metricsPort)) +
         container.withVolumeMounts([sccabMount, secretMount]) +
-        container.withEnv([id, to]);
+        container.withEnv([anonymize, id, to]);
 
       local proxy =
         container.new('kube-rbac-proxy', $._config.imageRepos.kubeRbacProxy + ':' + $._config.versions.kubeRbacProxy) +
@@ -141,6 +144,7 @@ local securePort = 8443;
 
       secret.new(secretName, {
         [matchFileName]: std.base64(std.join('\n', $._config.telemeterClient.matchRules)),
+        anonymizeLabels: std.base64(std.join(',', $._config.telemeterClient.anonymizeLabels)),
         salt: std.base64($._config.telemeterClient.salt),
         to: std.base64($._config.telemeterClient.to),
         token: std.base64($._config.telemeterClient.token),
