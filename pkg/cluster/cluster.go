@@ -100,10 +100,10 @@ type DynamicCluster struct {
 	// and is processed in the #handleMessage function.
 	queue chan ([]byte)
 
-	lock      sync.Mutex
-	updated   time.Time
-	ring      *hashring.HashRing
-	instances map[string]*nodeData
+	lock        sync.Mutex
+	updated     time.Time
+	ring        *hashring.HashRing
+	problematic map[string]*nodeData
 }
 
 // NewDynamic returns a new DynamicCluster struct for the given name and underlying store.
@@ -114,8 +114,8 @@ func NewDynamic(name string, store store.Store) *DynamicCluster {
 		expiration: 2 * time.Minute,
 		ring:       hashring.New(nil),
 
-		queue:     make(chan []byte, 100),
-		instances: make(map[string]*nodeData),
+		queue:       make(chan []byte, 100),
+		problematic: make(map[string]*nodeData),
 	}
 }
 
@@ -311,26 +311,31 @@ func (c *DynamicCluster) memberByName(name string) *memberlist.Node {
 func (c *DynamicCluster) hasProblems(name string, now time.Time) bool {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	p, ok := c.instances[name]
+	p, ok := c.problematic[name]
 	if !ok {
 		return false
 	}
+
 	if p.problems < 4 {
 		if now.Sub(p.last) < c.expiration {
 			return false
 		}
-		delete(c.instances, name)
+		delete(c.problematic, name)
+	} else if now.Sub(p.last) >= c.expiration {
+		delete(c.problematic, name)
+		return false
 	}
+
 	return true
 }
 
 func (c *DynamicCluster) problemDetected(name string, now time.Time) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	p, ok := c.instances[name]
+	p, ok := c.problematic[name]
 	if !ok {
 		p = &nodeData{}
-		c.instances[name] = p
+		c.problematic[name] = p
 	}
 	p.problems++
 	p.last = now

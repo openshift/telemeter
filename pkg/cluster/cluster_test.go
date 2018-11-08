@@ -272,6 +272,33 @@ func TestWriteMetrics(t *testing.T) {
 			dynamicClusterCheck: nodeHasProblems(false, "remote", time.Now()),
 		},
 		{
+			name: "2 ring members remote forward problematic",
+
+			partitionKey: "a",
+			memberlister: &testMemberlister{
+				numMembers: 2,
+				members: []*memberlist.Node{
+					{Name: "local"},
+					{Name: "remote"},
+				},
+				sendReliableErr: writeErr,
+			},
+			localStore: &testStore{readErr: nil, writeErr: nil},
+
+			initDynamicCluster: func(dc *DynamicCluster) {
+				dc.problemDetected("remote", time.Now().Add(-time.Minute))
+				dc.problemDetected("remote", time.Now().Add(-3*time.Minute))
+			},
+
+			writeMetricsCheck: errIs(nil),
+			localStoreCheck: storeChecks(
+				writtenPartitionKeyIs("a"),
+				writtenFamiliesEqual(families),
+			),
+			memberlisterCheck:   forwardedToNode(nil),
+			dynamicClusterCheck: nodeHasProblems(false, "remote", time.Now()),
+		},
+		{
 			name: "2 ring members remote forward still problematic",
 
 			partitionKey: "a",
@@ -287,7 +314,7 @@ func TestWriteMetrics(t *testing.T) {
 
 			initDynamicCluster: func(dc *DynamicCluster) {
 				for i := 0; i < 4; i++ {
-					dc.problemDetected("remote", time.Now().Add(-time.Hour))
+					dc.problemDetected("remote", time.Now().Add(-time.Minute))
 				}
 			},
 
@@ -298,6 +325,31 @@ func TestWriteMetrics(t *testing.T) {
 			),
 			memberlisterCheck:   forwardedToNode(nil),
 			dynamicClusterCheck: nodeHasProblems(true, "remote", time.Now()),
+		},
+		{
+			name: "2 ring members remote forward not problematic any more",
+
+			partitionKey: "a",
+			memberlister: &testMemberlister{
+				numMembers: 2,
+				members: []*memberlist.Node{
+					{Name: "local"},
+					{Name: "remote"},
+				},
+				sendReliableErr: writeErr,
+			},
+			localStore: &testStore{readErr: nil, writeErr: nil},
+
+			initDynamicCluster: func(dc *DynamicCluster) {
+				for i := 0; i < 4; i++ {
+					dc.problemDetected("remote", time.Now().Add(-2*time.Minute))
+				}
+			},
+
+			writeMetricsCheck:   errIs(nil),
+			localStoreCheck:     noWrite,
+			memberlisterCheck:   forwardedToNode(&memberlist.Node{Name: "remote"}),
+			dynamicClusterCheck: nodeHasProblems(false, "remote", time.Now()),
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
