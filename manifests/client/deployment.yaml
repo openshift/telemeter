@@ -57,6 +57,15 @@ spec:
           name: secret-telemeter-client
           readOnly: false
       - args:
+        - --webhook-url=http://localhost:9000/-/reload
+        - --volume-dir=/etc/serving-certs-ca-bundle
+        image: quay.io/openshift/origin-configmap-reload:v3.11
+        name: reload
+        volumeMounts:
+        - mountPath: /etc/serving-certs-ca-bundle
+          name: serving-certs-ca-bundle
+          readOnly: false
+      - args:
         - --secure-listen-address=:8443
         - --upstream=http://127.0.0.1:8080/
         - --tls-cert-file=/etc/tls/private/tls.crt
