@@ -10,7 +10,9 @@ type MultiTransformer struct {
 }
 
 func (a *MultiTransformer) With(t Transformer) {
-	a.transformers = append(a.transformers, t)
+	if t != nil {
+		a.transformers = append(a.transformers, t)
+	}
 }
 
 func (a *MultiTransformer) WithFunc(f func() Transformer) {

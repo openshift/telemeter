@@ -12,6 +12,7 @@ import (
 
 	"github.com/openshift/telemeter/pkg/store"
 	"github.com/openshift/telemeter/pkg/store/memstore"
+	"github.com/openshift/telemeter/pkg/validate"
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 )
@@ -46,7 +47,7 @@ func storeWithData(data map[string][]*clientmodel.MetricFamily) store.Store {
 func TestServer_Get(t *testing.T) {
 	type fields struct {
 		store     store.Store
-		validator UploadValidator
+		validator validate.Validator
 		nowFn     func() time.Time
 	}
 	tests := []struct {

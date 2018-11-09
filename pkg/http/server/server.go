@@ -15,33 +15,33 @@ import (
 	"github.com/openshift/telemeter/pkg/store"
 	"github.com/openshift/telemeter/pkg/store/instrumented"
 	"github.com/openshift/telemeter/pkg/store/ratelimited"
+	"github.com/openshift/telemeter/pkg/validate"
 )
-
-type UploadValidator interface {
-	ValidateUpload(ctx context.Context, req *http.Request) (string, metricfamily.Transformer, error)
-}
 
 type Server struct {
 	maxSampleAge        time.Duration
 	receiveStore, store store.Store
-	validator           UploadValidator
+	transformer         metricfamily.Transformer
+	validator           validate.Validator
 	nowFn               func() time.Time
 }
 
-func New(store store.Store, validator UploadValidator, maxSampleAge time.Duration) *Server {
+func New(store store.Store, validator validate.Validator, transformer metricfamily.Transformer, maxSampleAge time.Duration) *Server {
 	return &Server{
 		maxSampleAge: maxSampleAge,
 		receiveStore: instrumented.New(nil, "received"),
 		store:        store,
+		transformer:  transformer,
 		validator:    validator,
 		nowFn:        time.Now,
 	}
 }
 
-func NewNonExpiring(store store.Store, validator UploadValidator, maxSampleAge time.Duration) *Server {
+func NewNonExpiring(store store.Store, validator validate.Validator, transformer metricfamily.Transformer, maxSampleAge time.Duration) *Server {
 	return &Server{
 		maxSampleAge: maxSampleAge,
 		store:        store,
+		transformer:  transformer,
 		validator:    validator,
 		nowFn:        nil,
 	}
@@ -102,11 +102,15 @@ func (s *Server) Post(w http.ResponseWriter, req *http.Request) {
 	ctx, cancel := context.WithTimeout(req.Context(), 5*time.Second)
 	defer cancel()
 
-	partitionKey, transforms, err := s.validator.ValidateUpload(ctx, req)
+	partitionKey, transforms, err := s.validator.Validate(ctx, req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	var t metricfamily.MultiTransformer
+	t.With(transforms)
+	t.With(s.transformer)
 
 	// read the response into memory
 	format := expfmt.ResponseFormat(req.Header)
@@ -117,7 +121,7 @@ func (s *Server) Post(w http.ResponseWriter, req *http.Request) {
 	decoder := expfmt.NewDecoder(r, format)
 
 	errCh := make(chan error)
-	go func() { errCh <- s.decodeAndStoreMetrics(ctx, partitionKey, decoder, transforms) }()
+	go func() { errCh <- s.decodeAndStoreMetrics(ctx, partitionKey, decoder, t) }()
 
 	select {
 	case <-ctx.Done():

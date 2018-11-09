@@ -95,6 +95,9 @@ func (a *authorizeClusterHandler) ServeHTTP(w http.ResponseWriter, req *http.Req
 	labels := map[string]string{
 		a.partitionKey: cluster,
 	}
+	for k, v := range a.labels {
+		labels[k] = v
+	}
 
 	// create a token that asserts the client and the labels
 	authToken, err := a.signer.GenerateToken(Claims(subject, labels, a.expireInSeconds, []string{"federate"}))

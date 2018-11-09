@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -64,12 +65,43 @@ func (r requestBuilder) WithForm(kvs ...string) requestBuilder {
 }
 
 func TestAuthorizeClusterHandler(t *testing.T) {
+	partitionKey := "partitionKey"
+	labels := map[string]string{
+		"foo": "bar",
+	}
 	pk, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	type checkFunc func(*httptest.ResponseRecorder) error
+
+	labelsEqual := func(labels map[string]string, id string) checkFunc {
+		return func(rec *httptest.ResponseRecorder) error {
+			var tr authorize.TokenResponse
+			if err := json.Unmarshal(rec.Body.Bytes(), &tr); err != nil {
+				return fmt.Errorf("failed to unmarshal TokenResponse: %v", err)
+			}
+			if tr.Labels[partitionKey] != id {
+				return fmt.Errorf("expected response to have '%s=%s', got '%s=%s'", partitionKey, id, partitionKey, tr.Labels[partitionKey])
+			}
+			delete(tr.Labels, partitionKey)
+			if len(labels) > len(tr.Labels) {
+				for k, v := range labels {
+					if v != tr.Labels[k] {
+						return fmt.Errorf("expected response to have '%s=%s', got '%s=%s'", k, v, k, tr.Labels[k])
+					}
+				}
+			}
+			for k, v := range tr.Labels {
+				if v != labels[k] {
+					return fmt.Errorf("unexpected label in response: got '%s=%s', expected '%s=%s'", k, v, k, labels[k])
+				}
+			}
+
+			return nil
+		}
+	}
 
 	responseCodeIs := func(code int) checkFunc {
 		return func(rec *httptest.ResponseRecorder) error {
@@ -146,9 +178,19 @@ func TestAuthorizeClusterHandler(t *testing.T) {
 			signer:      NewSigner("iss456", pk),
 			check:       responseCodeIs(200),
 		},
+		{
+			name: "labels equal success",
+			req: requestBuilder{httptest.NewRequest("POST", "https://telemeter", nil)}.
+				WithForm("id", "test").
+				WithHeaders("Authorization", "bearer valid").
+				Request,
+			clusterAuth: newTestClusterAuthorizer("sub123", nil),
+			signer:      NewSigner("iss456", pk),
+			check:       labelsEqual(labels, "test"),
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			h := NewAuthorizeClusterHandler("partitonKey", 2, tc.signer, make(map[string]string), tc.clusterAuth)
+			h := NewAuthorizeClusterHandler(partitionKey, 2, tc.signer, labels, tc.clusterAuth)
 			rec := httptest.NewRecorder()
 			h.ServeHTTP(rec, tc.req)
 			if err := tc.check(rec); err != nil {

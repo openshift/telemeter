@@ -1,4 +1,4 @@
-package validator
+package validate
 
 import (
 	"context"
@@ -11,25 +11,29 @@ import (
 	"github.com/openshift/telemeter/pkg/reader"
 )
 
-type Validator struct {
+// Validator validates an upload.
+type Validator interface {
+	Validate(ctx context.Context, req *http.Request) (string, metricfamily.Transformer, error)
+}
+
+type validator struct {
 	partitionKey string
-	labels       map[string]string
 	limitBytes   int64
 	maxAge       time.Duration
 }
 
-// New handles prometheus metrics from end clients that must be assumed to be hostile.
+// New handles Prometheus metrics from end clients that must be assumed to be hostile.
 // It implements metrics transforms that sanitize the incoming content.
-func New(partitionKey string, addLabels map[string]string, limitBytes int64, maxAge time.Duration) *Validator {
-	return &Validator{
+func New(partitionKey string, limitBytes int64, maxAge time.Duration) Validator {
+	return &validator{
 		partitionKey: partitionKey,
-		labels:       addLabels,
 		limitBytes:   limitBytes,
 		maxAge:       maxAge,
 	}
 }
 
-func (v *Validator) ValidateUpload(ctx context.Context, req *http.Request) (string, metricfamily.Transformer, error) {
+// Validate implements the Validator interface. It validates an upload.
+func (v *validator) Validate(ctx context.Context, req *http.Request) (string, metricfamily.Transformer, error) {
 	client, ok := authorize.FromContext(ctx)
 	if !ok {
 		return "", nil, fmt.Errorf("unable to find user info")
@@ -45,11 +49,6 @@ func (v *Validator) ValidateUpload(ctx context.Context, req *http.Request) (stri
 	}
 
 	transforms.With(metricfamily.NewErrorOnUnsorted(true))
-
-	if len(v.labels) > 0 {
-		transforms.With(metricfamily.NewLabel(v.labels, nil))
-	}
-
 	transforms.With(metricfamily.NewRequiredLabels(client.Labels))
 	transforms.With(metricfamily.TransformerFunc(metricfamily.DropEmptyFamilies))
 
