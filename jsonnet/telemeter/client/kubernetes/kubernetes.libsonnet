@@ -98,7 +98,7 @@ local securePort = 8443;
       local tlsMount = containerVolumeMount.new(tlsVolumeName, tlsMountPath);
       local tlsVolume = volume.fromSecret(tlsVolumeName, tlsSecret);
       local sccabMount = containerVolumeMount.new(servingCertsCABundle, servingCertsCABundleMountPath);
-      local sccabVolume = volume.fromConfigMap(servingCertsCABundle, servingCertsCABundle, servingCertsCABundleFileName);
+      local sccabVolume = volume.withName(servingCertsCABundle) + volume.mixin.configMap.withName('telemeter-client-serving-certs-ca-bundle');
       local anonymize = containerEnv.fromSecretRef('ANONYMIZE_LABELS', secretName, 'anonymizeLabels');
       local id = containerEnv.fromSecretRef('ID', secretName, 'id');
       local to = containerEnv.fromSecretRef('TO', secretName, 'to');
@@ -219,7 +219,7 @@ local securePort = 8443;
     servingCertsCABundle+:
       local configmap = k.core.v1.configMap;
 
-      configmap.new('telemeter-serving-certs-ca-bundle', { [servingCertsCABundleFileName]: '' }) +
+      configmap.new('telemeter-client-serving-certs-ca-bundle', { [servingCertsCABundleFileName]: '' }) +
       configmap.mixin.metadata.withNamespace($._config.namespace) +
       configmap.mixin.metadata.withAnnotations({ 'service.alpha.openshift.io/inject-cabundle': 'true' }),
   },
