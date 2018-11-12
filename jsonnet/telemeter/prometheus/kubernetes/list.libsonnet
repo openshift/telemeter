@@ -47,7 +47,8 @@
                   '-openshift-sar={"resource": "namespaces", "verb": "get", "resourceName": "${NAMESPACE}", "namespace": "${NAMESPACE}"}'
                 else if std.startsWith(arg, '-openshift-delegate-urls') then
                   '-openshift-delegate-urls={"/": {"resource": "namespaces", "verb": "get", "resourceName": "${NAMESPACE}", "namespace": "${NAMESPACE}"}}'
-                else arg for arg in super.args
+                else arg
+                for arg in super.args
               ],
             }
             for c in super.containers
@@ -70,8 +71,22 @@
         ],
       }
       else {},
+    local setServiceMonitorServerNameNamespace(object) =
+      if object.kind == 'ServiceMonitor' then {
+        spec+: {
+          endpoints: [
+            e + if std.objectHas(e, 'tlsConfig') then {
+              tlsConfig+: if std.length(std.split(super.tlsConfig.serverName, '.')) == 3 && std.split(super.tlsConfig.serverName, '.')[1] == _config.namespace && std.split(e.tlsConfig.serverName, '.')[2] == 'svc' then {
+                serverName: '%s.%s.svc' % [std.split(e.tlsConfig.serverName, '.')[0], '${NAMESPACE}'],
+              } else {},
+            } else {}
+            for e in super.endpoints
+          ],
+        },
+      }
+      else {},
     objects: [
-      o + setNamespace(o) + setSubjectNamespace(o) + setPermissions(o)
+      o + setNamespace(o) + setSubjectNamespace(o) + setPermissions(o) + setServiceMonitorServerNameNamespace(o)
       for o in super.objects
     ],
     parameters+: [

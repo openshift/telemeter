@@ -244,7 +244,8 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
             role: 'alert-rules',
             prometheus: $._config.prometheus.name,
           }),
-          secrets+: [
+          configMaps: ['prometheus-serving-certs-ca-bundle'],
+          secrets: [
             'prometheus-%s-tls' % $._config.prometheus.name,
             'prometheus-%s-proxy' % $._config.prometheus.name,
             'prometheus-%s-htpasswd' % $._config.prometheus.name,
@@ -325,7 +326,7 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
               interval: '30s',
               scheme: 'https',
               tlsConfig: {
-                caFile: '/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt',
+                caFile: '/etc/prometheus/configmaps/prometheus-serving-certs-ca-bundle/service-ca.crt',
                 serverName: 'prometheus-%s.%s.svc' % [$._config.prometheus.name, $._config.namespace],
               },
               bearerTokenFile: '/var/run/secrets/kubernetes.io/serviceaccount/token',
@@ -333,5 +334,12 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
           ],
         },
       },
+
+    servingCertsCABundle+:
+      local configmap = k.core.v1.configMap;
+
+      configmap.new('prometheus-serving-certs-ca-bundle', { 'service-ca.crt': '' }) +
+      configmap.mixin.metadata.withNamespace($._config.namespace) +
+      configmap.mixin.metadata.withAnnotations({ 'service.alpha.openshift.io/inject-cabundle': 'true' }),
   },
 }
