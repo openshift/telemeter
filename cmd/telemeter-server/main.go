@@ -23,8 +23,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cockroachdb/cmux"
 	oidc "github.com/coreos/go-oidc"
+	"github.com/oklog/run"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
 
@@ -96,6 +96,9 @@ func main() {
 	cmd.Flags().StringVar(&opt.TLSKeyPath, "tls-key", opt.TLSKeyPath, "Path to a private key to serve TLS for external traffic.")
 	cmd.Flags().StringVar(&opt.TLSCertificatePath, "tls-crt", opt.TLSCertificatePath, "Path to a certificate to serve TLS for external traffic.")
 
+	cmd.Flags().StringVar(&opt.InternalTLSKeyPath, "internal-tls-key", opt.InternalTLSKeyPath, "Path to a private key to serve TLS for internal traffic.")
+	cmd.Flags().StringVar(&opt.InternalTLSCertificatePath, "internal-tls-crt", opt.InternalTLSCertificatePath, "Path to a certificate to serve TLS for internal traffic.")
+
 	cmd.Flags().StringSliceVar(&opt.LabelFlag, "label", opt.LabelFlag, "Labels to add to each outgoing metric, in key=value form.")
 	cmd.Flags().StringVar(&opt.PartitionKey, "partition-label", opt.PartitionKey, "The label to separate incoming data on. This label will be required for callers to include.")
 
@@ -128,6 +131,9 @@ type Options struct {
 
 	TLSKeyPath         string
 	TLSCertificatePath string
+
+	InternalTLSKeyPath         string
+	InternalTLSCertificatePath string
 
 	Members []string
 
@@ -244,12 +250,13 @@ func (o *Options) Run() error {
 	}
 
 	switch {
-	case len(o.TLSCertificatePath) == 0 && len(o.TLSKeyPath) > 0,
-		len(o.TLSCertificatePath) > 0 && len(o.TLSKeyPath) == 0:
+	case (len(o.TLSCertificatePath) == 0) != (len(o.TLSKeyPath) == 0):
 		return fmt.Errorf("both --tls-key and --tls-crt must be provided")
+	case (len(o.InternalTLSCertificatePath) == 0) != (len(o.InternalTLSKeyPath) == 0):
+		return fmt.Errorf("both --internal-tls-key and --internal-tls-crt must be provided")
 	}
 	useTLS := len(o.TLSCertificatePath) > 0
-	useInternalTLS := false
+	useInternalTLS := len(o.InternalTLSCertificatePath) > 0
 
 	var (
 		publicKey  crypto.PublicKey
@@ -419,63 +426,54 @@ func (o *Options) Run() error {
 		return err
 	}
 
-	internalMux := cmux.New(internalListener)
-	if useInternalTLS {
-		internalHTTPSListener := internalMux.Match(cmux.Any())
-		go func() {
+	var g run.Group
+	{
+		// Run the internal server.
+		g.Add(func() error {
 			s := &http.Server{
 				Handler: internal,
 			}
-			if err := s.ServeTLS(internalHTTPSListener, o.TLSCertificatePath, o.TLSKeyPath); err != nil && err != http.ErrServerClosed {
-				log.Printf("error: HTTPS server exited: %v", err)
-				os.Exit(1)
+			if useInternalTLS {
+				if err := s.ServeTLS(internalListener, o.InternalTLSCertificatePath, o.InternalTLSKeyPath); err != nil && err != http.ErrServerClosed {
+					log.Printf("error: internal HTTPS server exited: %v", err)
+					return err
+				}
+			} else {
+				if err := s.Serve(internalListener); err != nil && err != http.ErrServerClosed {
+					log.Printf("error: internal HTTP server exited: %v", err)
+					return err
+				}
 			}
-		}()
-	} else {
-		internalHTTPListener := internalMux.Match(cmux.HTTP1())
-		go func() {
-			if err := http.Serve(internalHTTPListener, internal); err != nil && err != http.ErrServerClosed {
-				log.Printf("error: HTTP server exited: %v", err)
-				os.Exit(1)
-			}
-		}()
+			return nil
+		}, func(error) {
+			internalListener.Close()
+		})
 	}
-	go func() {
-		if err := internalMux.Serve(); err != nil && err != http.ErrServerClosed {
-			log.Printf("error: internal server exited: %v", err)
-			os.Exit(1)
-		}
-	}()
 
-	externalMux := cmux.New(externalListener)
-	if useTLS {
-		externalHTTPSListener := externalMux.Match(cmux.Any())
-		go func() {
+	{
+		// Run the external server.
+		g.Add(func() error {
 			s := &http.Server{
 				Handler: external,
 			}
-			if err := s.ServeTLS(externalHTTPSListener, o.TLSCertificatePath, o.TLSKeyPath); err != nil && err != http.ErrServerClosed {
-				log.Printf("error: HTTPS server exited: %v", err)
-				os.Exit(1)
+			if useTLS {
+				if err := s.ServeTLS(externalListener, o.TLSCertificatePath, o.TLSKeyPath); err != nil && err != http.ErrServerClosed {
+					log.Printf("error: external HTTPS server exited: %v", err)
+					return err
+				}
+			} else {
+				if err := s.Serve(externalListener); err != nil && err != http.ErrServerClosed {
+					log.Printf("error: external HTTP server exited: %v", err)
+					return err
+				}
 			}
-		}()
-	} else {
-		externalHTTPListener := externalMux.Match(cmux.HTTP1())
-		go func() {
-			if err := http.Serve(externalHTTPListener, external); err != nil && err != http.ErrServerClosed {
-				log.Printf("error: HTTP server exited: %v", err)
-				os.Exit(1)
-			}
-		}()
+			return nil
+		}, func(error) {
+			externalListener.Close()
+		})
 	}
-	go func() {
-		if err := externalMux.Serve(); err != nil && err != http.ErrServerClosed {
-			log.Printf("error: external server exited: %v", err)
-			os.Exit(1)
-		}
-	}()
 
-	select {}
+	return g.Run()
 }
 
 // loadPrivateKey loads a private key from PEM/DER-encoded data.
