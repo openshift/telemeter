@@ -14,10 +14,10 @@ spec:
     port: 8443
     targetPort: external
   - name: internal
-    port: 8082
+    port: 8081
     targetPort: internal
   - name: cluster
-    port: 8081
+    port: 8082
     targetPort: cluster
   selector:
     k8s-app: telemeter-server

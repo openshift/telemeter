@@ -66,9 +66,9 @@ spec:
         ports:
         - containerPort: 8443
           name: external
-        - containerPort: 8082
-          name: internal
         - containerPort: 8081
+          name: internal
+        - containerPort: 8082
           name: cluster
         readinessProbe:
           httpGet:
