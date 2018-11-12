@@ -1,5 +1,5 @@
 hash: cf59f9f931c96112f8e4147eedd4ce85246ae591cd4692a21a72306ce651e0ee
-updated: 2018-11-07T11:28:39.490618004+01:00
+updated: 2018-11-12T13:11:12.409444614+01:00
 imports:
 - name: github.com/armon/go-metrics
   version: 3c58d8115a78a6879e5df75ae900846768d36895
@@ -7,8 +7,6 @@ imports:
   version: 3ac7bf7a47d159a033b107610db8a1b6575507a4
   subpackages:
   - quantile
-- name: github.com/cockroachdb/cmux
-  version: 30d10be492927e2dcae0089c374c455d42414fcb
 - name: github.com/coreos/go-oidc
   version: 1180514eaf4d9f38d0d19eef639a1d695e066e72
 - name: github.com/golang/protobuf
@@ -87,14 +85,10 @@ imports:
   subpackages:
   - bpf
   - context
-  - http2
-  - http2/hpack
-  - idna
   - internal/iana
   - internal/socket
   - ipv4
   - ipv6
-  - lex/httplex
 - name: golang.org/x/oauth2
   version: a6bd8cefa1811bd24b86f8902872e4e8225f74c4
   subpackages:
@@ -103,13 +97,6 @@ imports:
   version: bb24a47a89eac6c1227fbcb2ae37a8b9ed323366
   subpackages:
   - unix
-- name: golang.org/x/text
-  version: b19bf474d317b857955b12035d2c5acb57ce8b01
-  subpackages:
-  - secure/bidirule
-  - transform
-  - unicode/bidi
-  - unicode/norm
 - name: golang.org/x/time
   version: f51c12702a4d776e4c1fa9b0fabab841babae631
   subpackages:
