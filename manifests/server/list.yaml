@@ -56,11 +56,8 @@ objects:
     endpoints:
     - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
       interval: 30s
-      port: external
-      scheme: https
-      tlsConfig:
-        caFile: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
-        serverName: server-name-replaced-at-runtime
+      port: internal
+      scheme: http
     jobLabel: k8s-app
     selector:
       matchLabels:
@@ -71,7 +68,7 @@ objects:
     labels:
       endpoint: federate
       k8s-app: telemeter-server
-    name: telemeter-server-feredate
+    name: telemeter-server-federate
     namespace: telemeter
   spec:
     endpoints:
@@ -82,11 +79,8 @@ objects:
         match[]:
         - '{__name__=~".*"}'
       path: /federate
-      port: external
-      scheme: https
-      tlsConfig:
-        caFile: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
-        serverName: server-name-replaced-at-runtime
+      port: internal
+      scheme: http
     jobLabel: k8s-app
     selector:
       matchLabels:
