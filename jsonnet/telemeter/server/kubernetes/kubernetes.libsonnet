@@ -4,8 +4,8 @@ local tlsSecret = 'telemeter-server-shared';
 local tlsVolumeName = 'telemeter-server-tls';
 local tlsMountPath = '/etc/pki/service';
 local externalPort = 8443;
-local internalPort = 8082;
-local clusterPort = 8081;
+local internalPort = 8081;
+local clusterPort = 8082;
 
 {
   _config+:: {
