@@ -159,12 +159,8 @@ local clusterPort = 8081;
             {
               bearerTokenFile: '/var/run/secrets/kubernetes.io/serviceaccount/token',
               interval: '30s',
-              port: 'external',
-              scheme: 'https',
-              tlsConfig: {
-                caFile: '/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt',
-                serverName: $._config.telemeterServer.serverName,
-              },
+              port: 'internal',
+              scheme: 'http',
             },
           ],
         },
@@ -174,7 +170,7 @@ local clusterPort = 8081;
         apiVersion: 'monitoring.coreos.com/v1',
         kind: 'ServiceMonitor',
         metadata: {
-          name: 'telemeter-server-feredate',
+          name: 'telemeter-server-federate',
           namespace: $._config.namespace,
           labels: {
             'k8s-app': 'telemeter-server',
@@ -197,12 +193,8 @@ local clusterPort = 8081;
                 'match[]': ['{__name__=~".*"}'],
               },
               path: '/federate',
-              port: 'external',
-              scheme: 'https',
-              tlsConfig: {
-                caFile: '/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt',
-                serverName: $._config.telemeterServer.serverName,
-              },
+              port: 'internal',
+              scheme: 'http',
             },
           ],
         },

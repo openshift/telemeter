@@ -10,11 +10,8 @@ spec:
   endpoints:
   - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
     interval: 30s
-    port: external
-    scheme: https
-    tlsConfig:
-      caFile: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
-      serverName: server-name-replaced-at-runtime
+    port: internal
+    scheme: http
   jobLabel: k8s-app
   selector:
     matchLabels:
