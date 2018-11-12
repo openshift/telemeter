@@ -15,7 +15,7 @@ import (
 	"github.com/openshift/telemeter/pkg/metricfamily"
 	"github.com/openshift/telemeter/pkg/store"
 	"github.com/openshift/telemeter/pkg/store/memstore"
-	"github.com/openshift/telemeter/pkg/validator"
+	"github.com/openshift/telemeter/pkg/validate"
 
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -37,22 +37,22 @@ openshift_build_info{app="openshift-web-console",gitCommit="d911956",gitVersion=
 )
 
 func TestPost(t *testing.T) {
-	validator := validator.New("cluster", nil, 0, 0)
+	validator := validate.New("cluster", 0, 0)
 	labels := map[string]string{"cluster": "test"}
 	testPost(t, validator, withLabels(sort(mustReadString(sampleMetrics)), labels), withLabels(sort(mustReadString(sampleMetrics)), labels))
 }
 
 func TestPostError(t *testing.T) {
-	validator := validator.New("cluster", nil, 4096, 0)
+	validator := validate.New("cluster", 4096, 0)
 	ttl := 10 * time.Minute
 	store := memstore.New(ttl)
-	server := server.New(store, validator, ttl)
+	server := server.New(store, validator, nil, ttl)
+	labels := map[string]string{"cluster": "test"}
 
-	s := httptest.NewServer(fakeAuthorizeHandler(http.HandlerFunc(server.Post), &authorize.Client{ID: "test", Labels: map[string]string{"cluster": "test"}}))
+	s := httptest.NewServer(fakeAuthorizeHandler(http.HandlerFunc(server.Post), &authorize.Client{ID: "test", Labels: labels}))
 	defer s.Close()
 
 	longName := strings.Repeat("abcd", 2048)
-	labels := map[string]string{"cluster": "test"}
 
 	testCases := []struct {
 		name   string
@@ -78,12 +78,12 @@ func TestPostError(t *testing.T) {
 
 }
 
-func testPost(t *testing.T, validator server.UploadValidator, send, expect []*clientmodel.MetricFamily) {
+func testPost(t *testing.T, validator validate.Validator, send, expect []*clientmodel.MetricFamily) {
 	t.Helper()
 
 	ttl := 10 * time.Minute
 	memStore := memstore.New(ttl)
-	server := server.New(memStore, validator, ttl)
+	server := server.New(memStore, validator, nil, ttl)
 
 	s := httptest.NewServer(fakeAuthorizeHandler(http.HandlerFunc(server.Post), &authorize.Client{ID: "test", Labels: map[string]string{"cluster": "test"}}))
 	defer s.Close()
@@ -110,8 +110,8 @@ func testPost(t *testing.T, validator server.UploadValidator, send, expect []*cl
 func TestGet(t *testing.T) {
 	ttl := 10 * time.Minute
 	memStore := memstore.New(ttl)
-	validator := validator.New("cluster", nil, 0, 0)
-	server := server.NewNonExpiring(memStore, validator, ttl)
+	validator := validate.New("cluster", 0, 0)
+	server := server.NewNonExpiring(memStore, validator, nil, ttl)
 	srv := httptest.NewServer(http.HandlerFunc(server.Get))
 	defer srv.Close()
 

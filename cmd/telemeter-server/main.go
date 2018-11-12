@@ -35,12 +35,13 @@ import (
 	"github.com/openshift/telemeter/pkg/cluster"
 	telemeter_http "github.com/openshift/telemeter/pkg/http"
 	httpserver "github.com/openshift/telemeter/pkg/http/server"
+	"github.com/openshift/telemeter/pkg/metricfamily"
 	telemeter_oauth2 "github.com/openshift/telemeter/pkg/oauth2"
 	"github.com/openshift/telemeter/pkg/store"
 	"github.com/openshift/telemeter/pkg/store/instrumented"
 	"github.com/openshift/telemeter/pkg/store/memstore"
 	"github.com/openshift/telemeter/pkg/store/ratelimited"
-	"github.com/openshift/telemeter/pkg/validator"
+	"github.com/openshift/telemeter/pkg/validate"
 )
 
 const desc = `
@@ -95,10 +96,10 @@ func main() {
 	cmd.Flags().StringVar(&opt.TLSKeyPath, "tls-key", opt.TLSKeyPath, "Path to a private key to serve TLS for external traffic.")
 	cmd.Flags().StringVar(&opt.TLSCertificatePath, "tls-crt", opt.TLSCertificatePath, "Path to a certificate to serve TLS for external traffic.")
 
-	cmd.Flags().StringArrayVar(&opt.LabelFlag, "label", opt.LabelFlag, "Labels to add to each outgoing metric, in key=value form.")
+	cmd.Flags().StringSliceVar(&opt.LabelFlag, "label", opt.LabelFlag, "Labels to add to each outgoing metric, in key=value form.")
 	cmd.Flags().StringVar(&opt.PartitionKey, "partition-label", opt.PartitionKey, "The label to separate incoming data on. This label will be required for callers to include.")
 
-	cmd.Flags().StringArrayVar(&opt.Members, "join", opt.Members, "One or more host:ports to contact to find other peers.")
+	cmd.Flags().StringSliceVar(&opt.Members, "join", opt.Members, "One or more host:ports to contact to find other peers.")
 	cmd.Flags().StringVar(&opt.Name, "name", opt.Name, "The name to identify this node in the cluster. If not specified will be the hostname and a random suffix.")
 
 	cmd.Flags().StringVar(&opt.SharedKey, "shared-key", opt.SharedKey, "The path to a private key file that will be used to sign authentication requests and secure the cluster protocol.")
@@ -112,6 +113,8 @@ func main() {
 	cmd.Flags().StringVar(&opt.AuthorizeClientID, "authorize-client-id", opt.AuthorizeClientID, "The authorize OIDC client ID, see rfc6749#section-4.3.")
 
 	cmd.Flags().BoolVarP(&opt.Verbose, "verbose", "v", opt.Verbose, "Show verbose output.")
+
+	cmd.Flags().StringSliceVar(&opt.RequiredLabelFlag, "required-label", opt.LabelFlag, "Labels that must be present on each incoming metric, in key=value form.")
 
 	if err := cmd.Execute(); err != nil {
 		os.Exit(1)
@@ -139,10 +142,12 @@ type Options struct {
 	AuthorizeUsername  string
 	AuthorizePassword  string
 
-	PartitionKey string
-	LabelFlag    []string
-	Labels       map[string]string
-	LimitBytes   int64
+	PartitionKey      string
+	LabelFlag         []string
+	Labels            map[string]string
+	LimitBytes        int64
+	RequiredLabelFlag []string
+	RequiredLabels    map[string]string
 
 	Verbose bool
 }
@@ -161,6 +166,17 @@ func (o *Options) Run() error {
 			o.Labels = make(map[string]string)
 		}
 		o.Labels[values[0]] = values[1]
+	}
+
+	for _, flag := range o.RequiredLabelFlag {
+		values := strings.SplitN(flag, "=", 2)
+		if len(values) != 2 {
+			return fmt.Errorf("--required-label must be of the form key=value: %s", flag)
+		}
+		if o.RequiredLabels == nil {
+			o.RequiredLabels = make(map[string]string)
+		}
+		o.RequiredLabels[values[0]] = values[1]
 	}
 
 	if len(o.Name) == 0 {
@@ -312,8 +328,8 @@ func (o *Options) Run() error {
 		clusterAuth = tollbooth.NewAuthorizer(authorizeClient, authorizeURL)
 	}
 
-	auth := jwt.NewAuthorizeClusterHandler(o.PartitionKey, o.TokenExpireSeconds, signer, o.Labels, clusterAuth)
-	validator := validator.New(o.PartitionKey, o.Labels, o.LimitBytes, 24*time.Hour)
+	auth := jwt.NewAuthorizeClusterHandler(o.PartitionKey, o.TokenExpireSeconds, signer, o.RequiredLabels, clusterAuth)
+	validator := validate.New(o.PartitionKey, o.LimitBytes, 24*time.Hour)
 
 	var (
 		ratelimit = 4*time.Minute + 30*time.Second
@@ -349,7 +365,12 @@ func (o *Options) Run() error {
 		internalProtected.Handle("/debug/cluster", c)
 	}
 
-	server := httpserver.New(store, validator, ttl)
+	var transforms metricfamily.Transformer
+	if len(o.Labels) > 0 {
+		transforms = metricfamily.NewLabel(o.Labels, nil)
+	}
+
+	server := httpserver.New(store, validator, transforms, ttl)
 
 	internalPathJSON, _ := json.MarshalIndent(Paths{Paths: internalPaths}, "", "  ")
 	externalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/authorize", "/upload", "/healthz", "/healthz/ready"}}, "", "  ")
