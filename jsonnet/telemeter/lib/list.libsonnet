@@ -9,12 +9,41 @@
     parameters: parameters,
   },
 
-  withImage(_config):: {
+  withAuthorizeURL(_config):: {
+    local setAuthorizeURL(object) =
+      if object.kind == 'StatefulSet' then {
+        spec+: {
+          template+: {
+            spec+: {
+              containers: [
+                c {
+                  command: [
+                    if std.startsWith(c, '--authorize=') then '--authorize=${AUTHORIZE_URL}' else c
+                    for c in super.command
+                  ],
+                }
+                for c in super.containers
+              ],
+            },
+          },
+        },
+      }
+      else {},
+    objects: [
+      o + setAuthorizeURL(o)
+      for o in super.objects
+    ],
+    parameters+: [
+      { name: 'AUTHORIZE_URL', value: _config.telemeterServer.authorizeURL },
+    ],
+  },
+
+  withPrometheusImage(_config):: {
     local setImage(object) =
       if object.kind == 'Prometheus' then {
         spec+: {
-          baseImage: '${IMAGE}',
-          version: '${IMAGE_TAG}',
+          baseImage: '${PROMETHEUS_IMAGE}',
+          version: '${PROMETHEUS_IMAGE_TAG}',
           containers: [
             if c.name == 'prometheus-proxy' then c {
               image: '${PROXY_IMAGE}:${PROXY_IMAGE_TAG}',
@@ -29,10 +58,37 @@
       for o in super.objects
     ],
     parameters+: [
-      { name: 'IMAGE', value: _config.imageRepos.prometheus },
-      { name: 'IMAGE_TAG', value: _config.versions.prometheus },
+      { name: 'PROMETHEUS_IMAGE', value: _config.imageRepos.prometheus },
+      { name: 'PROMETHEUS_IMAGE_TAG', value: _config.versions.prometheus },
       { name: 'PROXY_IMAGE', value: _config.imageRepos.openshiftOauthProxy },
       { name: 'PROXY_IMAGE_TAG', value: _config.versions.openshiftOauthProxy },
+    ],
+  },
+
+  withServerImage(_config):: {
+    local setImage(object) =
+      if object.kind == 'StatefulSet' then {
+        spec+: {
+          template+: {
+            spec+: {
+              containers: [
+                c {
+                  image: if c.name == 'telemeter-server' then '${TELEMETER_IMAGE}:${TELEMETER_IMAGE_TAG}' else c.image,
+                }
+                for c in super.containers
+              ],
+            },
+          },
+        },
+      }
+      else {},
+    objects: [
+      o + setImage(o)
+      for o in super.objects
+    ],
+    parameters+: [
+      { name: 'TELEMETER_IMAGE', value: _config.imageRepos.telemeterServer },
+      { name: 'TELEMETER_IMAGE_TAG', value: _config.versions.telemeterServer },
     ],
   },
 

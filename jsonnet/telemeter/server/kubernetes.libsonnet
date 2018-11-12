@@ -163,7 +163,7 @@ local clusterPort = 8082;
               port: 'internal',
               scheme: 'https',
               tlsConfig: {
-                caFile: '/etc/prometheus/configmaps/prometheus-serving-certs-ca-bundle/service-ca.crt',
+                caFile: '/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt',
                 serverName: 'telemeter-server.%s.svc' % $._config.namespace,
               },
             },
@@ -201,7 +201,7 @@ local clusterPort = 8082;
               port: 'internal',
               scheme: 'https',
               tlsConfig: {
-                caFile: '/etc/prometheus/configmaps/prometheus-serving-certs-ca-bundle/service-ca.crt',
+                caFile: '/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt',
                 serverName: 'telemeter-server.%s.svc' % $._config.namespace,
               },
             },
