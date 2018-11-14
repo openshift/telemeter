@@ -1,31 +1,11 @@
 {
     "dependencies": [
         {
-            "name": "telemeter-client",
+            "name": "telemeter",
             "source": {
                 "git": {
                     "remote": "../",
-                    "subdir": "jsonnet/telemeter/client"
-                }
-            },
-            "version": "."
-        },
-        {
-            "name": "telemeter-server",
-            "source": {
-                "git": {
-                    "remote": "../",
-                    "subdir": "jsonnet/telemeter/server"
-                }
-            },
-            "version": "."
-        },
-        {
-            "name": "prometheus-telemeter",
-            "source": {
-                "git": {
-                    "remote": "../",
-                    "subdir": "jsonnet/telemeter/prometheus"
+                    "subdir": "jsonnet/telemeter"
                 }
             },
             "version": "."

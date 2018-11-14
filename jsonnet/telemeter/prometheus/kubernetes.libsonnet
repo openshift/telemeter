@@ -244,7 +244,7 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
             role: 'alert-rules',
             prometheus: $._config.prometheus.name,
           }),
-          secrets+: [
+          secrets: [
             'prometheus-%s-tls' % $._config.prometheus.name,
             'prometheus-%s-proxy' % $._config.prometheus.name,
             'prometheus-%s-htpasswd' % $._config.prometheus.name,

@@ -11,7 +11,10 @@ spec:
   - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
     interval: 30s
     port: internal
-    scheme: http
+    scheme: https
+    tlsConfig:
+      caFile: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
+      serverName: telemeter-server.telemeter.svc
   jobLabel: k8s-app
   selector:
     matchLabels:

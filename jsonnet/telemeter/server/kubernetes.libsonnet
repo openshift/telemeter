@@ -17,7 +17,6 @@ local clusterPort = 8082;
       rhdUsername: '',
       rhdPassword: '',
       rhdClientID: '',
-      serverName: 'server-name-replaced-at-runtime',
     },
 
     versions+:: {
@@ -59,6 +58,8 @@ local clusterPort = 8082;
           '--shared-key=%s/tls.key' % tlsMountPath,
           '--tls-key=%s/tls.key' % tlsMountPath,
           '--tls-crt=%s/tls.crt' % tlsMountPath,
+          '--internal-tls-key=%s/tls.key' % tlsMountPath,
+          '--internal-tls-crt=%s/tls.crt' % tlsMountPath,
           '--authorize=' + $._config.telemeterServer.authorizeURL,
           '--authorize-issuer-url=$(RHD_URL)',
           '--authorize-client-id=$(RHD_CLIENT_ID)',
@@ -160,7 +161,11 @@ local clusterPort = 8082;
               bearerTokenFile: '/var/run/secrets/kubernetes.io/serviceaccount/token',
               interval: '30s',
               port: 'internal',
-              scheme: 'http',
+              scheme: 'https',
+              tlsConfig: {
+                caFile: '/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt',
+                serverName: 'telemeter-server.%s.svc' % $._config.namespace,
+              },
             },
           ],
         },
@@ -194,7 +199,11 @@ local clusterPort = 8082;
               },
               path: '/federate',
               port: 'internal',
-              scheme: 'http',
+              scheme: 'https',
+              tlsConfig: {
+                caFile: '/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt',
+                serverName: 'telemeter-server.%s.svc' % $._config.namespace,
+              },
             },
           ],
         },

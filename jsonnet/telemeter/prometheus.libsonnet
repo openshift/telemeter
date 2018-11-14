@@ -1,11 +1,11 @@
-local list = import 'kubernetes/list.libsonnet';
+local list = import 'lib/list.libsonnet';
 
-(import 'kubernetes/kubernetes.libsonnet') + {
+(import 'prometheus/kubernetes.libsonnet') + {
   local p = super.prometheus,
   prometheus+:: {
     list: list.asList('prometheus-telemeter', p, [])
-          + list.withImage($._config)
           + list.withNamespace($._config)
+          + list.withPrometheusImage($._config),
   },
 } + {
   _config+:: {
