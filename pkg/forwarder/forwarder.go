@@ -115,8 +115,11 @@ func New(cfg Config) (*Worker, error) {
 		}
 		anonymizeSalt = strings.TrimSpace(string(data))
 	}
-	if (len(cfg.AnonymizeLabels) != 0) != (len(anonymizeSalt) != 0) {
-		return nil, fmt.Errorf("both anonymize-salt and anonymize-labels must be either specified or empty")
+	if len(cfg.AnonymizeLabels) != 0 && len(anonymizeSalt) == 0 {
+		return nil, fmt.Errorf("anonymize-salt must be specified if anonymize-labels is set")
+	}
+	if len(cfg.AnonymizeLabels) == 0 {
+		log.Printf("warning: not anonymizing any labels")
 	}
 
 	// Configure a transformer.
