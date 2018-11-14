@@ -91,10 +91,18 @@ func TestNew(t *testing.T) {
 			err: true,
 		},
 		{
-			// Providing only `AnonymizeSalt` should error.
+			// Providing only `AnonymizeSalt` should not error.
 			c: Config{
 				From:          from,
 				AnonymizeSalt: "1",
+			},
+			err: false,
+		},
+		{
+			// Providing only `AnonymizeLabels` should error.
+			c: Config{
+				From:            from,
+				AnonymizeLabels: []string{"foo"},
 			},
 			err: true,
 		},
@@ -102,7 +110,7 @@ func TestNew(t *testing.T) {
 			// Providing only `AnonymizeSalt` and `AnonymizeLabels should not error.
 			c: Config{
 				From:            from,
-				AnonymizeLabels: []string{""},
+				AnonymizeLabels: []string{"foo"},
 				AnonymizeSalt:   "1",
 			},
 			err: false,
@@ -111,7 +119,7 @@ func TestNew(t *testing.T) {
 			// Providing an invalid `AnonymizeSaltFile` should error.
 			c: Config{
 				From:              from,
-				AnonymizeLabels:   []string{""},
+				AnonymizeLabels:   []string{"foo"},
 				AnonymizeSaltFile: "/this/path/does/not/exist",
 			},
 			err: true,
@@ -120,7 +128,7 @@ func TestNew(t *testing.T) {
 			// Providing `AnonymizeSalt` takes preference over an invalid `AnonymizeSaltFile` and should not error.
 			c: Config{
 				From:              from,
-				AnonymizeLabels:   []string{""},
+				AnonymizeLabels:   []string{"foo"},
 				AnonymizeSalt:     "1",
 				AnonymizeSaltFile: "/this/path/does/not/exist",
 			},
