@@ -60,7 +60,7 @@ objects:
     name: telemeter
     namespace: ${NAMESPACE}
   spec:
-    baseImage: ${IMAGE}
+    baseImage: ${PROMETHEUS_IMAGE}
     containers:
     - args:
       - -provider=openshift
@@ -115,7 +115,7 @@ objects:
       matchLabels:
         endpoint: federate
         k8s-app: telemeter-server
-    version: ${IMAGE_TAG}
+    version: ${PROMETHEUS_IMAGE_TAG}
 - apiVersion: v1
   data:
     session_secret: ""
@@ -247,18 +247,18 @@ objects:
       scheme: https
       tlsConfig:
         caFile: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
-        serverName: prometheus-telemeter.telemeter.svc
+        serverName: prometheus-telemeter.${NAMESPACE}.svc
     selector:
       matchLabels:
         prometheus: telemeter
 parameters:
-- name: IMAGE
+- name: NAMESPACE
+  value: telemeter
+- name: PROMETHEUS_IMAGE
   value: quay.io/prometheus/prometheus
-- name: IMAGE_TAG
+- name: PROMETHEUS_IMAGE_TAG
   value: v2.3.2
 - name: PROXY_IMAGE
   value: openshift/oauth-proxy
 - name: PROXY_IMAGE_TAG
   value: v1.1.0
-- name: NAMESPACE
-  value: telemeter

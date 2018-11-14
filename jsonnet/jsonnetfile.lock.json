@@ -1,14 +1,14 @@
 {
     "dependencies": [
         {
-            "name": "telemeter-client",
+            "name": "telemeter",
             "source": {
                 "git": {
                     "remote": "../",
-                    "subdir": "jsonnet/telemeter/client"
+                    "subdir": "jsonnet/telemeter"
                 }
             },
-            "version": "3bfb0c70ac7e864f28eab89176bf4c85007732f2"
+            "version": "c593a3f6beef7cafdcabd0bd274ecef49c8c3ac1"
         },
         {
             "name": "ksonnet",
@@ -19,26 +19,6 @@
                 }
             },
             "version": "d03da231d6c8bd74437b74a1e9e8b966f13dffa2"
-        },
-        {
-            "name": "telemeter-server",
-            "source": {
-                "git": {
-                    "remote": "../",
-                    "subdir": "jsonnet/telemeter/server"
-                }
-            },
-            "version": "3bfb0c70ac7e864f28eab89176bf4c85007732f2"
-        },
-        {
-            "name": "prometheus-telemeter",
-            "source": {
-                "git": {
-                    "remote": "../",
-                    "subdir": "jsonnet/telemeter/prometheus"
-                }
-            },
-            "version": "3bfb0c70ac7e864f28eab89176bf4c85007732f2"
         }
     ]
 }

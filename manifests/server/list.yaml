@@ -14,7 +14,7 @@ objects:
     labels:
       k8s-app: telemeter-server
     name: telemeter-server
-    namespace: telemeter
+    namespace: ${NAMESPACE}
   type: Opaque
 - apiVersion: v1
   kind: Service
@@ -24,7 +24,7 @@ objects:
     labels:
       k8s-app: telemeter-server
     name: telemeter-server
-    namespace: telemeter
+    namespace: ${NAMESPACE}
   spec:
     clusterIP: None
     ports:
@@ -43,7 +43,7 @@ objects:
   kind: ServiceAccount
   metadata:
     name: telemeter-server
-    namespace: telemeter
+    namespace: ${NAMESPACE}
 - apiVersion: monitoring.coreos.com/v1
   kind: ServiceMonitor
   metadata:
@@ -51,13 +51,16 @@ objects:
       endpoint: metrics
       k8s-app: telemeter-server
     name: telemeter-server
-    namespace: telemeter
+    namespace: ${NAMESPACE}
   spec:
     endpoints:
     - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
       interval: 30s
       port: internal
-      scheme: http
+      scheme: https
+      tlsConfig:
+        caFile: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
+        serverName: telemeter-server.${NAMESPACE}.svc
     jobLabel: k8s-app
     selector:
       matchLabels:
@@ -69,7 +72,7 @@ objects:
       endpoint: federate
       k8s-app: telemeter-server
     name: telemeter-server-federate
-    namespace: telemeter
+    namespace: ${NAMESPACE}
   spec:
     endpoints:
     - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
@@ -80,7 +83,10 @@ objects:
         - '{__name__=~".*"}'
       path: /federate
       port: internal
-      scheme: http
+      scheme: https
+      tlsConfig:
+        caFile: /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt
+        serverName: telemeter-server.${NAMESPACE}.svc
     jobLabel: k8s-app
     selector:
       matchLabels:
@@ -89,7 +95,7 @@ objects:
   kind: StatefulSet
   metadata:
     name: telemeter-server
-    namespace: telemeter
+    namespace: ${NAMESPACE}
   spec:
     podManagementPolicy: Parallel
     replicas: 3
@@ -113,6 +119,8 @@ objects:
           - --shared-key=/etc/pki/service/tls.key
           - --tls-key=/etc/pki/service/tls.key
           - --tls-crt=/etc/pki/service/tls.crt
+          - --internal-tls-key=/etc/pki/service/tls.key
+          - --internal-tls-crt=/etc/pki/service/tls.crt
           - --authorize=${AUTHORIZE_URL}
           - --authorize-issuer-url=$(RHD_URL)
           - --authorize-client-id=$(RHD_CLIENT_ID)
@@ -143,7 +151,7 @@ objects:
               secretKeyRef:
                 key: rhd.client_id
                 name: telemeter-server
-          image: ${IMAGE}:${IMAGE_TAG}
+          image: ${TELEMETER_IMAGE}:${TELEMETER_IMAGE_TAG}
           livenessProbe:
             httpGet:
               path: /healthz
@@ -172,9 +180,11 @@ objects:
           secret:
             secretName: telemeter-server-shared
 parameters:
-- name: IMAGE
-  value: quay.io/openshift/origin-telemeter
-- name: IMAGE_TAG
-  value: v4.0
 - name: AUTHORIZE_URL
   value: https://api.openshift.com/api/accounts_mgmt/v1/cluster_registrations
+- name: NAMESPACE
+  value: telemeter
+- name: TELEMETER_IMAGE
+  value: quay.io/openshift/origin-telemeter
+- name: TELEMETER_IMAGE_TAG
+  value: v4.0

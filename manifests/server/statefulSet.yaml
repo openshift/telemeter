@@ -26,6 +26,8 @@ spec:
         - --shared-key=/etc/pki/service/tls.key
         - --tls-key=/etc/pki/service/tls.key
         - --tls-crt=/etc/pki/service/tls.crt
+        - --internal-tls-key=/etc/pki/service/tls.key
+        - --internal-tls-crt=/etc/pki/service/tls.crt
         - --authorize=https://api.openshift.com/api/accounts_mgmt/v1/cluster_registrations
         - --authorize-issuer-url=$(RHD_URL)
         - --authorize-client-id=$(RHD_CLIENT_ID)
