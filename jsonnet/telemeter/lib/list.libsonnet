@@ -73,7 +73,7 @@
             spec+: {
               containers: [
                 c {
-                  image: if c.name == 'telemeter-server' then '${TELEMETER_IMAGE}:${TELEMETER_IMAGE_TAG}' else c.image,
+                  image: if c.name == 'telemeter-server' then '${IMAGE}:${IMAGE_TAG}' else c.image,
                 }
                 for c in super.containers
               ],
@@ -87,8 +87,8 @@
       for o in super.objects
     ],
     parameters+: [
-      { name: 'TELEMETER_IMAGE', value: _config.imageRepos.telemeterServer },
-      { name: 'TELEMETER_IMAGE_TAG', value: _config.versions.telemeterServer },
+      { name: 'IMAGE', value: _config.imageRepos.telemeterServer },
+      { name: 'IMAGE_TAG', value: _config.versions.telemeterServer },
     ],
   },
 

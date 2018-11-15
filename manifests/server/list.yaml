@@ -151,7 +151,7 @@ objects:
               secretKeyRef:
                 key: rhd.client_id
                 name: telemeter-server
-          image: ${TELEMETER_IMAGE}:${TELEMETER_IMAGE_TAG}
+          image: ${IMAGE}:${IMAGE_TAG}
           livenessProbe:
             httpGet:
               path: /healthz
@@ -184,7 +184,7 @@ parameters:
   value: https://api.openshift.com/api/accounts_mgmt/v1/cluster_registrations
 - name: NAMESPACE
   value: telemeter
-- name: TELEMETER_IMAGE
+- name: IMAGE
   value: quay.io/openshift/origin-telemeter
-- name: TELEMETER_IMAGE_TAG
+- name: IMAGE_TAG
   value: v4.0
