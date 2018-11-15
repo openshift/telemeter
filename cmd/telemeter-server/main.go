@@ -343,7 +343,7 @@ func (o *Options) Run() error {
 		ttl       = 10 * time.Minute
 	)
 
-	// register a store
+	// Create a rate-limited store with a memory-store as its persistence.
 	var store store.Store = ratelimited.New(ratelimit, instrumented.New(memstore.New(ttl), "memory"))
 
 	if len(o.ListenCluster) > 0 {
@@ -367,7 +367,14 @@ func (o *Options) Run() error {
 				}
 			}()
 		}
-		store = c
+		// Wrap the cluster store within a rate-limited store.
+		// This guarantees an upper-bound on the total inter-node requests that
+		// hit the target node of `l*n`, where l is the rate limit and n is
+		// the cluster size. Without this, if a DOS attack with IDs that hash
+		// to node A's bucket enter the cluster on different node, node B,
+		// then node B will dutifully pass along the requests to the node A
+		// and can DOS the target and congest the internal network.
+		store = ratelimited.New(ratelimit, c)
 		internalPaths = append(internalPaths, "/debug/cluster")
 		internalProtected.Handle("/debug/cluster", c)
 	}
