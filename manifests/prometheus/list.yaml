@@ -252,6 +252,8 @@ objects:
       matchLabels:
         prometheus: telemeter
 parameters:
+- name: IMAGE_TAG
+  value: ""
 - name: NAMESPACE
   value: telemeter
 - name: PROMETHEUS_IMAGE
