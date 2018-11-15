@@ -128,9 +128,7 @@ func New(cfg Config) (*Worker, error) {
 		transformer.With(cfg.Transformer)
 	}
 	if len(cfg.AnonymizeLabels) > 0 {
-		transformer.WithFunc(func() metricfamily.Transformer {
-			return metricfamily.NewMetricsAnonymizer(anonymizeSalt, cfg.AnonymizeLabels, nil)
-		})
+		transformer.With(metricfamily.NewMetricsAnonymizer(anonymizeSalt, cfg.AnonymizeLabels, nil))
 	}
 
 	// Create the `fromClient`.
@@ -188,9 +186,7 @@ func New(cfg Config) (*Worker, error) {
 		// set of expected labels we must include.
 		rt := authorize.NewServerRotatingRoundTripper(cfg.ToToken, cfg.ToAuthorize, toClient.Transport)
 		toClient.Transport = rt
-		transformer.WithFunc(func() metricfamily.Transformer {
-			return metricfamily.NewLabel(nil, rt)
-		})
+		transformer.With(metricfamily.NewLabel(nil, rt))
 	}
 	w.toClient = metricsclient.New(toClient, cfg.LimitBytes, w.interval, "federate_to")
 	w.transformer = transformer
