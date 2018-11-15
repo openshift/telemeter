@@ -187,5 +187,4 @@ parameters:
 - name: TELEMETER_IMAGE
   value: quay.io/openshift/origin-telemeter
 - name: IMAGE_TAG
-
   value: v4.0
