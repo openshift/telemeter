@@ -60,9 +60,7 @@ func (s *Server) Get(w http.ResponseWriter, req *http.Request) {
 	var minTimeMs int64
 	var filter metricfamily.MultiTransformer
 	if s.nowFn != nil {
-		minTime := s.nowFn().Add(-s.maxSampleAge)
-		minTimeMs = minTime.UnixNano() / int64(time.Millisecond)
-		filter.With(metricfamily.NewDropExpiredSamples(minTime))
+		filter.With(metricfamily.NewDropExpiredSamples(s.nowFn().Add(-s.maxSampleAge)))
 		filter.With(metricfamily.TransformerFunc(metricfamily.PackMetrics))
 	}
 

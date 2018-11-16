@@ -21,7 +21,7 @@ func (t *dropExpiredSamples) Transform(family *clientmodel.MetricFamily) (bool, 
 		if m == nil {
 			continue
 		}
-		if m.TimestampMs == nil || *m.TimestampMs < t.min {
+		if ts := m.GetTimestampMs(); ts < t.min {
 			family.Metric[i] = nil
 			continue
 		}
