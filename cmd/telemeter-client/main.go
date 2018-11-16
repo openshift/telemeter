@@ -220,6 +220,7 @@ func (o *Options) Run() error {
 		AnonymizeLabels:   o.AnonymizeLabels,
 		AnonymizeSalt:     o.AnonymizeSalt,
 		AnonymizeSaltFile: o.AnonymizeSaltFile,
+		Debug:             o.Verbose,
 		Interval:          o.Interval,
 		LimitBytes:        o.LimitBytes,
 		Rules:             o.Rules,
