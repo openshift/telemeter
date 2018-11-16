@@ -79,6 +79,8 @@ func main() {
 		LimitBytes:         500 * 1024,
 		TokenExpireSeconds: 24 * 60 * 60,
 		PartitionKey:       "_id",
+		Ratelimit:          4*time.Minute + 30*time.Second,
+		TTL:                10 * time.Minute,
 	}
 	cmd := &cobra.Command{
 		Short:        "Aggregate federated metrics pushes",
@@ -114,6 +116,9 @@ func main() {
 	cmd.Flags().StringVar(&opt.AuthorizeUsername, "authorize-username", opt.AuthorizeUsername, "The authorize OIDC username, see rfc6749#section-4.3.")
 	cmd.Flags().StringVar(&opt.AuthorizePassword, "authorize-password", opt.AuthorizePassword, "The authorize OIDC password, see rfc6749#section-4.3.")
 	cmd.Flags().StringVar(&opt.AuthorizeClientID, "authorize-client-id", opt.AuthorizeClientID, "The authorize OIDC client ID, see rfc6749#section-4.3.")
+
+	cmd.Flags().DurationVar(&opt.Ratelimit, "ratelimit", opt.Ratelimit, "The rate limit of metric uploads per cluster ID. Uploads happening more often than this limit will be rejected.")
+	cmd.Flags().DurationVar(&opt.TTL, "ttl", opt.TTL, "The TTL for metrics to be held in memory.")
 
 	cmd.Flags().BoolVarP(&opt.Verbose, "verbose", "v", opt.Verbose, "Show verbose output.")
 
@@ -154,6 +159,9 @@ type Options struct {
 	LimitBytes        int64
 	RequiredLabelFlag []string
 	RequiredLabels    map[string]string
+
+	TTL       time.Duration
+	Ratelimit time.Duration
 
 	Verbose bool
 }
@@ -338,13 +346,8 @@ func (o *Options) Run() error {
 	auth := jwt.NewAuthorizeClusterHandler(o.PartitionKey, o.TokenExpireSeconds, signer, o.RequiredLabels, clusterAuth)
 	validator := validate.New(o.PartitionKey, o.LimitBytes, 24*time.Hour)
 
-	var (
-		ratelimit = 4*time.Minute + 30*time.Second
-		ttl       = 10 * time.Minute
-	)
-
 	// Create a rate-limited store with a memory-store as its persistence.
-	var store store.Store = ratelimited.New(ratelimit, instrumented.New(memstore.New(ttl), "memory"))
+	var store store.Store = ratelimited.New(o.Ratelimit, instrumented.New(memstore.New(o.TTL), "memory"))
 
 	if len(o.ListenCluster) > 0 {
 		c := cluster.NewDynamic(o.Name, store)
@@ -374,7 +377,7 @@ func (o *Options) Run() error {
 		// to node A's bucket enter the cluster on different node, node B,
 		// then node B will dutifully pass along the requests to the node A
 		// and can DOS the target and congest the internal network.
-		store = ratelimited.New(ratelimit, c)
+		store = ratelimited.New(o.Ratelimit, c)
 		internalPaths = append(internalPaths, "/debug/cluster")
 		internalProtected.Handle("/debug/cluster", c)
 	}
@@ -384,7 +387,7 @@ func (o *Options) Run() error {
 		transforms = metricfamily.NewLabel(o.Labels, nil)
 	}
 
-	server := httpserver.New(store, validator, transforms, ttl)
+	server := httpserver.New(store, validator, transforms, o.TTL)
 
 	internalPathJSON, _ := json.MarshalIndent(Paths{Paths: internalPaths}, "", "  ")
 	externalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/authorize", "/upload", "/healthz", "/healthz/ready"}}, "", "  ")
