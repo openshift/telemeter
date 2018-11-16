@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/openshift/telemeter/pkg/store"
 	clientmodel "github.com/prometheus/client_model/go"
 )
@@ -64,16 +65,22 @@ func (s *memoryStore) ReadMetrics(ctx context.Context, minTimestampMs int64) ([]
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var result []*store.PartitionedMetrics
+	result := make([]*store.PartitionedMetrics, 0, len(s.store))
 
 	for partitionKey, slice := range s.store {
 		if slice.newest < minTimestampMs {
 			continue
 		}
 
+		families := make([]*clientmodel.MetricFamily, 0, len(slice.families))
+
+		for i := range slice.families {
+			families = append(families, proto.Clone(slice.families[i]).(*clientmodel.MetricFamily))
+		}
+
 		result = append(result, &store.PartitionedMetrics{
 			PartitionKey: partitionKey,
-			Families:     slice.families,
+			Families:     families,
 		})
 	}
 

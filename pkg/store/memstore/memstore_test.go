@@ -207,7 +207,6 @@ func TestReadWriteMetrics(t *testing.T) {
 			check: checks(
 				hasErr(nil),
 				lenPartitionedMetricsIs(0),
-				deepEquals(nil),
 			),
 		},
 		{
@@ -225,7 +224,6 @@ func TestReadWriteMetrics(t *testing.T) {
 			check: checks(
 				hasErr(nil),
 				lenPartitionedMetricsIs(0),
-				deepEquals(nil),
 			),
 		},
 		{
@@ -235,7 +233,6 @@ func TestReadWriteMetrics(t *testing.T) {
 			check: checks(
 				hasErr(nil),
 				lenPartitionedMetricsIs(0),
-				deepEquals(nil),
 			),
 		},
 	} {
