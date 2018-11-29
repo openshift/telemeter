@@ -68,6 +68,7 @@ func TestAuthorizeClusterHandler(t *testing.T) {
 	partitionKey := "partitionKey"
 	labels := map[string]string{
 		"foo": "bar",
+		"baz": "qux",
 	}
 	pk, err := rsa.GenerateKey(rand.Reader, 1024)
 	if err != nil {

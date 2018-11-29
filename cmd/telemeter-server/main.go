@@ -122,7 +122,7 @@ func main() {
 
 	cmd.Flags().BoolVarP(&opt.Verbose, "verbose", "v", opt.Verbose, "Show verbose output.")
 
-	cmd.Flags().StringSliceVar(&opt.RequiredLabelFlag, "required-label", opt.LabelFlag, "Labels that must be present on each incoming metric, in key=value form.")
+	cmd.Flags().StringSliceVar(&opt.RequiredLabelFlag, "required-label", opt.RequiredLabelFlag, "Labels that must be present on each incoming metric, in key=value form.")
 
 	if err := cmd.Execute(); err != nil {
 		os.Exit(1)
