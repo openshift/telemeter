@@ -90,19 +90,19 @@ if [[ -n "${test-}" ]]; then
       exit 1
     fi
     # verify we scrape metrics from the test cluster and give it _id test
-    if [[ "$( curl http://localhost:9005/api/v1/query --data-urlencode 'query=count({_id="test"})' -G 2>/dev/null | python -c 'import sys, json; print json.load(sys.stdin)["data"]["result"][0]["value"][1]' 2>/dev/null )" -eq 0 ]]; then
+    if [[ "$( curl http://localhost:9005/api/v1/query --data-urlencode 'query=count({_id="test"})' -G 2>/dev/null | python3 -c 'import sys, json; print(json.load(sys.stdin)["data"]["result"][0]["value"][1])' 2>/dev/null )" -eq 0 ]]; then
       retries=$((retries-1))
       sleep 1
       continue
     fi
     # verify we rename scrape_samples_scraped to scraped
-    if [[ "$( curl http://localhost:9005/api/v1/query --data-urlencode 'query=count(scraped{_id="test"})' -G 2>/dev/null | python -c 'import sys, json; print json.load(sys.stdin)["data"]["result"][0]["value"][1]' 2>/dev/null )" -eq 0 ]]; then
+    if [[ "$( curl http://localhost:9005/api/v1/query --data-urlencode 'query=count(scraped{_id="test"})' -G 2>/dev/null | python3 -c 'import sys, json; print(json.load(sys.stdin)["data"]["result"][0]["value"][1])' 2>/dev/null )" -eq 0 ]]; then
       retries=$((retries-1))
       sleep 1
       continue
     fi
     # verify we got alerts as remapped from ALERTS
-    if [[ "$( curl http://localhost:9005/api/v1/query --data-urlencode 'query=count(alerts{_id="test"})' -G 2>/dev/null | python -c 'import sys, json; print json.load(sys.stdin)["data"]["result"][0]["value"][1]' 2>/dev/null )" -eq 0 ]]; then
+    if [[ "$( curl http://localhost:9005/api/v1/query --data-urlencode 'query=count(alerts{_id="test"})' -G 2>/dev/null | python3 -c 'import sys, json; print(json.load(sys.stdin)["data"]["result"][0]["value"][1])' 2>/dev/null )" -eq 0 ]]; then
       retries=$((retries-1))
       sleep 1
       continue
