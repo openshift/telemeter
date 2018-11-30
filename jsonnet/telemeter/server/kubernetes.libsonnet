@@ -1,11 +1,14 @@
 local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
 local secretName = 'telemeter-server';
+local secretMountPath = '/etc/telemeter';
+local secretVolumeName = 'secret-telemeter-server';
 local tlsSecret = 'telemeter-server-shared';
 local tlsVolumeName = 'telemeter-server-tls';
 local tlsMountPath = '/etc/pki/service';
 local externalPort = 8443;
 local internalPort = 8081;
 local clusterPort = 8082;
+local whitelistFileName = 'whitelist';
 
 {
   _config+:: {
@@ -17,6 +20,7 @@ local clusterPort = 8082;
       rhdUsername: '',
       rhdPassword: '',
       rhdClientID: '',
+      whitelist: [],
     },
 
     versions+:: {
@@ -45,6 +49,8 @@ local clusterPort = 8082;
       local rhdUsername = containerEnv.fromSecretRef('RHD_USERNAME', secretName, 'rhd.username');
       local rhdPassword = containerEnv.fromSecretRef('RHD_PASSWORD', secretName, 'rhd.password');
       local rhdClientID = containerEnv.fromSecretRef('RHD_CLIENT_ID', secretName, 'rhd.client_id');
+      local secretMount = containerVolumeMount.new(secretVolumeName, secretMountPath);
+      local secretVolume = volume.fromSecret(secretVolumeName, secretName);
 
       local telemeterServer =
         container.new('telemeter-server', $._config.imageRepos.telemeterServer + ':' + $._config.versions.telemeterServer) +
@@ -65,13 +71,14 @@ local clusterPort = 8082;
           '--authorize-client-id=$(RHD_CLIENT_ID)',
           '--authorize-username=$(RHD_USERNAME)',
           '--authorize-password=$(RHD_PASSWORD)',
+          '--whitelist-file=%s/%s' % [secretMountPath, whitelistFileName],
         ]) +
         container.withPorts([
           containerPort.newNamed('external', externalPort),
           containerPort.newNamed('internal', internalPort),
           containerPort.newNamed('cluster', clusterPort),
         ]) +
-        container.withVolumeMounts([tlsMount]) +
+        container.withVolumeMounts([secretMount, tlsMount]) +
         container.withEnv([name, rhdURL, rhdUsername, rhdPassword, rhdClientID]) + {
           livenessProbe: {
             httpGet: {
@@ -95,7 +102,7 @@ local clusterPort = 8082;
       statefulSet.mixin.spec.withPodManagementPolicy('Parallel') +
       statefulSet.mixin.spec.withServiceName('telemeter-server') +
       statefulSet.mixin.spec.template.spec.withServiceAccountName('telemeter-server') +
-      statefulSet.mixin.spec.template.spec.withVolumes([tlsVolume]) +
+      statefulSet.mixin.spec.template.spec.withVolumes([secretVolume, tlsVolume]) +
       {
         spec+: {
           volumeClaimTemplates:: null,
@@ -106,6 +113,7 @@ local clusterPort = 8082;
       local secret = k.core.v1.secret;
 
       secret.new(secretName, {
+        [whitelistFileName]: std.base64(std.join('\n', $._config.telemeterServer.whitelist)),
         'rhd.url': std.base64($._config.telemeterServer.rhdURL),
         'rhd.username': std.base64($._config.telemeterServer.rhdUsername),
         'rhd.password': std.base64($._config.telemeterServer.rhdPassword),
