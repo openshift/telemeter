@@ -123,6 +123,8 @@ func main() {
 	cmd.Flags().BoolVarP(&opt.Verbose, "verbose", "v", opt.Verbose, "Show verbose output.")
 
 	cmd.Flags().StringSliceVar(&opt.RequiredLabelFlag, "required-label", opt.RequiredLabelFlag, "Labels that must be present on each incoming metric, in key=value form.")
+	cmd.Flags().StringArrayVar(&opt.Whitelist, "whitelist", opt.Whitelist, "Allowed rules for incoming metrics. If one of these rules is not matched, the metric is dropped.")
+	cmd.Flags().StringVar(&opt.WhitelistFile, "whitelist-file", opt.WhitelistFile, "A file of allowed rules for incoming metrics. If one of these rules is not matched, the metric is dropped; one label key per line.")
 
 	if err := cmd.Execute(); err != nil {
 		os.Exit(1)
@@ -159,6 +161,8 @@ type Options struct {
 	LimitBytes        int64
 	RequiredLabelFlag []string
 	RequiredLabels    map[string]string
+	Whitelist         []string
+	WhitelistFile     string
 
 	TTL       time.Duration
 	Ratelimit time.Duration
@@ -313,6 +317,28 @@ func (o *Options) Run() error {
 		privateKey, publicKey = key, key.Public()
 	}
 
+	// Configure the whitelist.
+	if len(o.WhitelistFile) > 0 {
+		data, err := ioutil.ReadFile(o.WhitelistFile)
+		if err != nil {
+			return fmt.Errorf("unable to read --whitelist-file: %v", err)
+		}
+		o.Whitelist = append(o.Whitelist, strings.Split(string(data), "\n")...)
+	}
+	for i := 0; i < len(o.Whitelist); {
+		s := strings.TrimSpace(o.Whitelist[i])
+		if len(s) == 0 {
+			o.Whitelist = append(o.Whitelist[:i], o.Whitelist[i+1:]...)
+			continue
+		}
+		o.Whitelist[i] = s
+		i++
+	}
+	whitelister, err := metricfamily.NewWhitelist(o.Whitelist)
+	if err != nil {
+		return err
+	}
+
 	issuer := "telemeter.selfsigned"
 	audience := "federate"
 
@@ -382,9 +408,10 @@ func (o *Options) Run() error {
 		internalProtected.Handle("/debug/cluster", c)
 	}
 
-	var transforms metricfamily.Transformer
+	transforms := metricfamily.MultiTransformer{}
+	transforms.With(whitelister)
 	if len(o.Labels) > 0 {
-		transforms = metricfamily.NewLabel(o.Labels, nil)
+		transforms.With(metricfamily.NewLabel(o.Labels, nil))
 	}
 
 	server := httpserver.New(store, validator, transforms, o.TTL)

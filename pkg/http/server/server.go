@@ -159,18 +159,9 @@ func (s *Server) decodeAndStoreMetrics(ctx context.Context, partitionKey string,
 		return err
 	}
 
-	// filter the list
-	for i, family := range families {
-		ok, err := transformer.Transform(family)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			families[i] = nil
-			continue
-		}
+	if err := metricfamily.Filter(families, transformer); err != nil {
+		return err
 	}
-
 	families = metricfamily.Pack(families)
 
 	return s.store.WriteMetrics(ctx, &store.PartitionedMetrics{

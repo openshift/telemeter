@@ -15,8 +15,7 @@ func NewRequiredLabels(labels map[string]string) Transformer {
 }
 
 var (
-	ErrRequiredLabelValueMismatch = fmt.Errorf("a label value does not match the required value")
-	ErrRequiredLabelMissing       = fmt.Errorf("a required label is missing from the metric")
+	ErrRequiredLabelMissing = fmt.Errorf("a required label is missing from the metric")
 )
 
 func (t requireLabel) Transform(family *clientmodel.MetricFamily) (bool, error) {
