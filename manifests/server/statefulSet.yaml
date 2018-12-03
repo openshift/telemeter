@@ -33,6 +33,7 @@ spec:
         - --authorize-client-id=$(RHD_CLIENT_ID)
         - --authorize-username=$(RHD_USERNAME)
         - --authorize-password=$(RHD_PASSWORD)
+        - --whitelist-file=/etc/telemeter/whitelist
         env:
         - name: NAME
           valueFrom:
@@ -78,11 +79,17 @@ spec:
             port: 8443
             scheme: HTTPS
         volumeMounts:
+        - mountPath: /etc/telemeter
+          name: secret-telemeter-server
+          readOnly: false
         - mountPath: /etc/pki/service
           name: telemeter-server-tls
           readOnly: false
       serviceAccountName: telemeter-server
       volumes:
+      - name: secret-telemeter-server
+        secret:
+          secretName: telemeter-server
       - name: telemeter-server-tls
         secret:
           secretName: telemeter-server-shared

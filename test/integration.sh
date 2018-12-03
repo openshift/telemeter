@@ -49,8 +49,34 @@ trap 'kill $(jobs -p); exit 0' EXIT
     --match '{__name__="scrape_samples_scraped"}'
 ) &
 
-( ./telemeter-server --ttl=24h --ratelimit=15s --authorize http://localhost:9001 --name instance-0 --shared-key=test/test.key --listen localhost:9003 --listen-internal localhost:9004 --listen-cluster 127.0.0.1:9006 --join 127.0.0.1:9016 -v ) &
-( ./telemeter-server --ttl=24h --ratelimit=15s --authorize http://localhost:9001 --name instance-1 --shared-key=test/test.key --listen localhost:9013 --listen-internal localhost:9014 --listen-cluster 127.0.0.1:9016 --join 127.0.0.1:9006 -v ) &
+( 
+./telemeter-server \
+    --ttl=24h \
+    --ratelimit=15s \
+    --authorize http://localhost:9001 \
+    --name instance-0 \
+    --shared-key=test/test.key \
+    --listen localhost:9003 \
+    --listen-internal localhost:9004 \
+    --listen-cluster 127.0.0.1:9006 \
+    --join 127.0.0.1:9016 \
+    --whitelist '{_id="test"}' \
+    -v
+) &
+( 
+./telemeter-server \
+    --ttl=24h \
+    --ratelimit=15s \
+    --authorize http://localhost:9001 \
+    --name instance-1 \
+    --shared-key=test/test.key \
+    --listen localhost:9013 \
+    --listen-internal localhost:9014 \
+    --listen-cluster 127.0.0.1:9016 \
+    --join 127.0.0.1:9006 \
+    --whitelist '{_id="test"}' \
+    -v
+) &
 
 ( prometheus --config.file=./test/prom-local.conf --web.listen-address=localhost:9005 "--storage.tsdb.path=$(mktemp -d)" --log.level=warn ) &
 
@@ -64,19 +90,19 @@ if [[ -n "${test-}" ]]; then
       exit 1
     fi
     # verify we scrape metrics from the test cluster and give it _id test
-    if [[ "$( curl http://localhost:9005/api/v1/query --data-urlencode 'query=count({_id="test"})' -G 2>/dev/null | python -c 'import sys, json; print json.load(sys.stdin)["data"]["result"][0]["value"][1]' 2>/dev/null )" -eq 0 ]]; then
+    if [[ "$( curl http://localhost:9005/api/v1/query --data-urlencode 'query=count({_id="test"})' -G 2>/dev/null | python3 -c 'import sys, json; print(json.load(sys.stdin)["data"]["result"][0]["value"][1])' 2>/dev/null )" -eq 0 ]]; then
       retries=$((retries-1))
       sleep 1
       continue
     fi
     # verify we rename scrape_samples_scraped to scraped
-    if [[ "$( curl http://localhost:9005/api/v1/query --data-urlencode 'query=count(scraped{_id="test"})' -G 2>/dev/null | python -c 'import sys, json; print json.load(sys.stdin)["data"]["result"][0]["value"][1]' 2>/dev/null )" -eq 0 ]]; then
+    if [[ "$( curl http://localhost:9005/api/v1/query --data-urlencode 'query=count(scraped{_id="test"})' -G 2>/dev/null | python3 -c 'import sys, json; print(json.load(sys.stdin)["data"]["result"][0]["value"][1])' 2>/dev/null )" -eq 0 ]]; then
       retries=$((retries-1))
       sleep 1
       continue
     fi
     # verify we got alerts as remapped from ALERTS
-    if [[ "$( curl http://localhost:9005/api/v1/query --data-urlencode 'query=count(alerts{_id="test"})' -G 2>/dev/null | python -c 'import sys, json; print json.load(sys.stdin)["data"]["result"][0]["value"][1]' 2>/dev/null )" -eq 0 ]]; then
+    if [[ "$( curl http://localhost:9005/api/v1/query --data-urlencode 'query=count(alerts{_id="test"})' -G 2>/dev/null | python3 -c 'import sys, json; print(json.load(sys.stdin)["data"]["result"][0]["value"][1])' 2>/dev/null )" -eq 0 ]]; then
       retries=$((retries-1))
       sleep 1
       continue
