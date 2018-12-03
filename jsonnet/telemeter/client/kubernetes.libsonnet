@@ -208,7 +208,7 @@ local securePort = 8443;
               port: 'https',
               scheme: 'https',
               tlsConfig: {
-                caFile: '/etc/prometheus/configmaps/telemeter-client-serving-certs-ca-bundle/%s' % servingCertsCABundleFileName,
+                caFile: '/etc/prometheus/configmaps/serving-certs-ca-bundle/%s' % servingCertsCABundleFileName,
                 serverName: $._config.telemeterClient.serverName,
               },
             },
