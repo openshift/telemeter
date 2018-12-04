@@ -1,6 +1,10 @@
 package metricfamily
 
-import clientmodel "github.com/prometheus/client_model/go"
+import (
+	"sync"
+
+	clientmodel "github.com/prometheus/client_model/go"
+)
 
 type LabelRetriever interface {
 	Labels() (map[string]string, error)
@@ -9,6 +13,7 @@ type LabelRetriever interface {
 type label struct {
 	labels    map[string]*clientmodel.LabelPair
 	retriever LabelRetriever
+	mu        sync.Mutex
 }
 
 func NewLabel(labels map[string]string, retriever LabelRetriever) Transformer {
@@ -24,6 +29,8 @@ func NewLabel(labels map[string]string, retriever LabelRetriever) Transformer {
 }
 
 func (t *label) Transform(family *clientmodel.MetricFamily) (bool, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	// lazily resolve the label retriever as needed
 	if t.retriever != nil && len(family.Metric) > 0 {
 		added, err := t.retriever.Labels()
