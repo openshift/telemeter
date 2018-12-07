@@ -14,7 +14,7 @@ local list = import 'lib/list.libsonnet';
       TelemeterServer: 'job="telemeter-server"',
     },
     telemeterServer+: {
-      whitelist+: (import 'metrics.json'),
+      whitelist+: (import 'metrics.jsonnet'),
     },
   },
 }
