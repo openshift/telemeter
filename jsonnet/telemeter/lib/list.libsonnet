@@ -100,9 +100,9 @@
             c {
               args: [
                 if std.startsWith(arg, '-openshift-sar') then
-                  '-openshift-sar={"resource": "namespaces", "verb": "get", "resourceName": "${NAMESPACE}", "namespace": "${NAMESPACE}"}'
+                  '-openshift-sar={"resource": "namespaces", "verb": "get", "name": "${NAMESPACE}"}'
                 else if std.startsWith(arg, '-openshift-delegate-urls') then
-                  '-openshift-delegate-urls={"/": {"resource": "namespaces", "verb": "get", "resourceName": "${NAMESPACE}", "namespace": "${NAMESPACE}"}}'
+                  '-openshift-delegate-urls={"/": {"resource": "namespaces", "verb": "get", "name": "${NAMESPACE}"}}'
                 else arg
                 for arg in super.args
               ],
@@ -127,6 +127,16 @@
         ],
       }
       else {},
+    local setClusterRoleRuleNamespace(object) =
+      if object.kind == 'ClusterRole' then {
+        rules: [
+          r + if std.objectHas(r, 'resources') && r.resources[0] == 'namespaces' then {
+            resourceNames: ['${NAMESPACE}'],
+          } else {}
+          for r in super.rules
+        ],
+      }
+      else {},
     local setServiceMonitorServerNameNamespace(object) =
       if object.kind == 'ServiceMonitor' then {
         spec+: {
@@ -142,7 +152,7 @@
       }
       else {},
     objects: [
-      o + setNamespace(o) + setSubjectNamespace(o) + setPermissions(o) + setServiceMonitorServerNameNamespace(o)
+      o + setNamespace(o) + setSubjectNamespace(o) + setPermissions(o) + setServiceMonitorServerNameNamespace(o) + setClusterRoleRuleNamespace(o)
       for o in super.objects
     ],
     parameters+: [
