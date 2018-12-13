@@ -151,8 +151,21 @@
         },
       }
       else {},
+    local namespaceNonNamespacedObjects(object) =
+      (if std.objectHas(object, 'metadata') && !std.objectHas(object.metadata, 'namespace') && std.objectHas(object.metadata, 'name') then {
+         metadata+: {
+           name: '%s-${NAMESPACE}' % super.name,
+         },
+       }
+       else {}) +
+      (if object.kind == 'ClusterRoleBinding' then {
+         roleRef+: {
+           name: '%s-${NAMESPACE}' % super.name,
+         },
+       }
+       else {}),
     objects: [
-      o + setNamespace(o) + setSubjectNamespace(o) + setPermissions(o) + setServiceMonitorServerNameNamespace(o) + setClusterRoleRuleNamespace(o)
+      o + setNamespace(o) + setSubjectNamespace(o) + setPermissions(o) + setServiceMonitorServerNameNamespace(o) + setClusterRoleRuleNamespace(o) + namespaceNonNamespacedObjects(o)
       for o in super.objects
     ],
     parameters+: [
