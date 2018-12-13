@@ -6,7 +6,7 @@ objects:
 - apiVersion: rbac.authorization.k8s.io/v1
   kind: ClusterRole
   metadata:
-    name: prometheus-telemeter
+    name: prometheus-telemeter-${NAMESPACE}
   rules:
   - nonResourceURLs:
     - /metrics
@@ -35,11 +35,11 @@ objects:
 - apiVersion: rbac.authorization.k8s.io/v1
   kind: ClusterRoleBinding
   metadata:
-    name: prometheus-telemeter
+    name: prometheus-telemeter-${NAMESPACE}
   roleRef:
     apiGroup: rbac.authorization.k8s.io
     kind: ClusterRole
-    name: prometheus-telemeter
+    name: prometheus-telemeter-${NAMESPACE}
   subjects:
   - kind: ServiceAccount
     name: prometheus-telemeter
