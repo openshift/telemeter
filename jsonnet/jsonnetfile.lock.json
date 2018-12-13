@@ -8,7 +8,7 @@
                     "subdir": "jsonnet/telemeter"
                 }
             },
-            "version": "19d60563832709f81cdb4bfcc63ac6a63944cba0"
+            "version": "8990c20b36a253dfbf943d7d5214ffce023b1400"
         },
         {
             "name": "ksonnet",
