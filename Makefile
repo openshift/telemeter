@@ -2,14 +2,16 @@
 
 BIN=bin
 GOLANGCI_LINT_BIN=$(BIN)/golangci-lint
+EMBEDMD_BIN=$(GOPATH)/bin/embedmd
 MIXTOOL_BIN=$(GOPATH)/bin/mixtool
 # We need jsonnet on CI; here we default to the user's installed jsonnet binary; if nothing is installed, then install go-jsonnet.
 JSONNET_BIN=$(if $(shell which jsonnet 2>/dev/null),$(shell which jsonnet 2>/dev/null),$(GOPATH)/bin/jsonnet)
 JB_BIN=$(GOPATH)/bin/jb
 JSONNET_SRC=$(shell find ./jsonnet -type f)
 JSONNET_VENDOR=jsonnet/jsonnetfile.lock.json jsonnet/vendor
+DOCS=$(shell grep -rlF [embedmd] docs)
 
-all: build manifests
+all: build manifests $(DOCS)
 
 build:
 	go build ./cmd/telemeter-client
@@ -18,6 +20,9 @@ build:
 
 image:
 	imagebuilder -t openshift/telemeter:latest .
+
+$(DOCS): $(JSONNET_SRC) $(EMBEDMD_BIN)
+	$(EMBEDMD_BIN) -w $@
 
 test-generate:
 	make --always-make && git diff --exit-code
@@ -58,3 +63,6 @@ $(JSONNET_BIN):
 
 $(GOLANGCI_LINT_BIN):
 	curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $(BIN) v1.10.2
+
+$(EMBEDMD_BIN):
+	go get -u github.com/campoy/embedmd
