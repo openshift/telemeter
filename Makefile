@@ -1,4 +1,4 @@
-.PHONY: all build image check test-integration vendor dependencies manifests
+.PHONY: all build image check test-generate test-integration vendor dependencies manifests
 
 BIN=bin
 GOLANGCI_LINT_BIN=$(BIN)/golangci-lint
@@ -18,6 +18,9 @@ build:
 
 image:
 	imagebuilder -t openshift/telemeter:latest .
+
+test-generate:
+	make --always-make && git diff --exit-code
 
 lint: $(GOLANGCI_LINT_BIN)
 	# megacheck fails to respect build flags, causing compilation failure during linting.
