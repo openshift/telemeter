@@ -41,13 +41,13 @@ test-integration: build
 vendor:
 	glide update -v --skip-test
 
-manifests: $(JSONNET_SRC) $(JSONNET_VENDOR)
+manifests: $(JSONNET_SRC) $(JSONNET_VENDOR) $(MIXTOOL_BIN)
 	rm -rf manifests
 	mixtool build jsonnet/client.jsonnet -J jsonnet/vendor -m manifests/client
 	mixtool build jsonnet/server.jsonnet -J jsonnet/vendor -m manifests/server
 	mixtool build jsonnet/prometheus.jsonnet -J jsonnet/vendor -m manifests/prometheus
 
-$(JSONNET_VENDOR): jsonnet/jsonnetfile.json
+$(JSONNET_VENDOR): jsonnet/jsonnetfile.json $(JB_BIN)
 	cd jsonnet && jb install
 
 dependencies: $(JB_BIN) $(JSONNET_BIN) $(MIXTOOL_BIN) $(GOLANGCI_LINT_BIN)
