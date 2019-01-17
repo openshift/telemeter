@@ -137,11 +137,14 @@ local securePort = 8443;
           '--upstream=http://127.0.0.1:%s/' % metricsPort,
           '--tls-cert-file=%s/tls.crt' % tlsMountPath,
           '--tls-private-key-file=%s/tls.key' % tlsMountPath,
-        ]) +
+        ] + if std.objectHas($._config, 'tlsCipherSuites') then [
+          '--tls-cipher-suites=' + std.join(',', $._config.tlsCipherSuites),
+        ] else []) +
         container.withPorts(containerPort.new(securePort) + containerPort.withName('https')) +
         container.mixin.resources.withRequests({ cpu: '10m', memory: '20Mi' }) +
         container.mixin.resources.withLimits({ cpu: '20m', memory: '40Mi' }) +
         container.withVolumeMounts([tlsMount]);
+
 
       deployment.new('telemeter-client', 1, [telemeterClient, reload, proxy], podLabels) +
       deployment.mixin.metadata.withNamespace($._config.namespace) +
