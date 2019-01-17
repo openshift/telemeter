@@ -3,7 +3,7 @@
 BIN=bin
 GOLANGCI_LINT_BIN=$(BIN)/golangci-lint
 EMBEDMD_BIN=$(GOPATH)/bin/embedmd
-MIXTOOL_BIN=$(GOPATH)/bin/mixtool
+GOJSONTOYAML_BIN=$(GOPATH)/bin/gojsontoyaml
 # We need jsonnet on CI; here we default to the user's installed jsonnet binary; if nothing is installed, then install go-jsonnet.
 JSONNET_BIN=$(if $(shell which jsonnet 2>/dev/null),$(shell which jsonnet 2>/dev/null),$(GOPATH)/bin/jsonnet)
 JB_BIN=$(GOPATH)/bin/jb
@@ -41,19 +41,20 @@ test-integration: build
 vendor:
 	glide update -v --skip-test
 
-manifests: $(JSONNET_SRC) $(JSONNET_VENDOR) $(MIXTOOL_BIN)
+manifests: $(JSONNET_SRC) $(JSONNET_VENDOR) $(JSONNET_BIN) $(GOJSONTOYAML_BIN)
 	rm -rf manifests
-	mixtool build jsonnet/client.jsonnet -J jsonnet/vendor -m manifests/client
-	mixtool build jsonnet/server.jsonnet -J jsonnet/vendor -m manifests/server
-	mixtool build jsonnet/prometheus.jsonnet -J jsonnet/vendor -m manifests/prometheus
+	mkdir -p manifests/{client,server,prometheus}
+	$(JSONNET_BIN) jsonnet/client.jsonnet -J jsonnet/vendor -m manifests/client
+	$(JSONNET_BIN) jsonnet/server.jsonnet -J jsonnet/vendor -m manifests/server
+	$(JSONNET_BIN) jsonnet/prometheus.jsonnet -J jsonnet/vendor -m manifests/prometheus
+	@for f in $$(find manifests -type f); do\
+	    cat $$f | $(GOJSONTOYAML_BIN) > $$f.yaml && rm $$f;\
+	done
 
 $(JSONNET_VENDOR): jsonnet/jsonnetfile.json $(JB_BIN)
 	cd jsonnet && jb install
 
-dependencies: $(JB_BIN) $(JSONNET_BIN) $(MIXTOOL_BIN) $(GOLANGCI_LINT_BIN)
-
-$(MIXTOOL_BIN):
-	go get -u github.com/metalmatze/mixtool/cmd/mixtool
+dependencies: $(JB_BIN) $(JSONNET_BIN) $(GOLANGCI_LINT_BIN)
 
 $(JB_BIN):
 	go get -u github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb
@@ -66,3 +67,6 @@ $(GOLANGCI_LINT_BIN):
 
 $(EMBEDMD_BIN):
 	go get -u github.com/campoy/embedmd
+
+$(GOJSONTOYAML_BIN):
+	go get -u github.com/brancz/gojsontoyaml
