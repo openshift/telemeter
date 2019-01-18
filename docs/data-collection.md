@@ -54,6 +54,16 @@ For the OpenShift 4 Developer Preview we will be sending back these exact attrib
   // cluster alerting for the purposes of preventing upgrades from
   // failing for end users.
   '{__name__="ALERTS",alertstate="firing"}',
+  // node_cpu_utilisation is used to report the current use of CPU
+  // in the cloud.openshift.com portal.
+  '{__name__="node:node_cpu_utilisation:avg1m"}',
+  // node_memory_utilisation is used to report the current use of
+  // memory in the cloud.openshift.com portal.
+  '{__name__="node:node_memory_utilisation:ratio"}',
+  // node_filesystem_size_bytes and node_disk_utilisation are used to
+  // report the current of of storage in the cloud.openshift.com portal.
+  '{__name__="node_filesystem_size_bytes"}',
+  '{__name__="node:node_disk_utilisation:avg_irate"}',
 ]
 ```
 
