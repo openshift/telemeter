@@ -46,4 +46,12 @@
   // cluster alerting for the purposes of preventing upgrades from
   // failing for end users.
   '{__name__="ALERTS",alertstate="firing"}',
+  // Kube state metrics for container status
+   '{__name__="kube_pod_container_status_running"}',
+   // Kube state metrics for container status
+   '{__name__="kube_pod_container_status_terminated"}',
+   // Kube state metrics for tracking container restart counts
+   '{__name__="kube_pod_container_status_restarts_total"}',
+    // Kube state metrics for tracking reason for container termination
+   '{__name__="kube_pod_container_status_terminated_reason"}',
 ]
