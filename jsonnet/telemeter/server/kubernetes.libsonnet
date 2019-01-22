@@ -16,6 +16,12 @@ local whitelistFileName = 'whitelist';
 
     telemeterServer+:: {
       authorizeURL: 'https://api.openshift.com/api/accounts_mgmt/v1/cluster_registrations',
+      // By default, the rate-limit is 1 request/4.5 minutes/cluster.
+      // Telemeter server should be able to handle 1/20s/cluster without being DOSed.
+      // This will also allow clusters reporting on behalf of others, e.g. CI,
+      // To make requests more often.
+      ratelimit: '20s',
+      replicas: 10,
       rhdURL: '',
       rhdUsername: '',
       rhdPassword: '',
@@ -72,6 +78,7 @@ local whitelistFileName = 'whitelist';
           '--authorize-username=$(RHD_USERNAME)',
           '--authorize-password=$(RHD_PASSWORD)',
           '--whitelist-file=%s/%s' % [secretMountPath, whitelistFileName],
+          '--ratelimit=' + $._config.telemeterServer.ratelimit,
         ]) +
         container.withPorts([
           containerPort.newNamed('external', externalPort),
@@ -96,7 +103,7 @@ local whitelistFileName = 'whitelist';
           },
         };
 
-      statefulSet.new('telemeter-server', 3, [telemeterServer], [], podLabels) +
+      statefulSet.new('telemeter-server', $._config.telemeterServer.replicas, [telemeterServer], [], podLabels) +
       statefulSet.mixin.metadata.withNamespace($._config.namespace) +
       statefulSet.mixin.spec.selector.withMatchLabels(podLabels) +
       statefulSet.mixin.spec.withPodManagementPolicy('Parallel') +
