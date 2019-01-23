@@ -99,7 +99,7 @@ objects:
     namespace: ${NAMESPACE}
   spec:
     podManagementPolicy: Parallel
-    replicas: 3
+    replicas: 10
     selector:
       matchLabels:
         k8s-app: telemeter-server
@@ -128,6 +128,7 @@ objects:
           - --authorize-username=$(RHD_USERNAME)
           - --authorize-password=$(RHD_PASSWORD)
           - --whitelist-file=/etc/telemeter/whitelist
+          - --ratelimit=20s
           env:
           - name: NAME
             valueFrom:
