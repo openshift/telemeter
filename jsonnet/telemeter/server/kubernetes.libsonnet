@@ -17,10 +17,13 @@ local whitelistFileName = 'whitelist';
     telemeterServer+:: {
       authorizeURL: 'https://api.openshift.com/api/accounts_mgmt/v1/cluster_registrations',
       // By default, the rate-limit is 1 request/4.5 minutes/cluster.
-      // Telemeter server should be able to handle 1/20s/cluster without being DOSed.
-      // This will also allow clusters reporting on behalf of others, e.g. CI,
-      // To make requests more often.
-      ratelimit: '20s',
+      // This sets the rate-limit to 100 times the intended frequency.
+      // If a cluster is making requests more than every two seconds,
+      // the requests will fail. This will also allow clusters reporting
+      // on behalf of others, e.g. CI, to make requests more often.
+      // The long-term solution is to introduce per-ID limits, or
+      // a whitelist of IDs that are not rate-limited.
+      ratelimit: '2s',
       replicas: 10,
       rhdURL: '',
       rhdUsername: '',
