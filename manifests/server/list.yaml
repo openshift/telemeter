@@ -128,7 +128,6 @@ objects:
           - --authorize-username=$(RHD_USERNAME)
           - --authorize-password=$(RHD_PASSWORD)
           - --whitelist-file=/etc/telemeter/whitelist
-          - --ratelimit=2s
           env:
           - name: NAME
             valueFrom:
