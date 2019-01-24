@@ -16,14 +16,6 @@ local whitelistFileName = 'whitelist';
 
     telemeterServer+:: {
       authorizeURL: 'https://api.openshift.com/api/accounts_mgmt/v1/cluster_registrations',
-      // By default, the rate-limit is 1 request/4.5 minutes/cluster.
-      // This sets the rate-limit to 100 times the intended frequency.
-      // If a cluster is making requests more than every two seconds,
-      // the requests will fail. This will also allow clusters reporting
-      // on behalf of others, e.g. CI, to make requests more often.
-      // The long-term solution is to introduce per-ID limits, or
-      // a whitelist of IDs that are not rate-limited.
-      ratelimit: '2s',
       replicas: 10,
       rhdURL: '',
       rhdUsername: '',
@@ -81,7 +73,6 @@ local whitelistFileName = 'whitelist';
           '--authorize-username=$(RHD_USERNAME)',
           '--authorize-password=$(RHD_PASSWORD)',
           '--whitelist-file=%s/%s' % [secretMountPath, whitelistFileName],
-          '--ratelimit=' + $._config.telemeterServer.ratelimit,
         ]) +
         container.withPorts([
           containerPort.newNamed('external', externalPort),
