@@ -112,9 +112,10 @@ local whitelistFileName = 'whitelist';
 
     secret:
       local secret = k.core.v1.secret;
+      local whitelist = std.strReplace(std.join('\n', $._config.telemeterServer.whitelist), 'ALERTS', 'alerts');
 
       secret.new(secretName, {
-        [whitelistFileName]: std.base64(std.join('\n', $._config.telemeterServer.whitelist)),
+        [whitelistFileName]: std.base64(whitelist),
         'rhd.url': std.base64($._config.telemeterServer.rhdURL),
         'rhd.username': std.base64($._config.telemeterServer.rhdUsername),
         'rhd.password': std.base64($._config.telemeterServer.rhdPassword),
