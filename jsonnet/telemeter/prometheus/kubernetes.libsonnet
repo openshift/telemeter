@@ -115,7 +115,6 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
         policyRule.new() +
         policyRule.withApiGroups(['']) +
         policyRule.withResources([
-          'nodes',
           'services',
           'endpoints',
           'pods',
