@@ -1,6 +1,8 @@
-hash: f761a38f3fefdc23efdad9a6ee0e52853719a3f9ab6194e7b3fc1a113147a1c5
-updated: 2018-11-30T16:29:38.592844148+01:00
+hash: 32f5b627e5eae9b1f575f2f5406a2b3e659e135f1249b1db71ace559274a7d3e
+updated: 2019-03-05T11:14:23.311087899+01:00
 imports:
+- name: github.com/alecthomas/units
+  version: 2efee857e7cfd4f3d0138cc3cbb1b4966962b93a
 - name: github.com/armon/go-metrics
   version: 3c58d8115a78a6879e5df75ae900846768d36895
 - name: github.com/beorn7/perks
@@ -8,11 +10,11 @@ imports:
   subpackages:
   - quantile
 - name: github.com/cespare/xxhash
-  version: 9573aff1c3fac17fd2632bc44faa33ce808339d2
+  version: 3767db7a7e183c0ad3395680d460d0b61534ae7b
 - name: github.com/coreos/go-oidc
   version: 1180514eaf4d9f38d0d19eef639a1d695e066e72
 - name: github.com/go-kit/kit
-  version: e0e1b245b9bab0ee37b2a2d4daaf15ae674c3740
+  version: 102522abed87468226354b1a1c8c588c81313822
   subpackages:
   - log
   - log/level
@@ -47,7 +49,7 @@ imports:
 - name: github.com/kr/logfmt
   version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
 - name: github.com/matttproud/golang_protobuf_extensions
-  version: fc2b8d3a73c4867e51861bbdd5ae3c1f0869dd6a
+  version: c12348ce28de40eed0136aa2b644d0ee0650e56c
   subpackages:
   - pbutil
 - name: github.com/miekg/dns
@@ -55,9 +57,9 @@ imports:
 - name: github.com/oklog/run
   version: 6934b124db28979da51d3470dadfa34d73d72652
 - name: github.com/oklog/ulid
-  version: f41f974e7fd381ab4f116d484f5df5a4ac7a41ba
+  version: 1fe95fa015d44afc8cd427914daadb0317481b71
 - name: github.com/opentracing/opentracing-go
-  version: 8b5a441dc60e8d9bb9bf9d22060b6d94fa599983
+  version: 25a84ff92183e2f8ac018ba1db54f8a07b3c0e04
   subpackages:
   - log
 - name: github.com/pkg/errors
@@ -71,13 +73,14 @@ imports:
   subpackages:
   - prometheus
   - prometheus/internal
+  - prometheus/promauto
   - prometheus/promhttp
 - name: github.com/prometheus/client_model
   version: 5c3871d89910bfb32f5fcab2aa4b9ec68e65a99f
   subpackages:
   - go
 - name: github.com/prometheus/common
-  version: 13ba4ddd0caa9c28ca7b7bffe1dfa9ed8d5ef207
+  version: cfeb6f9992ffa54aaa4f2170ade4067ee478b250
   subpackages:
   - expfmt
   - internal/bitbucket.org/ww/goautoneg
@@ -87,7 +90,7 @@ imports:
   subpackages:
   - xfs
 - name: github.com/prometheus/prometheus
-  version: 67dc912ac8b24f94a1fc478f352d25179c94ab9b
+  version: 62e591f928ddf6b3468308b7ac1de1c63aa7fcf3
   subpackages:
   - pkg/gate
   - pkg/labels
@@ -101,14 +104,17 @@ imports:
   - util/strutil
   - util/testutil
 - name: github.com/prometheus/tsdb
-  version: 48efdf8b81cb32c91da8fad9e3b43b11a857a6b7
+  version: 08af7bbf906a44b8dedd3c0ebfae347d9deb1183
   subpackages:
   - chunkenc
   - chunks
+  - encoding
   - fileutil
   - index
   - labels
   - wal
+- name: github.com/satori/go.uuid
+  version: b2ce2384e17bbe0c6d34077efa39dbab3e09123b
 - name: github.com/sean-/seed
   version: e2103e2c35297fb7e17febb81e49b312087a2372
 - name: github.com/serialx/hashring
@@ -123,7 +129,7 @@ imports:
   - ed25519
   - ed25519/internal/edwards25519
 - name: golang.org/x/net
-  version: 1c05540f6879653db88113bc4a2b70aec4bd491f
+  version: 0ed95abb35c445290478a5348a7b38bb154135fd
   subpackages:
   - bpf
   - context
@@ -136,11 +142,11 @@ imports:
   subpackages:
   - internal
 - name: golang.org/x/sync
-  version: 42b317875d0fa942474b76e1b46a6060d720ae6e
+  version: 1d60e4601c6fd243af51cc01ddf169918a5407ca
   subpackages:
   - errgroup
 - name: golang.org/x/sys
-  version: bb24a47a89eac6c1227fbcb2ae37a8b9ed323366
+  version: b90733256f2e882e81d52f9126de08df5615afd9
   subpackages:
   - unix
 - name: golang.org/x/time
@@ -158,7 +164,7 @@ imports:
   - internal/urlfetch
   - urlfetch
 - name: gopkg.in/square/go-jose.v2
-  version: f8f38de21b4dcd69d0413faf231983f5fd6634b1
+  version: 89060dee6a84df9a4dae49f676f0c755037834f1
   subpackages:
   - cipher
   - json

@@ -46,7 +46,7 @@ func TestWriteAndReadbackTombStones(t *testing.T) {
 
 	testutil.Ok(t, writeTombstoneFile(tmpdir, stones))
 
-	restr, err := readTombstones(tmpdir)
+	restr, _, err := readTombstones(tmpdir)
 	testutil.Ok(t, err)
 
 	// Compare the two readers.
@@ -120,7 +120,6 @@ func TestAddingNewIntervals(t *testing.T) {
 
 		testutil.Equals(t, c.exp, c.exist.add(c.new))
 	}
-	return
 }
 
 // TestMemTombstonesConcurrency to make sure they are safe to access from different goroutines.

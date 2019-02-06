@@ -30,7 +30,7 @@ func TestRepairBadIndexVersion(t *testing.T) {
 	// at a broken revision.
 	//
 	// func main() {
-	// 	w, err := index.NewWriter("index")
+	// 	w, err := index.NewWriter(indexFilename)
 	// 	if err != nil {
 	// 		panic(err)
 	// 	}
@@ -65,14 +65,14 @@ func TestRepairBadIndexVersion(t *testing.T) {
 
 	// Check the current db.
 	// In its current state, lookups should fail with the fixed code.
-	meta, err := readMetaFile(dbDir)
+	_, err := readMetaFile(dbDir)
 	testutil.NotOk(t, err)
 
 	// Touch chunks dir in block.
 	os.MkdirAll(filepath.Join(dbDir, "chunks"), 0777)
 	defer os.RemoveAll(filepath.Join(dbDir, "chunks"))
 
-	r, err := index.NewFileReader(filepath.Join(dbDir, "index"))
+	r, err := index.NewFileReader(filepath.Join(dbDir, indexFilename))
 	testutil.Ok(t, err)
 	p, err := r.Postings("b", "1")
 	testutil.Ok(t, err)
@@ -95,7 +95,7 @@ func TestRepairBadIndexVersion(t *testing.T) {
 	testutil.Ok(t, err)
 	db.Close()
 
-	r, err = index.NewFileReader(filepath.Join(tmpDbDir, "index"))
+	r, err = index.NewFileReader(filepath.Join(tmpDbDir, indexFilename))
 	testutil.Ok(t, err)
 	p, err = r.Postings("b", "1")
 	testutil.Ok(t, err)
@@ -116,7 +116,7 @@ func TestRepairBadIndexVersion(t *testing.T) {
 		{{"a", "2"}, {"b", "1"}},
 	}, res)
 
-	meta, err = readMetaFile(tmpDbDir)
+	meta, err := readMetaFile(tmpDbDir)
 	testutil.Ok(t, err)
 	testutil.Assert(t, meta.Version == 1, "unexpected meta version %d", meta.Version)
 }

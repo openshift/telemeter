@@ -61,18 +61,6 @@ func TestMemPostings_ensureOrder(t *testing.T) {
 	}
 }
 
-type mockPostings struct {
-	next  func() bool
-	seek  func(uint64) bool
-	value func() uint64
-	err   func() error
-}
-
-func (m *mockPostings) Next() bool         { return m.next() }
-func (m *mockPostings) Seek(v uint64) bool { return m.seek(v) }
-func (m *mockPostings) Value() uint64      { return m.value() }
-func (m *mockPostings) Err() error         { return m.err() }
-
 func TestIntersect(t *testing.T) {
 	var cases = []struct {
 		a, b []uint64
@@ -233,7 +221,7 @@ func TestMergedPostings(t *testing.T) {
 		a := newListPostings(c.a)
 		b := newListPostings(c.b)
 
-		res, err := ExpandPostings(newMergedPostings(a, b))
+		res, err := ExpandPostings(Merge(a, b))
 		testutil.Ok(t, err)
 		testutil.Equals(t, c.res, res)
 	}
@@ -286,7 +274,7 @@ func TestMergedPostingsSeek(t *testing.T) {
 		a := newListPostings(c.a)
 		b := newListPostings(c.b)
 
-		p := newMergedPostings(a, b)
+		p := Merge(a, b)
 
 		testutil.Equals(t, c.success, p.Seek(c.seek))
 
@@ -300,8 +288,6 @@ func TestMergedPostingsSeek(t *testing.T) {
 			testutil.Equals(t, c.res, lst)
 		}
 	}
-
-	return
 }
 
 func TestRemovedPostings(t *testing.T) {
@@ -463,8 +449,6 @@ func TestRemovedPostingsSeek(t *testing.T) {
 			testutil.Equals(t, c.res, lst)
 		}
 	}
-
-	return
 }
 
 func TestBigEndian(t *testing.T) {
@@ -546,7 +530,7 @@ func TestIntersectWithMerge(t *testing.T) {
 	// https://github.com/prometheus/prometheus/issues/2616
 	a := newListPostings([]uint64{21, 22, 23, 24, 25, 30})
 
-	b := newMergedPostings(
+	b := Merge(
 		newListPostings([]uint64{10, 20, 30}),
 		newListPostings([]uint64{15, 26, 30}),
 	)
