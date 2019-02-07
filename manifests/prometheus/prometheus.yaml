@@ -59,4 +59,15 @@ spec:
     matchLabels:
       endpoint: federate
       k8s-app: telemeter-server
+  storage:
+    volumeClaimTemplate:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 500Gi
+        storageClassName: gp2-encrypted
   version: v2.3.2

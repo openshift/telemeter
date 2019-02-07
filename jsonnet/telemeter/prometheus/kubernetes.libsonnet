@@ -216,6 +216,7 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
       local container = k.core.v1.pod.mixin.spec.containersType;
       local resourceRequirements = container.mixin.resourcesType;
       local selector = k.apps.v1beta2.deployment.mixin.spec.selectorType;
+      local pvc = k.core.v1.persistentVolumeClaim;
 
       local resources =
         resourceRequirements.new() +
@@ -252,6 +253,13 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
             'k8s-app': 'telemeter-server',
             endpoint: 'federate',
           }),
+          storage: {
+            volumeClaimTemplate:
+              pvc.new() +
+              pvc.mixin.spec.withAccessModes('ReadWriteOnce') +
+              pvc.mixin.spec.resources.withRequests({storage: '500Gi'}) +
+              pvc.mixin.spec.withStorageClassName('gp2-encrypted'),
+          },
           listenLocal: true,
           containers: [
             {
