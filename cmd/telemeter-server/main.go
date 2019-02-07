@@ -379,7 +379,10 @@ func (o *Options) Run() error {
 	ms.StartCleaner(ctx, time.Minute)
 
 	// Create a rate-limited store with a memory-store as its persistence.
-	var store store.Store = ratelimited.New(o.Ratelimit, instrumented.New(ms, "memory"))
+	var store store.Store = instrumented.New(ms, "memory")
+	if o.Ratelimit != 0 {
+		store = ratelimited.New(o.Ratelimit, store)
+	}
 
 	if len(o.ListenCluster) > 0 {
 		c := cluster.NewDynamic(o.Name, store)
@@ -402,6 +405,9 @@ func (o *Options) Run() error {
 				}
 			}()
 		}
+		internalPaths = append(internalPaths, "/debug/cluster")
+		internalProtected.Handle("/debug/cluster", c)
+		store = c
 		// Wrap the cluster store within a rate-limited store.
 		// This guarantees an upper-bound on the total inter-node requests that
 		// hit the target node of `l*n`, where l is the rate limit and n is
@@ -409,9 +415,9 @@ func (o *Options) Run() error {
 		// to node A's bucket enter the cluster on different node, node B,
 		// then node B will dutifully pass along the requests to the node A
 		// and can DOS the target and congest the internal network.
-		store = ratelimited.New(o.Ratelimit, c)
-		internalPaths = append(internalPaths, "/debug/cluster")
-		internalProtected.Handle("/debug/cluster", c)
+		if o.Ratelimit != 0 {
+			store = ratelimited.New(o.Ratelimit, store)
+		}
 	}
 
 	transforms := metricfamily.MultiTransformer{}
