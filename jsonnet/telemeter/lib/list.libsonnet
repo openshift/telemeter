@@ -100,9 +100,9 @@
             c {
               args: [
                 if std.startsWith(arg, '-openshift-sar') then
-                  '-openshift-sar={"resource": "namespaces", "verb": "get", "name": "${NAMESPACE}"}'
+                  '-openshift-sar={"resource": "namespaces", "verb": "get", "name": "${NAMESPACE}", "namespace": "${NAMESPACE}"}'
                 else if std.startsWith(arg, '-openshift-delegate-urls') then
-                  '-openshift-delegate-urls={"/": {"resource": "namespaces", "verb": "get", "name": "${NAMESPACE}"}}'
+                  '-openshift-delegate-urls={"/": {"resource": "namespaces", "verb": "get", "name": "${NAMESPACE}", "namespace": "${NAMESPACE}"}}'
                 else arg
                 for arg in super.args
               ],
