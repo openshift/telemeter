@@ -240,6 +240,7 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
           serviceAccountName: 'prometheus-' + $._config.prometheus.name,
           nodeSelector: { 'beta.kubernetes.io/os': 'linux' },
           resources: resources,
+          retention: '15d',
           ruleSelector: selector.withMatchLabels({
             role: 'alert-rules',
             prometheus: $._config.prometheus.name,

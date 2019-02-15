@@ -45,6 +45,7 @@ spec:
   resources:
     requests:
       memory: 400Mi
+  retention: 15d
   ruleSelector:
     matchLabels:
       prometheus: telemeter
