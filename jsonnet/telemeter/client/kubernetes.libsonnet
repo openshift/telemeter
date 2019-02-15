@@ -20,6 +20,7 @@ local securePort = 8443;
     telemeterClient+:: {
       anonymizeLabels: [],
       from: 'https://prometheus-k8s.%(namespace)s.svc:9091' % $._config,
+      id: '',
       matchRules: [],
       salt: '',
       serverName: 'server-name-replaced-at-runtime',
@@ -99,16 +100,17 @@ local securePort = 8443;
       local tlsVolume = volume.fromSecret(tlsVolumeName, tlsSecret);
       local sccabMount = containerVolumeMount.new(servingCertsCABundle, servingCertsCABundleMountPath);
       local sccabVolume = volume.withName(servingCertsCABundle) + volume.mixin.configMap.withName('telemeter-client-serving-certs-ca-bundle');
-      local anonymize = containerEnv.fromSecretRef('ANONYMIZE_LABELS', secretName, 'anonymizeLabels');
-      local id = containerEnv.fromSecretRef('ID', secretName, 'id');
-      local to = containerEnv.fromSecretRef('TO', secretName, 'to');
+      local anonymize = containerEnv.new('ANONYMIZE_LABELS', std.join(',', $._config.telemeterClient.anonymizeLabels));
+      local from = containerEnv.new('FROM', $._config.telemeterClient.from);
+      local id = containerEnv.new('ID', '');
+      local to = containerEnv.new('TO', $._config.telemeterClient.to);
 
       local telemeterClient =
         container.new('telemeter-client', $._config.imageRepos.telemeterClient + ':' + $._config.versions.telemeterClient) +
         container.withCommand([
           '/usr/bin/telemeter-client',
           '--id=$(ID)',
-          '--from=' + $._config.telemeterClient.from,
+          '--from=$(FROM)',
           '--from-ca-file=%s/%s' % [servingCertsCABundleMountPath, servingCertsCABundleFileName],
           '--from-token-file=' + fromTokenFile,
           '--to=$(TO)',
@@ -120,7 +122,7 @@ local securePort = 8443;
         ]) +
         container.withPorts(containerPort.newNamed('http', metricsPort)) +
         container.withVolumeMounts([sccabMount, secretMount]) +
-        container.withEnv([anonymize, id, to]);
+        container.withEnv([anonymize, from, id, to]);
 
       local reload =
         container.new('reload', $._config.imageRepos.configmapReload + ':' + $._config.versions.configmapReload) +
@@ -158,9 +160,7 @@ local securePort = 8443;
 
       secret.new(secretName, {
         [matchFileName]: std.base64(std.join('\n', $._config.telemeterClient.matchRules)),
-        anonymizeLabels: std.base64(std.join(',', $._config.telemeterClient.anonymizeLabels)),
         salt: std.base64($._config.telemeterClient.salt),
-        to: std.base64($._config.telemeterClient.to),
         token: std.base64($._config.telemeterClient.token),
       }) +
       secret.mixin.metadata.withNamespace($._config.namespace) +
