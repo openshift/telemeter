@@ -16,6 +16,11 @@ For the OpenShift 4 Developer Preview we will be sending back these exact attrib
   // configured to and is used to identify what versions are on a cluster
   // that is experiencing problems.
   '{__name__="cluster_version"}',
+  // cluster_version_available_updates reports the channel and version
+  // server the cluster is configured to use and how many updates are
+  // available. This is used to ensure that updates are being properly
+  // served to clusters.
+  '{__name__="cluster_version_available_updates"}',
   // cluster_operator_up reports the health status of the core cluster
   // operators - like up, an upgrade that fails due to a configuration value
   // on the cluster will help narrow down which component is affected.
