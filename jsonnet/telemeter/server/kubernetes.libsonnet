@@ -1,6 +1,5 @@
 local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
 local secretName = 'telemeter-server';
-local secretMountPath = '/etc/telemeter';
 local secretVolumeName = 'secret-telemeter-server';
 local tlsSecret = 'telemeter-server-shared';
 local tlsVolumeName = 'telemeter-server-tls';
@@ -8,7 +7,6 @@ local tlsMountPath = '/etc/pki/service';
 local externalPort = 8443;
 local internalPort = 8081;
 local clusterPort = 8082;
-local whitelistFileName = 'whitelist';
 
 {
   _config+:: {
@@ -50,8 +48,12 @@ local whitelistFileName = 'whitelist';
       local rhdUsername = containerEnv.fromSecretRef('RHD_USERNAME', secretName, 'rhd.username');
       local rhdPassword = containerEnv.fromSecretRef('RHD_PASSWORD', secretName, 'rhd.password');
       local rhdClientID = containerEnv.fromSecretRef('RHD_CLIENT_ID', secretName, 'rhd.client_id');
-      local secretMount = containerVolumeMount.new(secretVolumeName, secretMountPath);
       local secretVolume = volume.fromSecret(secretVolumeName, secretName);
+
+      local whitelist = std.map(
+        function(rule) "--whitelist='%s'" % std.strReplace(rule, 'ALERTS', 'alerts'),
+        $._config.telemeterServer.whitelist
+      );
 
       local telemeterServer =
         container.new('telemeter-server', $._config.imageRepos.telemeterServer + ':' + $._config.versions.telemeterServer) +
@@ -72,14 +74,13 @@ local whitelistFileName = 'whitelist';
           '--authorize-client-id=$(RHD_CLIENT_ID)',
           '--authorize-username=$(RHD_USERNAME)',
           '--authorize-password=$(RHD_PASSWORD)',
-          '--whitelist-file=%s/%s' % [secretMountPath, whitelistFileName],
-        ]) +
+        ] + whitelist) +
         container.withPorts([
           containerPort.newNamed('external', externalPort),
           containerPort.newNamed('internal', internalPort),
           containerPort.newNamed('cluster', clusterPort),
         ]) +
-        container.withVolumeMounts([secretMount, tlsMount]) +
+        container.withVolumeMounts([tlsMount]) +
         container.withEnv([name, rhdURL, rhdUsername, rhdPassword, rhdClientID]) + {
           livenessProbe: {
             httpGet: {
@@ -112,10 +113,8 @@ local whitelistFileName = 'whitelist';
 
     secret:
       local secret = k.core.v1.secret;
-      local whitelist = std.strReplace(std.join('\n', $._config.telemeterServer.whitelist), 'ALERTS', 'alerts');
 
       secret.new(secretName, {
-        [whitelistFileName]: std.base64(whitelist),
         'rhd.url': std.base64($._config.telemeterServer.rhdURL),
         'rhd.username': std.base64($._config.telemeterServer.rhdUsername),
         'rhd.password': std.base64($._config.telemeterServer.rhdPassword),
