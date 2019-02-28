@@ -33,7 +33,17 @@ spec:
         - --authorize-client-id=$(RHD_CLIENT_ID)
         - --authorize-username=$(RHD_USERNAME)
         - --authorize-password=$(RHD_PASSWORD)
-        - --whitelist-file=/etc/telemeter/whitelist
+        - --whitelist='{__name__="up"}'
+        - --whitelist='{__name__="cluster_version"}'
+        - --whitelist='{__name__="cluster_version_available_updates"}'
+        - --whitelist='{__name__="cluster_operator_up"}'
+        - --whitelist='{__name__="cluster_operator_conditions"}'
+        - --whitelist='{__name__="cluster_version_payload"}'
+        - --whitelist='{__name__="cluster_version_payload_errors"}'
+        - --whitelist='{__name__="machine_cpu_cores"}'
+        - --whitelist='{__name__="machine_memory_bytes"}'
+        - --whitelist='{__name__="etcd_object_counts"}'
+        - --whitelist='{__name__="alerts",alertstate="firing"}'
         env:
         - name: NAME
           valueFrom:
@@ -79,9 +89,6 @@ spec:
             port: 8443
             scheme: HTTPS
         volumeMounts:
-        - mountPath: /etc/telemeter
-          name: secret-telemeter-server
-          readOnly: false
         - mountPath: /etc/pki/service
           name: telemeter-server-tls
           readOnly: false
