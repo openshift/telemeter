@@ -51,7 +51,7 @@ local clusterPort = 8082;
       local secretVolume = volume.fromSecret(secretVolumeName, secretName);
 
       local whitelist = std.map(
-        function(rule) "--whitelist='%s'" % std.strReplace(rule, 'ALERTS', 'alerts'),
+        function(rule) '--whitelist=%s' % std.strReplace(rule, 'ALERTS', 'alerts'),
         $._config.telemeterServer.whitelist
       );
 
