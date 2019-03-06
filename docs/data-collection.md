@@ -59,6 +59,17 @@ For the OpenShift 4 Developer Preview we will be sending back these exact attrib
   // cluster alerting for the purposes of preventing upgrades from
   // failing for end users.
   '{__name__="ALERTS",alertstate="firing"}',
+  // the following three metrics will be used for SLA analysis reports.
+  // code:apiserver_request_count:rate:sum identifies average of occurances 
+  // of each http status code over 10 minutes
+  '{__name__="code:apiserver_request_count:rate:sum"}',
+  // kube_pod_status_ready:etcd:sum is the total number of 'etcd.*' pods 
+  // in the namespace "kube-system" whose condition is true
+  '{__name__="kube_pod_status_ready:etcd:sum"}',
+  // kube_pod_status_ready:image_registry:sum is the total number 
+  // of 'image_registry' pods in the namespace 'openshift-image-registry'
+  // whose condition is true
+  '{__name__="kube_pod_status_ready:image_registry:sum"}',
 ]
 ```
 
