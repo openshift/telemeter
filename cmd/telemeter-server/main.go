@@ -228,7 +228,7 @@ func (o *Options) Run() error {
 
 		authorizeClient = &http.Client{
 			Timeout:   20 * time.Second,
-			Transport: transport,
+			Transport: telemeter_http.NewInstrumentedRoundTripper("authorize", transport),
 		}
 
 		if o.AuthorizeIssuerURL != "" {
@@ -240,7 +240,7 @@ func (o *Options) Run() error {
 			ctx = context.WithValue(ctx, oauth2.HTTPClient,
 				&http.Client{
 					Timeout:   20 * time.Second,
-					Transport: transport,
+					Transport: telemeter_http.NewInstrumentedRoundTripper("oauth", transport),
 				},
 			)
 
@@ -254,6 +254,9 @@ func (o *Options) Run() error {
 				o.AuthorizeUsername, o.AuthorizePassword,
 			)
 
+			// both the underlying upstream authorize transport
+			// and the oauth transport are already instrumented,
+			// hence this doesn't need another instrumentation.
 			authorizeClient.Transport = &oauth2.Transport{
 				Base:   authorizeClient.Transport,
 				Source: src,
