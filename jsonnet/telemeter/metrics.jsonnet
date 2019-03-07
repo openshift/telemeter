@@ -62,4 +62,12 @@
   // of 'image_registry' pods in the namespace 'openshift-image-registry'
   // whose condition is true
   '{__name__="kube_pod_status_ready:image_registry:sum"}',
+  // cluster:node_instance_type_count:sum is the total number
+  // nodes of a particular cloud instance type, split into master and
+  // compute counts
+  '{__name__="cluster:node_instance_type_count:sum"}',
+  // cluster:cluster_capacity_cpu_cores:sum is the number of CPUs
+  // in a cluster available, split by master or compute role and cloud
+  // instance type
+  '{__name__="cluster:cluster_capacity_cpu_cores:sum"}',
 ]

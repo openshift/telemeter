@@ -47,6 +47,8 @@ spec:
         - --whitelist={__name__="code:apiserver_request_count:rate:sum"}
         - --whitelist={__name__="kube_pod_status_ready:etcd:sum"}
         - --whitelist={__name__="kube_pod_status_ready:image_registry:sum"}
+        - --whitelist={__name__="cluster:node_instance_type_count:sum"}
+        - --whitelist={__name__="cluster:cluster_capacity_cpu_cores:sum"}
         env:
         - name: NAME
           valueFrom:
