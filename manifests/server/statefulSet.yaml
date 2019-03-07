@@ -44,6 +44,9 @@ spec:
         - --whitelist={__name__="machine_memory_bytes"}
         - --whitelist={__name__="etcd_object_counts"}
         - --whitelist={__name__="alerts",alertstate="firing"}
+        - --whitelist={__name__="code:apiserver_request_count:rate:sum"}
+        - --whitelist={__name__="kube_pod_status_ready:etcd:sum"}
+        - --whitelist={__name__="kube_pod_status_ready:image_registry:sum"}
         env:
         - name: NAME
           valueFrom:
