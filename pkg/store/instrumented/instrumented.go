@@ -9,25 +9,25 @@ import (
 )
 
 var (
-	metricSamples = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "telemeter_server_samples",
+	metricSamplesTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "telemeter_server_samples_total",
 		Help: "Tracks the number of samples processed by this server.",
 	}, []string{"phase"})
 )
 
 func init() {
-	prometheus.MustRegister(metricSamples)
+	prometheus.MustRegister(metricSamplesTotal)
 }
 
 type instrumented struct {
-	target store.Store
-	gauge  prometheus.Gauge
+	target  store.Store
+	counter prometheus.Counter
 }
 
-func New(target store.Store, labelValues ...string) *instrumented {
+func New(target store.Store, phase string) *instrumented {
 	return &instrumented{
-		target: target,
-		gauge:  metricSamples.WithLabelValues(labelValues...),
+		target:  target,
+		counter: metricSamplesTotal.WithLabelValues(phase),
 	}
 }
 
@@ -46,7 +46,7 @@ func (s *instrumented) WriteMetrics(ctx context.Context, p *store.PartitionedMet
 		}
 	}
 
-	s.gauge.Add(float64(metricfamily.MetricsCount(p.Families)))
+	s.counter.Add(float64(metricfamily.MetricsCount(p.Families)))
 
 	return nil
 }
