@@ -1,0 +1,10 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    prometheus: benchmark
+    role: alert-rules
+  name: prometheus-benchmark-rules
+  namespace: telemeter-benchmark
+spec:
+  groups: []

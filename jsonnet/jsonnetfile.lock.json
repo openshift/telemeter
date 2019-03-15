@@ -8,7 +8,7 @@
                     "subdir": "jsonnet/telemeter"
                 }
             },
-            "version": "8990c20b36a253dfbf943d7d5214ffce023b1400"
+            "version": "e580d1f71da91e809c0f52dc6272536cf08605a9"
         },
         {
             "name": "ksonnet",
@@ -19,6 +19,16 @@
                 }
             },
             "version": "d03da231d6c8bd74437b74a1e9e8b966f13dffa2"
+        },
+        {
+            "name": "prometheus-operator",
+            "source": {
+                "git": {
+                    "remote": "https://github.com/coreos/prometheus-operator",
+                    "subdir": "jsonnet/prometheus-operator"
+                }
+            },
+            "version": "bd5feacc528f0bcb69fb9167dacb2700eb75d322"
         }
     ]
 }
