@@ -8,8 +8,32 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/openshift/telemeter/pkg/store"
+	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
 )
+
+var (
+	families = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "telemeter_memory_store_families",
+		Help: "Tracks the current amount of families for a given partition.",
+	}, []string{"partition"})
+
+	partititions = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "telemeter_memory_store_partitions",
+		Help: "Tracks the current amount of stored partitions.",
+	})
+
+	cleanupCount = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "telemeter_memory_store_cleanup_count",
+		Help: "Tracks the total amount of cleanups.",
+	})
+)
+
+func init() {
+	prometheus.MustRegister(partititions)
+	prometheus.MustRegister(cleanupCount)
+	prometheus.MustRegister(families)
+}
 
 type clusterMetricSlice struct {
 	newest   int64
@@ -56,9 +80,13 @@ func (s *memoryStore) cleanup(now time.Time) {
 		ttlTimestampMs := now.Add(-s.ttl).UnixNano() / int64(time.Millisecond)
 
 		if slice.newest < ttlTimestampMs {
+			families.WithLabelValues(partitionKey).Set(0)
 			delete(s.store, partitionKey)
 		}
 	}
+
+	cleanupCount.Inc()
+	partititions.Set(float64(len(s.store)))
 }
 
 func (s *memoryStore) ReadMetrics(ctx context.Context, minTimestampMs int64) ([]*store.PartitionedMetrics, error) {
@@ -113,6 +141,9 @@ func (s *memoryStore) WriteMetrics(ctx context.Context, p *store.PartitionedMetr
 	}
 
 	m.families = p.Families
+
+	partititions.Set(float64(len(s.store)))
+	families.WithLabelValues(p.PartitionKey).Set(float64(len(p.Families)))
 
 	return nil
 }
