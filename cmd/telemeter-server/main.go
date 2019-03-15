@@ -375,8 +375,11 @@ func (o *Options) Run() error {
 	auth := jwt.NewAuthorizeClusterHandler(o.PartitionKey, o.TokenExpireSeconds, signer, o.RequiredLabels, clusterAuth)
 	validator := validate.New(o.PartitionKey, o.LimitBytes, 24*time.Hour)
 
+	ms := memstore.New(o.TTL)
+	ms.StartCleaner(ctx, time.Minute)
+
 	// Create a rate-limited store with a memory-store as its persistence.
-	var store store.Store = ratelimited.New(o.Ratelimit, instrumented.New(memstore.New(o.TTL), "memory"))
+	var store store.Store = ratelimited.New(o.Ratelimit, instrumented.New(ms, "memory"))
 
 	if len(o.ListenCluster) > 0 {
 		c := cluster.NewDynamic(o.Name, store)
