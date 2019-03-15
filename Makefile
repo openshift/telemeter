@@ -69,7 +69,7 @@ manifests: $(JSONNET_SRC) $(JSONNET_VENDOR) $(JSONNET_BIN) $(GOJSONTOYAML_BIN)
 	done
 
 benchmark.pdf: $(BENCHMARK_RESULTS)
-	find ./benchmark -type f -name '*.json' -print0 | xargs -l -0 python test/plot.py && pdfunite benchmark/*.pdf $@
+	find ./benchmark -type f -name '*.json' -print0 | xargs -l -0 python3 test/plot.py && gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -sOutputFile=$@ benchmark/*.pdf
 
 $(JSONNET_VENDOR): jsonnet/jsonnetfile.json $(JB_BIN)
 	cd jsonnet && jb install
