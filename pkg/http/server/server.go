@@ -13,23 +13,21 @@ import (
 
 	"github.com/openshift/telemeter/pkg/metricfamily"
 	"github.com/openshift/telemeter/pkg/store"
-	"github.com/openshift/telemeter/pkg/store/instrumented"
 	"github.com/openshift/telemeter/pkg/store/ratelimited"
 	"github.com/openshift/telemeter/pkg/validate"
 )
 
 type Server struct {
-	maxSampleAge        time.Duration
-	receiveStore, store store.Store
-	transformer         metricfamily.Transformer
-	validator           validate.Validator
-	nowFn               func() time.Time
+	maxSampleAge time.Duration
+	store        store.Store
+	transformer  metricfamily.Transformer
+	validator    validate.Validator
+	nowFn        func() time.Time
 }
 
 func New(store store.Store, validator validate.Validator, transformer metricfamily.Transformer, maxSampleAge time.Duration) *Server {
 	return &Server{
 		maxSampleAge: maxSampleAge,
-		receiveStore: instrumented.New(nil, "received"),
 		store:        store,
 		transformer:  transformer,
 		validator:    validator,
@@ -150,13 +148,6 @@ func (s *Server) decodeAndStoreMetrics(ctx context.Context, partitionKey string,
 			}
 			return err
 		}
-	}
-
-	if err := s.receiveStore.WriteMetrics(ctx, &store.PartitionedMetrics{
-		PartitionKey: partitionKey,
-		Families:     families,
-	}); err != nil {
-		return err
 	}
 
 	if err := metricfamily.Filter(families, transformer); err != nil {
