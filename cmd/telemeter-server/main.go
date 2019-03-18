@@ -38,7 +38,6 @@ import (
 	"github.com/openshift/telemeter/pkg/metricfamily"
 	telemeter_oauth2 "github.com/openshift/telemeter/pkg/oauth2"
 	"github.com/openshift/telemeter/pkg/store"
-	"github.com/openshift/telemeter/pkg/store/instrumented"
 	"github.com/openshift/telemeter/pkg/store/memstore"
 	"github.com/openshift/telemeter/pkg/store/ratelimited"
 	"github.com/openshift/telemeter/pkg/validate"
@@ -378,11 +377,8 @@ func (o *Options) Run() error {
 	ms := memstore.New(o.TTL)
 	ms.StartCleaner(ctx, time.Minute)
 
-	// Create a rate-limited store with a memory-store as its persistence.
-	var store store.Store = instrumented.New(ms, "memory")
-	if o.Ratelimit != 0 {
-		store = ratelimited.New(o.Ratelimit, store)
-	}
+	// Create a rate-limited store with a memory-store as its backend.
+	var store store.Store = ratelimited.New(o.Ratelimit, ms)
 
 	if len(o.ListenCluster) > 0 {
 		c := cluster.NewDynamic(o.Name, store)

@@ -10,29 +10,37 @@ import (
 	"github.com/openshift/telemeter/pkg/store"
 	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
+
+	"github.com/openshift/telemeter/pkg/metricfamily"
 )
 
 var (
 	families = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "telemeter_memory_store_families",
+		Name: "telemeter_families",
 		Help: "Tracks the current amount of families for a given partition.",
 	}, []string{"partition"})
 
-	partititions = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "telemeter_memory_store_partitions",
+	partitions = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "telemeter_partitions",
 		Help: "Tracks the current amount of stored partitions.",
 	})
 
-	cleanupCount = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "telemeter_memory_store_cleanup_count",
+	cleanupsTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "telemeter_cleanups_total",
 		Help: "Tracks the total amount of cleanups.",
+	})
+
+	samplesTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "telemeter_samples_total",
+		Help: "Tracks the number of samples processed by this server.",
 	})
 )
 
 func init() {
-	prometheus.MustRegister(partititions)
-	prometheus.MustRegister(cleanupCount)
 	prometheus.MustRegister(families)
+	prometheus.MustRegister(partitions)
+	prometheus.MustRegister(cleanupsTotal)
+	prometheus.MustRegister(samplesTotal)
 }
 
 type clusterMetricSlice struct {
@@ -85,8 +93,8 @@ func (s *memoryStore) cleanup(now time.Time) {
 		}
 	}
 
-	cleanupCount.Inc()
-	partititions.Set(float64(len(s.store)))
+	cleanupsTotal.Inc()
+	partitions.Set(float64(len(s.store)))
 }
 
 func (s *memoryStore) ReadMetrics(ctx context.Context, minTimestampMs int64) ([]*store.PartitionedMetrics, error) {
@@ -142,8 +150,9 @@ func (s *memoryStore) WriteMetrics(ctx context.Context, p *store.PartitionedMetr
 
 	m.families = p.Families
 
-	partititions.Set(float64(len(s.store)))
+	partitions.Set(float64(len(s.store)))
 	families.WithLabelValues(p.PartitionKey).Set(float64(len(p.Families)))
+	samplesTotal.Add(float64(metricfamily.MetricsCount(p.Families)))
 
 	return nil
 }
