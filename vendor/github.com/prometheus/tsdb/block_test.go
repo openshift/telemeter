@@ -14,6 +14,7 @@
 package tsdb
 
 import (
+	"context"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -21,9 +22,8 @@ import (
 	"testing"
 
 	"github.com/go-kit/kit/log"
-	"github.com/prometheus/tsdb/index"
-	"github.com/prometheus/tsdb/labels"
 	"github.com/prometheus/tsdb/testutil"
+	"github.com/prometheus/tsdb/tsdbutil"
 )
 
 // In Prometheus 2.1.0 we had a bug where the meta.json version was falsely bumped
@@ -46,74 +46,121 @@ func TestSetCompactionFailed(t *testing.T) {
 	testutil.Ok(t, err)
 	defer os.RemoveAll(tmpdir)
 
-	b := createEmptyBlock(t, tmpdir, &BlockMeta{Version: 2})
-
+	blockDir := createBlock(t, tmpdir, genSeries(1, 1, 0, 0))
+	b, err := OpenBlock(nil, blockDir, nil)
+	testutil.Ok(t, err)
 	testutil.Equals(t, false, b.meta.Compaction.Failed)
 	testutil.Ok(t, b.setCompactionFailed())
 	testutil.Equals(t, true, b.meta.Compaction.Failed)
 	testutil.Ok(t, b.Close())
 
-	b, err = OpenBlock(tmpdir, nil)
+	b, err = OpenBlock(nil, blockDir, nil)
 	testutil.Ok(t, err)
 	testutil.Equals(t, true, b.meta.Compaction.Failed)
+	testutil.Ok(t, b.Close())
 }
 
-// createEmpty block creates a block with the given meta but without any data.
-func createEmptyBlock(t *testing.T, dir string, meta *BlockMeta) *Block {
-	testutil.Ok(t, os.MkdirAll(dir, 0777))
-
-	testutil.Ok(t, writeMetaFile(dir, meta))
-
-	ir, err := index.NewWriter(filepath.Join(dir, indexFilename))
-	testutil.Ok(t, err)
-	testutil.Ok(t, ir.Close())
-
-	testutil.Ok(t, os.MkdirAll(chunkDir(dir), 0777))
-
-	testutil.Ok(t, writeTombstoneFile(dir, newMemTombstones()))
-
-	b, err := OpenBlock(dir, nil)
-	testutil.Ok(t, err)
-	return b
-}
-
-// createPopulatedBlock creates a block with nSeries series, and nSamples samples.
-func createPopulatedBlock(tb testing.TB, dir string, nSeries, nSamples int) *Block {
+// createBlock creates a block with given set of series and returns its dir.
+func createBlock(tb testing.TB, dir string, series []Series) string {
 	head, err := NewHead(nil, nil, nil, 2*60*60*1000)
 	testutil.Ok(tb, err)
 	defer head.Close()
 
-	lbls, err := labels.ReadLabels(filepath.Join("testdata", "20kseries.json"), nSeries)
-	testutil.Ok(tb, err)
-	refs := make([]uint64, nSeries)
-
-	for n := 0; n < nSamples; n++ {
-		app := head.Appender()
-		ts := n * 1000
-		for i, lbl := range lbls {
-			if refs[i] != 0 {
-				err := app.AddFast(refs[i], int64(ts), rand.Float64())
+	app := head.Appender()
+	for _, s := range series {
+		ref := uint64(0)
+		it := s.Iterator()
+		for it.Next() {
+			t, v := it.At()
+			if ref != 0 {
+				err := app.AddFast(ref, t, v)
 				if err == nil {
 					continue
 				}
 			}
-			ref, err := app.Add(lbl, int64(ts), rand.Float64())
+			ref, err = app.Add(s.Labels(), t, v)
 			testutil.Ok(tb, err)
-			refs[i] = ref
 		}
-		err := app.Commit()
-		testutil.Ok(tb, err)
+		testutil.Ok(tb, it.Err())
 	}
+	err = app.Commit()
+	testutil.Ok(tb, err)
 
-	compactor, err := NewLeveledCompactor(nil, log.NewNopLogger(), []int64{1000000}, nil)
+	compactor, err := NewLeveledCompactor(context.Background(), nil, log.NewNopLogger(), []int64{1000000}, nil)
 	testutil.Ok(tb, err)
 
 	testutil.Ok(tb, os.MkdirAll(dir, 0777))
 
 	ulid, err := compactor.Write(dir, head, head.MinTime(), head.MaxTime(), nil)
 	testutil.Ok(tb, err)
+	return filepath.Join(dir, ulid.String())
+}
 
-	blk, err := OpenBlock(filepath.Join(dir, ulid.String()), nil)
-	testutil.Ok(tb, err)
-	return blk
+// genSeries generates series with a given number of labels and values.
+func genSeries(totalSeries, labelCount int, mint, maxt int64) []Series {
+	if totalSeries == 0 || labelCount == 0 {
+		return nil
+	}
+
+	series := make([]Series, totalSeries)
+	for i := 0; i < totalSeries; i++ {
+		lbls := make(map[string]string, labelCount)
+		for len(lbls) < labelCount {
+			lbls[randString()] = randString()
+		}
+		samples := make([]tsdbutil.Sample, 0, maxt-mint+1)
+		for t := mint; t <= maxt; t++ {
+			samples = append(samples, sample{t: t, v: rand.Float64()})
+		}
+		series[i] = newSeries(lbls, samples)
+	}
+	return series
+}
+
+// populateSeries generates series from given labels, mint and maxt.
+func populateSeries(lbls []map[string]string, mint, maxt int64) []Series {
+	if len(lbls) == 0 {
+		return nil
+	}
+
+	series := make([]Series, 0, len(lbls))
+	for _, lbl := range lbls {
+		if len(lbl) == 0 {
+			continue
+		}
+		samples := make([]tsdbutil.Sample, 0, maxt-mint+1)
+		for t := mint; t <= maxt; t++ {
+			samples = append(samples, sample{t: t, v: rand.Float64()})
+		}
+		series = append(series, newSeries(lbl, samples))
+	}
+	return series
+}
+
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+const (
+	letterIdxBits = 6                    // 6 bits to represent a letter index
+	letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
+	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
+)
+
+// randString generates random string.
+func randString() string {
+	maxLength := int32(50)
+	length := rand.Int31n(maxLength)
+	b := make([]byte, length+1)
+	// A rand.Int63() generates 63 random bits, enough for letterIdxMax characters!
+	for i, cache, remain := length, rand.Int63(), letterIdxMax; i >= 0; {
+		if remain == 0 {
+			cache, remain = rand.Int63(), letterIdxMax
+		}
+		if idx := int(cache & letterIdxMask); idx < len(letterBytes) {
+			b[i] = letterBytes[idx]
+			i--
+		}
+		cache >>= letterIdxBits
+		remain--
+	}
+
+	return string(b)
 }

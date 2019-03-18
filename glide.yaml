@@ -1,7 +1,7 @@
 package: github.com/openshift/telemeter
 import:
 - package: github.com/prometheus/prometheus
-  version: v2.5.0
+  version: v2.7.1
   subpackages:
   - pkg/labels
   - promql
@@ -11,6 +11,8 @@ import:
   - prometheus
 - package: github.com/prometheus/client_model
   version: 5c3871d89910bfb32f5fcab2aa4b9ec68e65a99f
+- package: github.com/prometheus/common
+  version: v0.2.0
 - package: github.com/spf13/cobra
   version: 0.0.3
 - package: github.com/spf13/pflag

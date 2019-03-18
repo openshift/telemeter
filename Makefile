@@ -1,4 +1,4 @@
-.PHONY: all build image check test-generate test-integration vendor dependencies manifests
+.PHONY: all build image check test-generate test-integration test-benchmark vendor dependencies manifests
 
 BIN=bin
 GOLANGCI_LINT_BIN=$(BIN)/golangci-lint
@@ -8,6 +8,7 @@ GOJSONTOYAML_BIN=$(GOPATH)/bin/gojsontoyaml
 JSONNET_BIN=$(if $(shell which jsonnet 2>/dev/null),$(shell which jsonnet 2>/dev/null),$(GOPATH)/bin/jsonnet)
 JB_BIN=$(GOPATH)/bin/jb
 JSONNET_SRC=$(shell find ./jsonnet -type f)
+BENCHMARK_RESULTS=$(shell find ./benchmark -type f -name '*.json')
 JSONNET_VENDOR=jsonnet/jsonnetfile.lock.json jsonnet/vendor
 DOCS=$(shell grep -rlF [embedmd] docs)
 
@@ -17,6 +18,7 @@ build:
 	go build ./cmd/telemeter-client
 	go build ./cmd/telemeter-server
 	go build ./cmd/authorization-server
+	go build ./cmd/telemeter-benchmark
 
 image:
 	imagebuilder -t openshift/telemeter:latest .
@@ -38,18 +40,36 @@ check: lint
 test-integration: build
 	./test/integration.sh
 
+test-benchmark: build
+	./test/benchmark.sh
+
+test/timeseries.txt:
+	oc port-forward -n openshift-monitoring prometheus-k8s-0 9090 > /dev/null & \
+	sleep 5 ; \
+	c="curl --fail --silent -G http://localhost:9090/federate"; \
+	for r in $$(jsonnet metrics.json | jq -r '.[]'); \
+	    do c="$$c $$(printf -- "--data-urlencode match[]=%s" $$r)"; \
+	done; \
+	echo '# This file was generated using `make $@`.' > $@ ; \
+	$$c >> $@ ; \
+	jobs -p | xargs -r kill
+
 vendor:
 	glide update -v --skip-test
 
 manifests: $(JSONNET_SRC) $(JSONNET_VENDOR) $(JSONNET_BIN) $(GOJSONTOYAML_BIN)
 	rm -rf manifests
-	mkdir -p manifests/{client,server,prometheus}
+	mkdir -p manifests/{benchmark,client,server,prometheus}
+	$(JSONNET_BIN) jsonnet/benchmark.jsonnet -J jsonnet/vendor -m manifests/benchmark
 	$(JSONNET_BIN) jsonnet/client.jsonnet -J jsonnet/vendor -m manifests/client
 	$(JSONNET_BIN) jsonnet/server.jsonnet -J jsonnet/vendor -m manifests/server
 	$(JSONNET_BIN) jsonnet/prometheus.jsonnet -J jsonnet/vendor -m manifests/prometheus
 	@for f in $$(find manifests -type f); do\
 	    cat $$f | $(GOJSONTOYAML_BIN) > $$f.yaml && rm $$f;\
 	done
+
+benchmark.pdf: $(BENCHMARK_RESULTS)
+	find ./benchmark -type f -name '*.json' -print0 | xargs -l -0 python3 test/plot.py && gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -sOutputFile=$@ benchmark/*.pdf
 
 $(JSONNET_VENDOR): jsonnet/jsonnetfile.json $(JB_BIN)
 	cd jsonnet && jb install

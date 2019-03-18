@@ -1,6 +1,9 @@
+/telemeter-benchmark
 /telemeter-client
 /telemeter-server
 /authorization-server
 /_output
 telemeter-bench
-bin
+/bin
+/benchmark
+benchmark.pdf

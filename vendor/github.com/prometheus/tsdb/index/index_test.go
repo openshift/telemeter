@@ -24,6 +24,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/prometheus/tsdb/chunkenc"
 	"github.com/prometheus/tsdb/chunks"
+	"github.com/prometheus/tsdb/encoding"
 	"github.com/prometheus/tsdb/labels"
 	"github.com/prometheus/tsdb/testutil"
 )
@@ -151,7 +152,7 @@ func TestIndexRW_Create_Open(t *testing.T) {
 	testutil.Ok(t, err)
 	defer os.RemoveAll(dir)
 
-	fn := filepath.Join(dir, "index")
+	fn := filepath.Join(dir, indexFilename)
 
 	// An empty index must still result in a readable file.
 	iw, err := NewWriter(fn)
@@ -177,7 +178,7 @@ func TestIndexRW_Postings(t *testing.T) {
 	testutil.Ok(t, err)
 	defer os.RemoveAll(dir)
 
-	fn := filepath.Join(dir, "index")
+	fn := filepath.Join(dir, indexFilename)
 
 	iw, err := NewWriter(fn)
 	testutil.Ok(t, err)
@@ -271,7 +272,7 @@ func TestPersistence_index_e2e(t *testing.T) {
 		})
 	}
 
-	iw, err := NewWriter(filepath.Join(dir, "index"))
+	iw, err := NewWriter(filepath.Join(dir, indexFilename))
 	testutil.Ok(t, err)
 
 	testutil.Ok(t, iw.AddSymbols(symbols))
@@ -331,7 +332,7 @@ func TestPersistence_index_e2e(t *testing.T) {
 	err = iw.Close()
 	testutil.Ok(t, err)
 
-	ir, err := NewFileReader(filepath.Join(dir, "index"))
+	ir, err := NewFileReader(filepath.Join(dir, indexFilename))
 	testutil.Ok(t, err)
 
 	for p := range mi.postings {
@@ -339,6 +340,7 @@ func TestPersistence_index_e2e(t *testing.T) {
 		testutil.Ok(t, err)
 
 		expp, err := mi.Postings(p.Name, p.Value)
+		testutil.Ok(t, err)
 
 		var lset, explset labels.Labels
 		var chks, expchks []chunks.Meta
@@ -352,6 +354,7 @@ func TestPersistence_index_e2e(t *testing.T) {
 			testutil.Ok(t, err)
 
 			err = mi.Series(expp.At(), &explset, &expchks)
+			testutil.Ok(t, err)
 			testutil.Equals(t, explset, lset)
 			testutil.Equals(t, expchks, chks)
 		}
@@ -378,13 +381,28 @@ func TestPersistence_index_e2e(t *testing.T) {
 		}
 	}
 
+	gotSymbols, err := ir.Symbols()
+	testutil.Ok(t, err)
+
+	testutil.Equals(t, len(mi.symbols), len(gotSymbols))
+	for s := range mi.symbols {
+		_, ok := gotSymbols[s]
+		testutil.Assert(t, ok, "")
+	}
+
 	testutil.Ok(t, ir.Close())
+}
+
+func TestDecbufUvariantWithInvalidBuffer(t *testing.T) {
+	b := realByteSlice([]byte{0x81, 0x81, 0x81, 0x81, 0x81, 0x81})
+
+	db := encoding.NewDecbufUvarintAt(b, 0, castagnoliTable)
+	testutil.NotOk(t, db.Err())
 }
 
 func TestReaderWithInvalidBuffer(t *testing.T) {
 	b := realByteSlice([]byte{0x81, 0x81, 0x81, 0x81, 0x81, 0x81})
-	r := &Reader{b: b}
 
-	db := r.decbufUvarintAt(0)
-	testutil.NotOk(t, db.err())
+	_, err := NewReader(b)
+	testutil.NotOk(t, err)
 }
