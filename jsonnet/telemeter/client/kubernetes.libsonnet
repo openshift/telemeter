@@ -2,7 +2,6 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
 local secretName = 'telemeter-client';
 local secretVolumeName = 'secret-telemeter-client';
 local secretMountPath = '/etc/telemeter';
-local matchFileName = 'match-rules';
 local tlsSecret = 'telemeter-client-tls';
 local tlsVolumeName = 'telemeter-client-tls';
 local tlsMountPath = '/etc/tls/private';
@@ -105,6 +104,11 @@ local securePort = 8443;
       local id = containerEnv.new('ID', '');
       local to = containerEnv.new('TO', $._config.telemeterClient.to);
 
+      local matchRules = std.map(
+        function(rule) '--match=%s' % rule,
+        $._config.telemeterClient.matchRules
+      );
+
       local telemeterClient =
         container.new('telemeter-client', $._config.imageRepos.telemeterClient + ':' + $._config.versions.telemeterClient) +
         container.withCommand([
@@ -116,10 +120,9 @@ local securePort = 8443;
           '--to=$(TO)',
           '--to-token-file=%s/token' % secretMountPath,
           '--listen=localhost:' + metricsPort,
-          '--match-file=%s/%s' % [secretMountPath, matchFileName],
           '--anonymize-salt-file=%s/salt' % secretMountPath,
           '--anonymize-labels=$(ANONYMIZE_LABELS)',
-        ]) +
+        ] + matchRules) +
         container.withPorts(containerPort.newNamed('http', metricsPort)) +
         container.withVolumeMounts([sccabMount, secretMount]) +
         container.withEnv([anonymize, from, id, to]);
@@ -159,7 +162,6 @@ local securePort = 8443;
       local secret = k.core.v1.secret;
 
       secret.new(secretName, {
-        [matchFileName]: std.base64(std.join('\n', $._config.telemeterClient.matchRules)),
         salt: std.base64($._config.telemeterClient.salt),
         token: std.base64($._config.telemeterClient.token),
       }) +
