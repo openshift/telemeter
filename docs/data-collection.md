@@ -60,16 +60,37 @@ For the OpenShift 4 Developer Preview we will be sending back these exact attrib
   // failing for end users.
   '{__name__="ALERTS",alertstate="firing"}',
   // the following three metrics will be used for SLA analysis reports.
-  // code:apiserver_request_count:rate:sum identifies average of occurances 
+  // code:apiserver_request_count:rate:sum identifies average of occurances
   // of each http status code over 10 minutes
   '{__name__="code:apiserver_request_count:rate:sum"}',
-  // kube_pod_status_ready:etcd:sum is the total number of 'etcd.*' pods 
+  // kube_pod_status_ready:etcd:sum is the total number of 'etcd.*' pods
   // in the namespace "kube-system" whose condition is true
   '{__name__="kube_pod_status_ready:etcd:sum"}',
-  // kube_pod_status_ready:image_registry:sum is the total number 
+  // kube_pod_status_ready:image_registry:sum is the total number
   // of 'image_registry' pods in the namespace 'openshift-image-registry'
   // whose condition is true
   '{__name__="kube_pod_status_ready:image_registry:sum"}',
+  // cluster:capacity_cpu_cores:sum is the total number of CPU cores
+  // in the cluster labeled by node role and type.
+  '{__name__="cluster:capacity_cpu_cores:sum"}',
+  // cluster:capacity_memory_bytes:sum is the total bytes of memory
+  // in the cluster labeled by node role and type.
+  '{__name__="cluster:capacity_memory_bytes:sum"}',
+  // cluster:cpu_usage_cores:sum is the current amount of CPU in
+  // use across the whole cluster.
+  '{__name__="cluster:cpu_usage_cores:sum"}',
+  // cluster:memory_usage_bytes:sum is the current amount of memory in
+  // use across the whole cluster.
+  '{__name__="cluster:memory_usage_bytes:sum"}',
+  // openshift:cpu_usage_cores:sum is the current amount of CPU
+  // used by OpenShift components.
+  '{__name__="openshift:cpu_usage_cores:sum"}',
+  // openshift:memory_usage_bytes:sum is the current amount of memory
+  // used by OpenShift components.
+  '{__name__="openshift:memory_usage_bytes:sum"}',
+  // cluster:node_instance_type_count:sum is the number of nodes
+  // of each instance type and role.
+  '{__name__="cluster:node_instance_type_count:sum"}',
 ]
 ```
 
