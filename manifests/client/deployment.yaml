@@ -41,6 +41,13 @@ spec:
         - --match={__name__="code:apiserver_request_count:rate:sum"}
         - --match={__name__="kube_pod_status_ready:etcd:sum"}
         - --match={__name__="kube_pod_status_ready:image_registry:sum"}
+        - --match={__name__="cluster:capacity_cpu_cores:sum"}
+        - --match={__name__="cluster:capacity_memory_bytes:sum"}
+        - --match={__name__="cluster:cpu_usage_cores:sum"}
+        - --match={__name__="cluster:memory_usage_bytes:sum"}
+        - --match={__name__="openshift:cpu_usage_cores:sum"}
+        - --match={__name__="openshift:memory_usage_bytes:sum"}
+        - --match={__name__="cluster:node_instance_type_count:sum"}
         env:
         - name: ANONYMIZE_LABELS
           value: ""
