@@ -15,4 +15,5 @@ spec:
   selector:
     app: prometheus
     prometheus: telemeter
+  sessionAffinity: ClientIP
   type: ClusterIP

@@ -237,6 +237,7 @@ objects:
     selector:
       app: prometheus
       prometheus: telemeter
+    sessionAffinity: ClientIP
     type: ClusterIP
 - apiVersion: v1
   kind: ServiceAccount
