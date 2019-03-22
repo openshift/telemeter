@@ -89,7 +89,8 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
       service.mixin.metadata.withAnnotations({
         'service.alpha.openshift.io/serving-cert-secret-name': 'prometheus-telemeter-tls',
       }) +
-      service.mixin.spec.withType('ClusterIP'),
+      service.mixin.spec.withType('ClusterIP') +
+      service.mixin.spec.withSessionAffinity('ClientIP'),
 
     rules:
       {
@@ -258,7 +259,7 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
             volumeClaimTemplate:
               pvc.new() +
               pvc.mixin.spec.withAccessModes('ReadWriteOnce') +
-              pvc.mixin.spec.resources.withRequests({storage: '500Gi'}) +
+              pvc.mixin.spec.resources.withRequests({ storage: '500Gi' }) +
               pvc.mixin.spec.withStorageClassName('gp2-encrypted'),
           },
           listenLocal: true,
