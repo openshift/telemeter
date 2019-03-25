@@ -9,6 +9,46 @@
     parameters: parameters,
   },
 
+  withResourceRequestsAndLimits(_config):: {
+    local setResourceRequestsAndLimits(object) =
+      if object.kind == 'StatefulSet' then {
+        spec+: {
+          template+: {
+            spec+: {  
+              containers: [
+                if c.name == 'telemeter-server' then
+                  c {
+                      resources: {
+                        requests: {
+                          cpu: "${TELEMETER_SERVER_CPU_REQUEST}",
+                          memory: "${TELEMETER_SERVER_MEMORY_REQUEST}",
+                        },
+                        limits: {
+                          cpu: "${TELEMETER_SERVER_CPU_LIMIT}",
+                          memory: "${TELEMETER_SERVER_MEMORY_LIMIT}",
+                        },
+                      }
+                  }
+                else c
+                for c in super.containers
+              ],
+            },
+          },
+        },
+      }
+      else {},
+    objects: [
+      o + setResourceRequestsAndLimits(o)
+      for o in super.objects
+    ],
+    parameters+: [
+      { name: 'TELEMETER_SERVER_CPU_REQUEST', value: if std.objectHas(_config.telemeterServer.resourceRequests, 'cpu') then _config.telemeterServer.resourceRequests.cpu else "0" },
+      { name: 'TELEMETER_SERVER_CPU_LIMIT', value: if std.objectHas(_config.telemeterServer.resourceLimits, 'cpu') then _config.telemeterServer.resourceLimits.cpu else "0" },
+      { name: 'TELEMETER_SERVER_MEMORY_REQUEST', value: if std.objectHas(_config.telemeterServer.resourceRequests, 'memory') then _config.telemeterServer.resourceRequests.memory else "0" },
+      { name: 'TELEMETER_SERVER_MEMORY_LIMIT', value: if std.objectHas(_config.telemeterServer.resourceLimits, 'memory') then _config.telemeterServer.resourceLimits.memory else "0" },
+    ],
+  },
+
   withAuthorizeURL(_config):: {
     local setAuthorizeURL(object) =
       if object.kind == 'StatefulSet' then {

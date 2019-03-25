@@ -6,7 +6,8 @@ local list = import 'lib/list.libsonnet';
     list: list.asList('telemeter', ts, [])
           + list.withAuthorizeURL($._config)
           + list.withNamespace($._config)
-          + list.withServerImage($._config),
+          + list.withServerImage($._config)
+          + list.withResourceRequestsAndLimits($._config)
   },
 } + {
   _config+:: {
@@ -18,6 +19,14 @@ local list = import 'lib/list.libsonnet';
       elideLabels+: [
         'prometheus_replica',
       ],
+      // resourceLimits: {
+      //   cpu: '1',
+      //   memory: '1Gi',
+      // },
+      // resourceRequests: {
+      //   cpu: '0.2',
+      //   memory: '100Mi',
+      // },
     },
   },
 }
