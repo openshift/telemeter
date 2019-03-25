@@ -124,6 +124,7 @@ func main() {
 	cmd.Flags().StringSliceVar(&opt.RequiredLabelFlag, "required-label", opt.RequiredLabelFlag, "Labels that must be present on each incoming metric, in key=value form.")
 	cmd.Flags().StringArrayVar(&opt.Whitelist, "whitelist", opt.Whitelist, "Allowed rules for incoming metrics. If one of these rules is not matched, the metric is dropped.")
 	cmd.Flags().StringVar(&opt.WhitelistFile, "whitelist-file", opt.WhitelistFile, "A file of allowed rules for incoming metrics. If one of these rules is not matched, the metric is dropped; one label key per line.")
+	cmd.Flags().StringArrayVar(&opt.ElideLabels, "elide-label", opt.ElideLabels, "A list of labels to be elided from incoming metrics.")
 
 	if err := cmd.Execute(); err != nil {
 		os.Exit(1)
@@ -161,6 +162,7 @@ type Options struct {
 	RequiredLabelFlag []string
 	RequiredLabels    map[string]string
 	Whitelist         []string
+	ElideLabels       []string
 	WhitelistFile     string
 
 	TTL       time.Duration
@@ -421,6 +423,7 @@ func (o *Options) Run() error {
 	if len(o.Labels) > 0 {
 		transforms.With(metricfamily.NewLabel(o.Labels, nil))
 	}
+	transforms.With(metricfamily.NewElide(o.ElideLabels...))
 
 	server := httpserver.New(store, validator, transforms, o.TTL)
 
