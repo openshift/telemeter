@@ -61,6 +61,7 @@ trap 'kill $(jobs -p); exit 0' EXIT
     --listen-cluster 127.0.0.1:9006 \
     --join 127.0.0.1:9016 \
     --whitelist '{_id="test"}' \
+    --elide-label '_elide' \
     -v
 ) &
 ( 
@@ -75,6 +76,7 @@ trap 'kill $(jobs -p); exit 0' EXIT
     --listen-cluster 127.0.0.1:9016 \
     --join 127.0.0.1:9006 \
     --whitelist '{_id="test"}' \
+    --elide-label '_elide' \
     -v
 ) &
 
@@ -103,6 +105,12 @@ if [[ -n "${test-}" ]]; then
     fi
     # verify we got alerts as remapped from ALERTS
     if [[ "$( curl http://localhost:9005/api/v1/query --data-urlencode 'query=count(alerts{_id="test"})' -G 2>/dev/null | python3 -c 'import sys, json; print(json.load(sys.stdin)["data"]["result"][0]["value"][1])' 2>/dev/null )" -eq 0 ]]; then
+      retries=$((retries-1))
+      sleep 1
+      continue
+    fi
+    # verify we don't get elided labels
+    if [[ "$( curl http://localhost:9005/api/v1/query --data-urlencode 'query=count(alerts{_id="test",_elide=~".+"})' -G 2>/dev/null | python3 -c 'import sys, json; print(len(json.load(sys.stdin)["data"]["result"]))' 2>/dev/null )" -gt 0 ]]; then
       retries=$((retries-1))
       sleep 1
       continue
