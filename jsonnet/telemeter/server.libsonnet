@@ -15,6 +15,9 @@ local list = import 'lib/list.libsonnet';
     },
     telemeterServer+: {
       whitelist+: (import 'metrics.jsonnet'),
+      elideLabels+: [
+        'prometheus_replica',
+      ],
     },
   },
 }
