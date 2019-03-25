@@ -20,6 +20,7 @@ local clusterPort = 8082;
       rhdPassword: '',
       rhdClientID: '',
       whitelist: [],
+      elideLabels: [],
     },
 
     versions+:: {
@@ -55,6 +56,11 @@ local clusterPort = 8082;
         $._config.telemeterServer.whitelist
       );
 
+      local elide = std.map(
+        function(label) '--elide-label=%s' % label,
+        $._config.telemeterServer.elideLabels
+      );
+
       local telemeterServer =
         container.new('telemeter-server', $._config.imageRepos.telemeterServer + ':' + $._config.versions.telemeterServer) +
         container.withCommand([
@@ -74,7 +80,7 @@ local clusterPort = 8082;
           '--authorize-client-id=$(RHD_CLIENT_ID)',
           '--authorize-username=$(RHD_USERNAME)',
           '--authorize-password=$(RHD_PASSWORD)',
-        ] + whitelist) +
+        ] + whitelist + elide) +
         container.withPorts([
           containerPort.newNamed('external', externalPort),
           containerPort.newNamed('internal', internalPort),

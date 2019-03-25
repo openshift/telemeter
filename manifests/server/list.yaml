@@ -147,6 +147,7 @@ objects:
           - --whitelist={__name__="openshift:cpu_usage_cores:sum"}
           - --whitelist={__name__="openshift:memory_usage_bytes:sum"}
           - --whitelist={__name__="cluster:node_instance_type_count:sum"}
+          - --elide-label=prometheus_replica
           env:
           - name: NAME
             valueFrom:
