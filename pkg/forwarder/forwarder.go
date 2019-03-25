@@ -192,13 +192,13 @@ func New(cfg Config) (*Worker, error) {
 	w.transformer = transformer
 
 	// Configure the matching rules.
-	var rules []string
+	rules := cfg.Rules
 	if len(cfg.RulesFile) > 0 {
 		data, err := ioutil.ReadFile(cfg.RulesFile)
 		if err != nil {
 			return nil, fmt.Errorf("unable to read match-file: %v", err)
 		}
-		rules = append(cfg.Rules, strings.Split(string(data), "\n")...)
+		rules = append(rules, strings.Split(string(data), "\n")...)
 	}
 	for i := 0; i < len(rules); {
 		s := strings.TrimSpace(rules[i])
