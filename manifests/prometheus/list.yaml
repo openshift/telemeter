@@ -88,7 +88,10 @@ objects:
       ports:
       - containerPort: 9091
         name: https
-      resources: {}
+      resources:
+        limits: {}
+        requests:
+          memory: 400Mi
       volumeMounts:
       - mountPath: /etc/tls/private
         name: secret-prometheus-telemeter-tls
@@ -100,9 +103,6 @@ objects:
     nodeSelector:
       beta.kubernetes.io/os: linux
     replicas: 2
-    resources:
-      requests:
-        memory: 400Mi
     retention: 15d
     ruleSelector:
       matchLabels:
@@ -278,3 +278,11 @@ parameters:
   value: openshift/oauth-proxy
 - name: PROXY_IMAGE_TAG
   value: v1.1.0
+- name: PROMETHEUS_CPU_REQUEST
+  value: "0"
+- name: PROMETHEUS_CPU_LIMIT
+  value: "0"
+- name: PROMETHEUS_MEMORY_REQUEST
+  value: 400Mi
+- name: PROMETHEUS_MEMORY_LIMIT
+  value: "0"
