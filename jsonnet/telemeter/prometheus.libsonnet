@@ -14,7 +14,7 @@ local list = import 'lib/list.libsonnet';
           ])
           + list.withNamespace($._config)
           + list.withPrometheusImage($._config)
-          + list.withResourceRequestsAndLimits('prometheus', $._config.prometheus.resourceRequests, $._config.prometheus.resourceLimits),
+          + list.withPrometheusResources($._config.prometheus.resourceRequests, $._config.prometheus.resourceLimits),
   },
 } + {
   _config+:: {

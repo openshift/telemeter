@@ -106,6 +106,35 @@
     ],
   },
 
+  withPrometheusResources(requests, limits):: {
+    local setResources(object, requests, limits) =
+      if object.kind == 'Prometheus' then {
+        spec+: {
+          resources: {
+            requests: {
+              cpu: "${PROMETHEUS_CPU_REQUEST}",
+              memory: "${PROMETHEUS_MEMORY_REQUEST}"
+            },
+            limits: {
+              cpu: "${PROMETHEUS_CPU_LIMIT}",
+              memory: "${PROMETHEUS_MEMORY_LIMIT}"
+            },
+          },
+        },
+      }
+      else {},
+    objects: [
+      o + setResources(o, requests, limits)
+      for o in super.objects
+    ],
+    parameters+: [
+      { name: 'PROMETHEUS_CPU_REQUEST', value: if std.objectHas(requests, 'cpu') then requests.cpu else "0" },
+      { name: 'PROMETHEUS_CPU_LIMIT', value: if std.objectHas(limits, 'cpu') then limits.cpu else "0" },
+      { name: 'PROMETHEUS_MEMORY_REQUEST', value: if std.objectHas(requests, 'memory') then requests.memory else "0" },
+      { name: 'PROMETHEUS_MEMORY_LIMIT', value: if std.objectHas(limits, 'memory') then limits.memory else "0" },
+    ],
+  },
+
   withServerImage(_config):: {
     local setImage(object) =
       if object.kind == 'StatefulSet' then {
