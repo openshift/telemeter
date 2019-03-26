@@ -9,23 +9,24 @@
     parameters: parameters,
   },
 
-  withResourceRequestsAndLimits(_config):: {
+  withResourceRequestsAndLimits(containerName, requests, limits):: {
+    local varContainerName = std.strReplace(containerName, '-', '_'),
     local setResourceRequestsAndLimits(object) =
       if object.kind == 'StatefulSet' then {
         spec+: {
           template+: {
             spec+: {  
               containers: [
-                if c.name == 'telemeter-server' then
+                if c.name == containerName then
                   c {
                       resources: {
                         requests: {
-                          cpu: "${TELEMETER_SERVER_CPU_REQUEST}",
-                          memory: "${TELEMETER_SERVER_MEMORY_REQUEST}",
+                          cpu: "${" + std.asciiUpper(varContainerName) + "_CPU_REQUEST}",
+                          memory: "${" + std.asciiUpper(varContainerName) + "_MEMORY_REQUEST}",
                         },
                         limits: {
-                          cpu: "${TELEMETER_SERVER_CPU_LIMIT}",
-                          memory: "${TELEMETER_SERVER_MEMORY_LIMIT}",
+                          cpu: "${" + std.asciiUpper(varContainerName) + "_CPU_LIMIT}",
+                          memory: "${" + std.asciiUpper(varContainerName) + "_MEMORY_LIMIT}",
                         },
                       }
                   }
@@ -42,10 +43,10 @@
       for o in super.objects
     ],
     parameters+: [
-      { name: 'TELEMETER_SERVER_CPU_REQUEST', value: if std.objectHas(_config.telemeterServer.resourceRequests, 'cpu') then _config.telemeterServer.resourceRequests.cpu else "0" },
-      { name: 'TELEMETER_SERVER_CPU_LIMIT', value: if std.objectHas(_config.telemeterServer.resourceLimits, 'cpu') then _config.telemeterServer.resourceLimits.cpu else "0" },
-      { name: 'TELEMETER_SERVER_MEMORY_REQUEST', value: if std.objectHas(_config.telemeterServer.resourceRequests, 'memory') then _config.telemeterServer.resourceRequests.memory else "0" },
-      { name: 'TELEMETER_SERVER_MEMORY_LIMIT', value: if std.objectHas(_config.telemeterServer.resourceLimits, 'memory') then _config.telemeterServer.resourceLimits.memory else "0" },
+      { name: std.asciiUpper(varContainerName)+'_CPU_REQUEST', value: if std.objectHas(requests, 'cpu') then requests.cpu else "0" },
+      { name: std.asciiUpper(varContainerName)+'_CPU_LIMIT', value: if std.objectHas(limits, 'cpu') then limits.cpu else "0" },
+      { name: std.asciiUpper(varContainerName)+'_MEMORY_REQUEST', value: if std.objectHas(requests, 'memory') then requests.memory else "0" },
+      { name: std.asciiUpper(varContainerName)+'_MEMORY_LIMIT', value: if std.objectHas(limits, 'memory') then limits.memory else "0" },
     ],
   },
 

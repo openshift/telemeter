@@ -7,7 +7,7 @@ local list = import 'lib/list.libsonnet';
           + list.withAuthorizeURL($._config)
           + list.withNamespace($._config)
           + list.withServerImage($._config)
-          + list.withResourceRequestsAndLimits($._config)
+          + list.withResourceRequestsAndLimits('telemeter-server', $._config.telemeterServer.resourceRequests, $._config.telemeterServer.resourceLimits)
   },
 } + {
   _config+:: {
