@@ -30,10 +30,7 @@ spec:
     ports:
     - containerPort: 9091
       name: https
-    resources:
-      limits: {}
-      requests:
-        memory: 400Mi
+    resources: {}
     volumeMounts:
     - mountPath: /etc/tls/private
       name: secret-prometheus-telemeter-tls
@@ -45,6 +42,10 @@ spec:
   nodeSelector:
     beta.kubernetes.io/os: linux
   replicas: 2
+  resources:
+    limits: {}
+    requests:
+      memory: 400Mi
   retention: 15d
   ruleSelector:
     matchLabels:

@@ -237,6 +237,10 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
           securityContext: {},
           serviceAccountName: 'prometheus-' + $._config.prometheus.name,
           nodeSelector: { 'beta.kubernetes.io/os': 'linux' },
+          resources: {
+            requests: $._config.prometheus.resourceRequests,
+            limits: $._config.prometheus.resourceLimits,
+          },
           retention: '15d',
           ruleSelector: selector.withMatchLabels({
             role: 'alert-rules',
@@ -302,9 +306,7 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
                   name: 'secret-prometheus-%s-htpasswd' % $._config.prometheus.name,
                 },
               ],
-            } +
-            container.mixin.resources.withLimitsMixin($._config.prometheus.resourceLimits) +
-            container.mixin.resources.withRequestsMixin($._config.prometheus.resourceRequests),
+            },
           ],
         },
       },
