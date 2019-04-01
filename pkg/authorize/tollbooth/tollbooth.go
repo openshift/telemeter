@@ -72,6 +72,8 @@ func (a *authorizer) AuthorizeCluster(token, cluster string) (string, error) {
 		return "", errWithCode{error: fmt.Errorf("rate limited, please try again later"), code: http.StatusTooManyRequests}
 	case http.StatusConflict:
 		return "", errWithCode{error: fmt.Errorf("the provided cluster identifier is already in use under a different account or is not sufficiently random"), code: http.StatusConflict}
+	case http.StatusNotFound:
+		return "", errWithCode{error: fmt.Errorf("not found"), code: http.StatusNotFound}
 	case http.StatusOK, http.StatusCreated:
 		// allowed
 	default:
