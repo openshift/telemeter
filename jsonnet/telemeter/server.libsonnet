@@ -19,14 +19,6 @@ local list = import 'lib/list.libsonnet';
       elideLabels+: [
         'prometheus_replica',
       ],
-      // resourceLimits: {
-      //   cpu: '1',
-      //   memory: '1Gi',
-      // },
-      // resourceRequests: {
-      //   cpu: '0.2',
-      //   memory: '100Mi',
-      // },
     },
   },
 }
