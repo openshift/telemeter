@@ -77,7 +77,9 @@ func (a *authorizeClusterHandler) ServeHTTP(w http.ResponseWriter, req *http.Req
 		}
 
 		if scerr, ok := err.(statusCodeErr); ok {
-			log.Printf("error: unable to authorize request: %v", scerr)
+			if scerr.HTTPStatusCode() >= http.StatusInternalServerError {
+				log.Printf("error: unable to authorize request: %v", scerr)
+			}
 			if scerr.HTTPStatusCode() == http.StatusTooManyRequests {
 				w.Header().Set("Retry-After", "300")
 			}
