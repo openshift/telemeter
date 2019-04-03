@@ -13,12 +13,15 @@ local list = import 'lib/list.libsonnet';
             { name: 'IMAGE_TAG', value: '' },
           ])
           + list.withNamespace($._config)
-          + list.withPrometheusImage($._config),
+          + list.withPrometheusImage($._config)
+          + list.withPrometheusResources($._config.prometheus.resourceRequests, $._config.prometheus.resourceLimits),
   },
 } + {
   _config+:: {
     jobs+: {
       PrometheusTelemeter: 'job="prometheus-telemeter"',
+    },
+    prometheus+: {
     },
   },
 }

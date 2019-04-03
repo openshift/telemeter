@@ -20,6 +20,8 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
       rules: { groups: [] },
       htpasswdAuth: '',
       sessionSecret: '',
+      resourceLimits: {},
+      resourceRequests: { memory: '400Mi' },
     },
   },
 
@@ -215,13 +217,8 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
 
     prometheus:
       local container = k.core.v1.pod.mixin.spec.containersType;
-      local resourceRequirements = container.mixin.resourcesType;
       local selector = k.apps.v1beta2.deployment.mixin.spec.selectorType;
       local pvc = k.core.v1.persistentVolumeClaim;
-
-      local resources =
-        resourceRequirements.new() +
-        resourceRequirements.withRequests({ memory: '400Mi' });
 
       {
         apiVersion: 'monitoring.coreos.com/v1',
@@ -240,7 +237,10 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
           securityContext: {},
           serviceAccountName: 'prometheus-' + $._config.prometheus.name,
           nodeSelector: { 'beta.kubernetes.io/os': 'linux' },
-          resources: resources,
+          resources: {
+            requests: $._config.prometheus.resourceRequests,
+            limits: $._config.prometheus.resourceLimits,
+          },
           retention: '15d',
           ruleSelector: selector.withMatchLabels({
             role: 'alert-rules',

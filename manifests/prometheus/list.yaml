@@ -101,8 +101,12 @@ objects:
       beta.kubernetes.io/os: linux
     replicas: 2
     resources:
+      limits:
+        cpu: ${PROMETHEUS_CPU_LIMIT}
+        memory: ${PROMETHEUS_MEMORY_LIMIT}
       requests:
-        memory: 400Mi
+        cpu: ${PROMETHEUS_CPU_REQUEST}
+        memory: ${PROMETHEUS_MEMORY_REQUEST}
     retention: 15d
     ruleSelector:
       matchLabels:
@@ -278,3 +282,11 @@ parameters:
   value: openshift/oauth-proxy
 - name: PROXY_IMAGE_TAG
   value: v1.1.0
+- name: PROMETHEUS_CPU_REQUEST
+  value: "0"
+- name: PROMETHEUS_CPU_LIMIT
+  value: "0"
+- name: PROMETHEUS_MEMORY_REQUEST
+  value: 400Mi
+- name: PROMETHEUS_MEMORY_LIMIT
+  value: "0"

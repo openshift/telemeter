@@ -192,6 +192,13 @@ objects:
               path: /healthz/ready
               port: 8443
               scheme: HTTPS
+          resources:
+            limits:
+              cpu: ${TELEMETER_SERVER_CPU_LIMIT}
+              memory: ${TELEMETER_SERVER_MEMORY_LIMIT}
+            requests:
+              cpu: ${TELEMETER_SERVER_CPU_REQUEST}
+              memory: ${TELEMETER_SERVER_MEMORY_REQUEST}
           volumeMounts:
           - mountPath: /etc/pki/service
             name: telemeter-server-tls
@@ -213,3 +220,11 @@ parameters:
   value: quay.io/openshift/origin-telemeter
 - name: IMAGE_TAG
   value: v4.0
+- name: TELEMETER_SERVER_CPU_REQUEST
+  value: "0"
+- name: TELEMETER_SERVER_CPU_LIMIT
+  value: "0"
+- name: TELEMETER_SERVER_MEMORY_REQUEST
+  value: "0"
+- name: TELEMETER_SERVER_MEMORY_LIMIT
+  value: "0"

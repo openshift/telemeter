@@ -99,6 +99,9 @@ spec:
             path: /healthz/ready
             port: 8443
             scheme: HTTPS
+        resources:
+          limits: {}
+          requests: {}
         volumeMounts:
         - mountPath: /etc/pki/service
           name: telemeter-server-tls

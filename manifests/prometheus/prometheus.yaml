@@ -43,6 +43,7 @@ spec:
     beta.kubernetes.io/os: linux
   replicas: 2
   resources:
+    limits: {}
     requests:
       memory: 400Mi
   retention: 15d

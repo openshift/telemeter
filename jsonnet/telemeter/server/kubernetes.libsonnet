@@ -21,6 +21,8 @@ local clusterPort = 8082;
       rhdClientID: '',
       whitelist: [],
       elideLabels: [],
+      resourceLimits: {},
+      resourceRequests: {},
     },
 
     versions+:: {
@@ -86,6 +88,8 @@ local clusterPort = 8082;
           containerPort.newNamed('internal', internalPort),
           containerPort.newNamed('cluster', clusterPort),
         ]) +
+        container.mixin.resources.withLimitsMixin($._config.telemeterServer.resourceLimits) +
+        container.mixin.resources.withRequestsMixin($._config.telemeterServer.resourceRequests) +
         container.withVolumeMounts([tlsMount]) +
         container.withEnv([name, rhdURL, rhdUsername, rhdPassword, rhdClientID]) + {
           livenessProbe: {

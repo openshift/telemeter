@@ -6,7 +6,8 @@ local list = import 'lib/list.libsonnet';
     list: list.asList('telemeter', ts, [])
           + list.withAuthorizeURL($._config)
           + list.withNamespace($._config)
-          + list.withServerImage($._config),
+          + list.withServerImage($._config)
+          + list.withResourceRequestsAndLimits('telemeter-server', $._config.telemeterServer.resourceRequests, $._config.telemeterServer.resourceLimits)
   },
 } + {
   _config+:: {

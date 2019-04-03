@@ -9,6 +9,47 @@
     parameters: parameters,
   },
 
+  withResourceRequestsAndLimits(containerName, requests, limits):: {
+    local varContainerName = std.strReplace(containerName, '-', '_'),
+    local setResourceRequestsAndLimits(object) =
+      if object.kind == 'StatefulSet' then {
+        spec+: {
+          template+: {
+            spec+: {  
+              containers: [
+                if c.name == containerName then
+                  c {
+                      resources: {
+                        requests: {
+                          cpu: "${" + std.asciiUpper(varContainerName) + "_CPU_REQUEST}",
+                          memory: "${" + std.asciiUpper(varContainerName) + "_MEMORY_REQUEST}",
+                        },
+                        limits: {
+                          cpu: "${" + std.asciiUpper(varContainerName) + "_CPU_LIMIT}",
+                          memory: "${" + std.asciiUpper(varContainerName) + "_MEMORY_LIMIT}",
+                        },
+                      }
+                  }
+                else c
+                for c in super.containers
+              ],
+            },
+          },
+        },
+      }
+      else {},
+    objects: [
+      o + setResourceRequestsAndLimits(o)
+      for o in super.objects
+    ],
+    parameters+: [
+      { name: std.asciiUpper(varContainerName)+'_CPU_REQUEST', value: if std.objectHas(requests, 'cpu') then requests.cpu else "0" },
+      { name: std.asciiUpper(varContainerName)+'_CPU_LIMIT', value: if std.objectHas(limits, 'cpu') then limits.cpu else "0" },
+      { name: std.asciiUpper(varContainerName)+'_MEMORY_REQUEST', value: if std.objectHas(requests, 'memory') then requests.memory else "0" },
+      { name: std.asciiUpper(varContainerName)+'_MEMORY_LIMIT', value: if std.objectHas(limits, 'memory') then limits.memory else "0" },
+    ],
+  },
+
   withAuthorizeURL(_config):: {
     local setAuthorizeURL(object) =
       if object.kind == 'StatefulSet' then {
@@ -62,6 +103,35 @@
       { name: 'PROMETHEUS_IMAGE_TAG', value: _config.versions.prometheus },
       { name: 'PROXY_IMAGE', value: _config.imageRepos.openshiftOauthProxy },
       { name: 'PROXY_IMAGE_TAG', value: _config.versions.openshiftOauthProxy },
+    ],
+  },
+
+  withPrometheusResources(requests, limits):: {
+    local setResources(object, requests, limits) =
+      if object.kind == 'Prometheus' then {
+        spec+: {
+          resources: {
+            requests: {
+              cpu: "${PROMETHEUS_CPU_REQUEST}",
+              memory: "${PROMETHEUS_MEMORY_REQUEST}"
+            },
+            limits: {
+              cpu: "${PROMETHEUS_CPU_LIMIT}",
+              memory: "${PROMETHEUS_MEMORY_LIMIT}"
+            },
+          },
+        },
+      }
+      else {},
+    objects: [
+      o + setResources(o, requests, limits)
+      for o in super.objects
+    ],
+    parameters+: [
+      { name: 'PROMETHEUS_CPU_REQUEST', value: if std.objectHas(requests, 'cpu') then requests.cpu else "0" },
+      { name: 'PROMETHEUS_CPU_LIMIT', value: if std.objectHas(limits, 'cpu') then limits.cpu else "0" },
+      { name: 'PROMETHEUS_MEMORY_REQUEST', value: if std.objectHas(requests, 'memory') then requests.memory else "0" },
+      { name: 'PROMETHEUS_MEMORY_LIMIT', value: if std.objectHas(limits, 'memory') then limits.memory else "0" },
     ],
   },
 
