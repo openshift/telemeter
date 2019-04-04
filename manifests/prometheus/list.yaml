@@ -202,6 +202,7 @@ objects:
   kind: Route
   metadata:
     annotations:
+      haproxy.router.openshift.io/balance: source
       kubernetes.io/tls-acme: "true"
       kubernetes.io/tls-acme-secretname: prometheus-telemeter-acme
     name: prometheus-telemeter
