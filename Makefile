@@ -80,7 +80,7 @@ $(JB_BIN):
 	go get -u github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb
 
 $(JSONNET_BIN):
-	go get -u github.com/google/go-jsonnet/jsonnet
+	go get -u github.com/google/go-jsonnet/cmd/jsonnet
 
 $(GOLANGCI_LINT_BIN):
 	curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $(BIN) v1.10.2
