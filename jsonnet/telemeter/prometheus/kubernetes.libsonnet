@@ -52,6 +52,7 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
         annotations: {
           'kubernetes.io/tls-acme': 'true',
           'kubernetes.io/tls-acme-secretname': 'prometheus-%s-acme' % $._config.prometheus.name,
+          'haproxy.router.openshift.io/balance': 'source',
         },
         name: 'prometheus-' + $._config.prometheus.name,
         namespace: $._config.namespace,
