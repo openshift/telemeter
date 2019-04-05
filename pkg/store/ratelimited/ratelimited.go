@@ -43,19 +43,22 @@ func (s *lstore) writeMetrics(ctx context.Context, p *store.PartitionedMetrics, 
 		return nil
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	limiter, ok := s.store[p.PartitionKey]
-
-	if !ok {
-		limiter = rate.NewLimiter(rate.Every(s.limit), 1)
-		s.store[p.PartitionKey] = limiter
-	}
-
-	if !limiter.AllowN(now, 1) {
+	if limiter := s.limiter(p.PartitionKey); !limiter.AllowN(now, 1) {
 		return ErrWriteLimitReached
 	}
 
 	return s.next.WriteMetrics(ctx, p)
+}
+
+func (s *lstore) limiter(partitionKey string) *rate.Limiter {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	limiter, ok := s.store[partitionKey]
+	if !ok {
+		limiter = rate.NewLimiter(rate.Every(s.limit), 1)
+		s.store[partitionKey] = limiter
+	}
+
+	return limiter
 }
