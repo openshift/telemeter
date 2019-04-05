@@ -98,9 +98,6 @@ func (d *protoDecoder) Decode(v *dto.MetricFamily) error {
 			continue
 		}
 		for _, l := range m.GetLabel() {
-			if l == nil {
-				continue
-			}
 			if !model.LabelValue(l.GetValue()).IsValid() {
 				return fmt.Errorf("invalid label value %q", l.GetValue())
 			}
@@ -218,11 +215,7 @@ func extractCounter(o *DecodeOptions, f *dto.MetricFamily) model.Vector {
 			Value:  model.SampleValue(m.Counter.GetValue()),
 		}
 
-		if m.TimestampMs != nil {
-			smpl.Timestamp = model.TimeFromUnixNano(*m.TimestampMs * 1000000)
-		} else {
-			smpl.Timestamp = o.Timestamp
-		}
+		smpl.Timestamp = model.TimeFromUnixNano(m.TimestampMs * 1000000)
 
 		samples = append(samples, smpl)
 	}
@@ -249,11 +242,7 @@ func extractGauge(o *DecodeOptions, f *dto.MetricFamily) model.Vector {
 			Value:  model.SampleValue(m.Gauge.GetValue()),
 		}
 
-		if m.TimestampMs != nil {
-			smpl.Timestamp = model.TimeFromUnixNano(*m.TimestampMs * 1000000)
-		} else {
-			smpl.Timestamp = o.Timestamp
-		}
+		smpl.Timestamp = model.TimeFromUnixNano(m.TimestampMs * 1000000)
 
 		samples = append(samples, smpl)
 	}
@@ -280,11 +269,7 @@ func extractUntyped(o *DecodeOptions, f *dto.MetricFamily) model.Vector {
 			Value:  model.SampleValue(m.Untyped.GetValue()),
 		}
 
-		if m.TimestampMs != nil {
-			smpl.Timestamp = model.TimeFromUnixNano(*m.TimestampMs * 1000000)
-		} else {
-			smpl.Timestamp = o.Timestamp
-		}
+		smpl.Timestamp = model.TimeFromUnixNano(m.TimestampMs * 1000000)
 
 		samples = append(samples, smpl)
 	}
@@ -301,8 +286,8 @@ func extractSummary(o *DecodeOptions, f *dto.MetricFamily) model.Vector {
 		}
 
 		timestamp := o.Timestamp
-		if m.TimestampMs != nil {
-			timestamp = model.TimeFromUnixNano(*m.TimestampMs * 1000000)
+		if m.TimestampMs != 0 {
+			timestamp = model.TimeFromUnixNano(m.TimestampMs * 1000000)
 		}
 
 		for _, q := range m.Summary.Quantile {
@@ -358,8 +343,8 @@ func extractHistogram(o *DecodeOptions, f *dto.MetricFamily) model.Vector {
 		}
 
 		timestamp := o.Timestamp
-		if m.TimestampMs != nil {
-			timestamp = model.TimeFromUnixNano(*m.TimestampMs * 1000000)
+		if m.TimestampMs != 0 {
+			timestamp = model.TimeFromUnixNano(m.TimestampMs * 1000000)
 		}
 
 		infSeen := false

@@ -84,7 +84,7 @@ type gauge struct {
 	selfCollector
 
 	desc       *Desc
-	labelPairs []*dto.LabelPair
+	labelPairs []dto.LabelPair
 }
 
 func (g *gauge) Desc() *Desc {

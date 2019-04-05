@@ -17,8 +17,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/golang/protobuf/proto"
-
 	dto "github.com/prometheus/client_model/go"
 )
 
@@ -44,7 +42,7 @@ type valueFunc struct {
 	desc       *Desc
 	valType    ValueType
 	function   func() float64
-	labelPairs []*dto.LabelPair
+	labelPairs []dto.LabelPair
 }
 
 // newValueFunc returns a newly allocated valueFunc with the given Desc and
@@ -108,7 +106,7 @@ type constMetric struct {
 	desc       *Desc
 	valType    ValueType
 	val        float64
-	labelPairs []*dto.LabelPair
+	labelPairs []dto.LabelPair
 }
 
 func (m *constMetric) Desc() *Desc {
@@ -122,24 +120,24 @@ func (m *constMetric) Write(out *dto.Metric) error {
 func populateMetric(
 	t ValueType,
 	v float64,
-	labelPairs []*dto.LabelPair,
+	labelPairs []dto.LabelPair,
 	m *dto.Metric,
 ) error {
 	m.Label = labelPairs
 	switch t {
 	case CounterValue:
-		m.Counter = &dto.Counter{Value: proto.Float64(v)}
+		m.Counter = &dto.Counter{Value: v}
 	case GaugeValue:
-		m.Gauge = &dto.Gauge{Value: proto.Float64(v)}
+		m.Gauge = &dto.Gauge{Value: v}
 	case UntypedValue:
-		m.Untyped = &dto.Untyped{Value: proto.Float64(v)}
+		m.Untyped = &dto.Untyped{Value: v}
 	default:
 		return fmt.Errorf("encountered unknown type %v", t)
 	}
 	return nil
 }
 
-func makeLabelPairs(desc *Desc, labelValues []string) []*dto.LabelPair {
+func makeLabelPairs(desc *Desc, labelValues []string) []dto.LabelPair {
 	totalLen := len(desc.variableLabels) + len(desc.constLabelPairs)
 	if totalLen == 0 {
 		// Super fast path.
@@ -149,11 +147,11 @@ func makeLabelPairs(desc *Desc, labelValues []string) []*dto.LabelPair {
 		// Moderately fast path.
 		return desc.constLabelPairs
 	}
-	labelPairs := make([]*dto.LabelPair, 0, totalLen)
+	labelPairs := make([]dto.LabelPair, 0, totalLen)
 	for i, n := range desc.variableLabels {
-		labelPairs = append(labelPairs, &dto.LabelPair{
-			Name:  proto.String(n),
-			Value: proto.String(labelValues[i]),
+		labelPairs = append(labelPairs, dto.LabelPair{
+			Name:  n,
+			Value: labelValues[i],
 		})
 	}
 	labelPairs = append(labelPairs, desc.constLabelPairs...)

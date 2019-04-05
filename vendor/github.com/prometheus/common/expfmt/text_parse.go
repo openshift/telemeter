@@ -24,7 +24,6 @@ import (
 
 	dto "github.com/prometheus/client_model/go"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/common/model"
 )
 
@@ -229,9 +228,7 @@ func (p *TextParser) readingMetricName() stateFn {
 	}
 	p.setOrCreateCurrentMF()
 	// Now is the time to fix the type if it hasn't happened yet.
-	if p.currentMF.Type == nil {
-		p.currentMF.Type = dto.MetricType_UNTYPED.Enum()
-	}
+	p.currentMF.Type = *dto.MetricType_UNTYPED.Enum()
 	p.currentMetric = &dto.Metric{}
 	// Do not append the newly created currentMetric to
 	// currentMF.Metric right now. First wait if this is a summary,
@@ -281,7 +278,7 @@ func (p *TextParser) startLabelName() stateFn {
 		p.parseError(fmt.Sprintf("invalid label name for metric %q", p.currentMF.GetName()))
 		return nil
 	}
-	p.currentLabelPair = &dto.LabelPair{Name: proto.String(p.currentToken.String())}
+	p.currentLabelPair = &dto.LabelPair{Name: p.currentToken.String()}
 	if p.currentLabelPair.GetName() == string(model.MetricNameLabel) {
 		p.parseError(fmt.Sprintf("label name %q is reserved", model.MetricNameLabel))
 		return nil
@@ -290,7 +287,7 @@ func (p *TextParser) startLabelName() stateFn {
 	// labels to 'real' labels.
 	if !(p.currentMF.GetType() == dto.MetricType_SUMMARY && p.currentLabelPair.GetName() == model.QuantileLabel) &&
 		!(p.currentMF.GetType() == dto.MetricType_HISTOGRAM && p.currentLabelPair.GetName() == model.BucketLabel) {
-		p.currentMetric.Label = append(p.currentMetric.Label, p.currentLabelPair)
+		p.currentMetric.Label = append(p.currentMetric.Label, *p.currentLabelPair)
 	}
 	if p.skipBlankTabIfCurrentBlankTab(); p.err != nil {
 		return nil // Unexpected end of input.
@@ -319,7 +316,7 @@ func (p *TextParser) startLabelValue() stateFn {
 		p.parseError(fmt.Sprintf("invalid label value %q", p.currentToken.String()))
 		return nil
 	}
-	p.currentLabelPair.Value = proto.String(p.currentToken.String())
+	p.currentLabelPair.Value = p.currentToken.String()
 	// Special treatment of summaries:
 	// - Quantile labels are special, will result in dto.Quantile later.
 	// - Other labels have to be added to currentLabels for signature calculation.
@@ -400,11 +397,11 @@ func (p *TextParser) readingValue() stateFn {
 	}
 	switch p.currentMF.GetType() {
 	case dto.MetricType_COUNTER:
-		p.currentMetric.Counter = &dto.Counter{Value: proto.Float64(value)}
+		p.currentMetric.Counter = &dto.Counter{Value: value}
 	case dto.MetricType_GAUGE:
-		p.currentMetric.Gauge = &dto.Gauge{Value: proto.Float64(value)}
+		p.currentMetric.Gauge = &dto.Gauge{Value: value}
 	case dto.MetricType_UNTYPED:
-		p.currentMetric.Untyped = &dto.Untyped{Value: proto.Float64(value)}
+		p.currentMetric.Untyped = &dto.Untyped{Value: value}
 	case dto.MetricType_SUMMARY:
 		// *sigh*
 		if p.currentMetric.Summary == nil {
@@ -412,15 +409,15 @@ func (p *TextParser) readingValue() stateFn {
 		}
 		switch {
 		case p.currentIsSummaryCount:
-			p.currentMetric.Summary.SampleCount = proto.Uint64(uint64(value))
+			p.currentMetric.Summary.SampleCount = uint64(value)
 		case p.currentIsSummarySum:
-			p.currentMetric.Summary.SampleSum = proto.Float64(value)
+			p.currentMetric.Summary.SampleSum = value
 		case !math.IsNaN(p.currentQuantile):
 			p.currentMetric.Summary.Quantile = append(
 				p.currentMetric.Summary.Quantile,
 				&dto.Quantile{
-					Quantile: proto.Float64(p.currentQuantile),
-					Value:    proto.Float64(value),
+					Quantile: p.currentQuantile,
+					Value:    value,
 				},
 			)
 		}
@@ -431,15 +428,15 @@ func (p *TextParser) readingValue() stateFn {
 		}
 		switch {
 		case p.currentIsHistogramCount:
-			p.currentMetric.Histogram.SampleCount = proto.Uint64(uint64(value))
+			p.currentMetric.Histogram.SampleCount = uint64(value)
 		case p.currentIsHistogramSum:
-			p.currentMetric.Histogram.SampleSum = proto.Float64(value)
+			p.currentMetric.Histogram.SampleSum = value
 		case !math.IsNaN(p.currentBucket):
 			p.currentMetric.Histogram.Bucket = append(
 				p.currentMetric.Histogram.Bucket,
 				&dto.Bucket{
-					UpperBound:      proto.Float64(p.currentBucket),
-					CumulativeCount: proto.Uint64(uint64(value)),
+					UpperBound:      p.currentBucket,
+					CumulativeCount: uint64(value),
 				},
 			)
 		}
@@ -467,7 +464,7 @@ func (p *TextParser) startTimestamp() stateFn {
 		p.parseError(fmt.Sprintf("expected integer as timestamp, got %q", p.currentToken.String()))
 		return nil
 	}
-	p.currentMetric.TimestampMs = proto.Int64(timestamp)
+	p.currentMetric.TimestampMs = timestamp
 	if p.readTokenUntilNewline(false); p.err != nil {
 		return nil // Unexpected end of input.
 	}
@@ -481,7 +478,7 @@ func (p *TextParser) startTimestamp() stateFn {
 // readingHelp represents the state where the last byte read (now in
 // p.currentByte) is the first byte of the docstring after 'HELP'.
 func (p *TextParser) readingHelp() stateFn {
-	if p.currentMF.Help != nil {
+	if len(p.currentMF.Help) > 0 {
 		p.parseError(fmt.Sprintf("second HELP line for metric name %q", p.currentMF.GetName()))
 		return nil
 	}
@@ -489,17 +486,13 @@ func (p *TextParser) readingHelp() stateFn {
 	if p.readTokenUntilNewline(true); p.err != nil {
 		return nil // Unexpected end of input.
 	}
-	p.currentMF.Help = proto.String(p.currentToken.String())
+	p.currentMF.Help = p.currentToken.String()
 	return p.startOfLine
 }
 
 // readingType represents the state where the last byte read (now in
 // p.currentByte) is the first byte of the type hint after 'HELP'.
 func (p *TextParser) readingType() stateFn {
-	if p.currentMF.Type != nil {
-		p.parseError(fmt.Sprintf("second TYPE line for metric name %q, or TYPE reported after samples", p.currentMF.GetName()))
-		return nil
-	}
 	// Rest of line is the type.
 	if p.readTokenUntilNewline(false); p.err != nil {
 		return nil // Unexpected end of input.
@@ -509,7 +502,7 @@ func (p *TextParser) readingType() stateFn {
 		p.parseError(fmt.Sprintf("unknown metric type %q", p.currentToken.String()))
 		return nil
 	}
-	p.currentMF.Type = dto.MetricType(metricType).Enum()
+	p.currentMF.Type = *dto.MetricType(metricType).Enum()
 	return p.startOfLine
 }
 
@@ -696,7 +689,7 @@ func (p *TextParser) setOrCreateCurrentMF() {
 			return
 		}
 	}
-	p.currentMF = &dto.MetricFamily{Name: proto.String(name)}
+	p.currentMF = &dto.MetricFamily{Name: name}
 	p.metricFamiliesByName[name] = p.currentMF
 }
 

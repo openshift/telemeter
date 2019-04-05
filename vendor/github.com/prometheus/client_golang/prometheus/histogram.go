@@ -21,8 +21,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/golang/protobuf/proto"
-
 	dto "github.com/prometheus/client_model/go"
 )
 
@@ -252,7 +250,7 @@ type histogram struct {
 	counts [2]*histogramCounts
 	hotIdx int // Index of currently-hot counts. Only used within Write.
 
-	labelPairs []*dto.LabelPair
+	labelPairs []dto.LabelPair
 }
 
 func (h *histogram) Desc() *Desc {
@@ -347,14 +345,14 @@ func (h *histogram) Write(out *dto.Metric) error {
 		runtime.Gosched() // Let observations get work done.
 	}
 
-	his.SampleCount = proto.Uint64(count)
-	his.SampleSum = proto.Float64(math.Float64frombits(atomic.LoadUint64(&coldCounts.sumBits)))
+	his.SampleCount = count
+	his.SampleSum = math.Float64frombits(atomic.LoadUint64(&coldCounts.sumBits))
 	var cumCount uint64
 	for i, upperBound := range h.upperBounds {
 		cumCount += atomic.LoadUint64(&coldCounts.buckets[i])
 		buckets[i] = &dto.Bucket{
-			CumulativeCount: proto.Uint64(cumCount),
-			UpperBound:      proto.Float64(upperBound),
+			CumulativeCount: cumCount,
+			UpperBound:      upperBound,
 		}
 	}
 
@@ -516,7 +514,7 @@ type constHistogram struct {
 	count      uint64
 	sum        float64
 	buckets    map[float64]uint64
-	labelPairs []*dto.LabelPair
+	labelPairs []dto.LabelPair
 }
 
 func (h *constHistogram) Desc() *Desc {
@@ -527,13 +525,13 @@ func (h *constHistogram) Write(out *dto.Metric) error {
 	his := &dto.Histogram{}
 	buckets := make([]*dto.Bucket, 0, len(h.buckets))
 
-	his.SampleCount = proto.Uint64(h.count)
-	his.SampleSum = proto.Float64(h.sum)
+	his.SampleCount = h.count
+	his.SampleSum = h.sum
 
 	for upperBound, count := range h.buckets {
 		buckets = append(buckets, &dto.Bucket{
-			CumulativeCount: proto.Uint64(count),
-			UpperBound:      proto.Float64(upperBound),
+			CumulativeCount: count,
+			UpperBound:      upperBound,
 		})
 	}
 

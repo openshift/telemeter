@@ -77,7 +77,7 @@ type counter struct {
 	selfCollector
 	desc *Desc
 
-	labelPairs []*dto.LabelPair
+	labelPairs []dto.LabelPair
 }
 
 func (c *counter) Desc() *Desc {

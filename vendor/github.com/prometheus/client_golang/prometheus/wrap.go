@@ -17,8 +17,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/golang/protobuf/proto"
-
 	dto "github.com/prometheus/client_model/go"
 )
 
@@ -142,9 +140,9 @@ func (m *wrappingMetric) Write(out *dto.Metric) error {
 		return nil
 	}
 	for ln, lv := range m.labels {
-		out.Label = append(out.Label, &dto.LabelPair{
-			Name:  proto.String(ln),
-			Value: proto.String(lv),
+		out.Label = append(out.Label, dto.LabelPair{
+			Name:  ln,
+			Value: lv,
 		})
 	}
 	sort.Sort(labelPairSorter(out.Label))
@@ -154,7 +152,7 @@ func (m *wrappingMetric) Write(out *dto.Metric) error {
 func wrapDesc(desc *Desc, prefix string, labels Labels) *Desc {
 	constLabels := Labels{}
 	for _, lp := range desc.constLabelPairs {
-		constLabels[*lp.Name] = *lp.Value
+		constLabels[lp.Name] = lp.Value
 	}
 	for ln, lv := range labels {
 		if _, alreadyUsed := constLabels[ln]; alreadyUsed {

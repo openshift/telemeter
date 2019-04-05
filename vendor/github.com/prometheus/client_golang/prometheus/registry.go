@@ -22,8 +22,6 @@ import (
 	"sync"
 	"unicode/utf8"
 
-	"github.com/golang/protobuf/proto"
-
 	dto "github.com/prometheus/client_model/go"
 
 	"github.com/prometheus/client_golang/prometheus/internal"
@@ -600,20 +598,20 @@ func processMetric(
 		}
 	} else { // New name.
 		metricFamily = &dto.MetricFamily{}
-		metricFamily.Name = proto.String(desc.fqName)
-		metricFamily.Help = proto.String(desc.help)
+		metricFamily.Name = desc.fqName
+		metricFamily.Help = desc.help
 		// TODO(beorn7): Simplify switch once Desc has type.
 		switch {
 		case dtoMetric.Gauge != nil:
-			metricFamily.Type = dto.MetricType_GAUGE.Enum()
+			metricFamily.Type = *dto.MetricType_GAUGE.Enum()
 		case dtoMetric.Counter != nil:
-			metricFamily.Type = dto.MetricType_COUNTER.Enum()
+			metricFamily.Type = *dto.MetricType_COUNTER.Enum()
 		case dtoMetric.Summary != nil:
-			metricFamily.Type = dto.MetricType_SUMMARY.Enum()
+			metricFamily.Type = *dto.MetricType_SUMMARY.Enum()
 		case dtoMetric.Untyped != nil:
-			metricFamily.Type = dto.MetricType_UNTYPED.Enum()
+			metricFamily.Type = *dto.MetricType_UNTYPED.Enum()
 		case dtoMetric.Histogram != nil:
-			metricFamily.Type = dto.MetricType_HISTOGRAM.Enum()
+			metricFamily.Type = *dto.MetricType_HISTOGRAM.Enum()
 		default:
 			return fmt.Errorf("empty metric collected: %s", dtoMetric)
 		}
@@ -867,11 +865,11 @@ func checkDescConsistency(
 	}
 
 	// Is the desc consistent with the content of the metric?
-	lpsFromDesc := make([]*dto.LabelPair, 0, len(dtoMetric.Label))
+	lpsFromDesc := make([]dto.LabelPair, 0, len(dtoMetric.Label))
 	lpsFromDesc = append(lpsFromDesc, desc.constLabelPairs...)
 	for _, l := range desc.variableLabels {
-		lpsFromDesc = append(lpsFromDesc, &dto.LabelPair{
-			Name: proto.String(l),
+		lpsFromDesc = append(lpsFromDesc, dto.LabelPair{
+			Name: l,
 		})
 	}
 	if len(lpsFromDesc) != len(dtoMetric.Label) {
@@ -884,7 +882,7 @@ func checkDescConsistency(
 	for i, lpFromDesc := range lpsFromDesc {
 		lpFromMetric := dtoMetric.Label[i]
 		if lpFromDesc.GetName() != lpFromMetric.GetName() ||
-			lpFromDesc.Value != nil && lpFromDesc.GetValue() != lpFromMetric.GetValue() {
+			len(lpFromDesc.Value) > 0 && lpFromDesc.GetValue() != lpFromMetric.GetValue() {
 			return fmt.Errorf(
 				"labels in collected metric %s %s are inconsistent with descriptor %s",
 				metricFamily.GetName(), dtoMetric, desc,

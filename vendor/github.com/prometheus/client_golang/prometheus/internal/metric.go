@@ -54,10 +54,10 @@ func (s metricSorter) Less(i, j int) bool {
 	// here, even for inconsistent metrics. So sort equal metrics
 	// by their timestamp, with missing timestamps (implying "now")
 	// coming last.
-	if s[i].TimestampMs == nil {
+	if s[i].TimestampMs == 0 {
 		return false
 	}
-	if s[j].TimestampMs == nil {
+	if s[j].TimestampMs == 0 {
 		return true
 	}
 	return s[i].GetTimestampMs() < s[j].GetTimestampMs()

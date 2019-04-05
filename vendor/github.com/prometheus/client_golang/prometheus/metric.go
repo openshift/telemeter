@@ -17,8 +17,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang/protobuf/proto"
-
 	dto "github.com/prometheus/client_model/go"
 )
 
@@ -115,7 +113,7 @@ func BuildFQName(namespace, subsystem, name string) string {
 
 // labelPairSorter implements sort.Interface. It is used to sort a slice of
 // dto.LabelPair pointers.
-type labelPairSorter []*dto.LabelPair
+type labelPairSorter []dto.LabelPair
 
 func (s labelPairSorter) Len() int {
 	return len(s)
@@ -152,7 +150,7 @@ type timestampedMetric struct {
 
 func (m timestampedMetric) Write(pb *dto.Metric) error {
 	e := m.Metric.Write(pb)
-	pb.TimestampMs = proto.Int64(m.t.Unix()*1000 + int64(m.t.Nanosecond()/1000000))
+	pb.TimestampMs = m.t.Unix()*1000 + int64(m.t.Nanosecond()/1000000)
 	return e
 }
 

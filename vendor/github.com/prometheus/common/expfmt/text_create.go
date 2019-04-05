@@ -95,7 +95,7 @@ func MetricFamilyToText(out io.Writer, in *dto.MetricFamily) (written int, err e
 	var n int
 
 	// Comments, first HELP, then TYPE.
-	if in.Help != nil {
+	if len(in.Help) > 0 {
 		n, err = w.WriteString("# HELP ")
 		written += n
 		if err != nil {
@@ -111,7 +111,7 @@ func MetricFamilyToText(out io.Writer, in *dto.MetricFamily) (written int, err e
 		if err != nil {
 			return
 		}
-		n, err = writeEscapedString(w, *in.Help, false)
+		n, err = writeEscapedString(w, in.Help, false)
 		written += n
 		if err != nil {
 			return
@@ -313,13 +313,13 @@ func writeSample(
 	if err != nil {
 		return written, err
 	}
-	if metric.TimestampMs != nil {
+	if metric.TimestampMs != 0 {
 		err = w.WriteByte(' ')
 		written++
 		if err != nil {
 			return written, err
 		}
-		n, err = writeInt(w, *metric.TimestampMs)
+		n, err = writeInt(w, metric.TimestampMs)
 		written += n
 		if err != nil {
 			return written, err
@@ -342,7 +342,7 @@ func writeSample(
 // encountered.
 func writeLabelPairs(
 	w enhancedWriter,
-	in []*dto.LabelPair,
+	in []dto.LabelPair,
 	additionalLabelName string, additionalLabelValue float64,
 ) (int, error) {
 	if len(in) == 0 && additionalLabelName == "" {

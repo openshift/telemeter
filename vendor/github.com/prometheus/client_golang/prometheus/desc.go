@@ -19,7 +19,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/prometheus/common/model"
 
 	dto "github.com/prometheus/client_model/go"
@@ -48,7 +47,7 @@ type Desc struct {
 	help string
 	// constLabelPairs contains precalculated DTO label pairs based on
 	// the constant labels.
-	constLabelPairs []*dto.LabelPair
+	constLabelPairs []dto.LabelPair
 	// VariableLabels contains names of labels for which the metric
 	// maintains variable values.
 	variableLabels []string
@@ -145,11 +144,11 @@ func NewDesc(fqName, help string, variableLabels []string, constLabels Labels) *
 	}
 	d.dimHash = lh
 
-	d.constLabelPairs = make([]*dto.LabelPair, 0, len(constLabels))
+	d.constLabelPairs = make([]dto.LabelPair, 0, len(constLabels))
 	for n, v := range constLabels {
-		d.constLabelPairs = append(d.constLabelPairs, &dto.LabelPair{
-			Name:  proto.String(n),
-			Value: proto.String(v),
+		d.constLabelPairs = append(d.constLabelPairs, dto.LabelPair{
+			Name:  n,
+			Value: v,
 		})
 	}
 	sort.Sort(labelPairSorter(d.constLabelPairs))
