@@ -292,7 +292,7 @@ func (w *worker) generate() []*clientmodel.MetricFamily {
 		for j := range w.metrics[i].Metric {
 			m := randomize(w.metrics[i].Metric[j])
 			ts := now - rand.Int63n(int64(w.interval/time.Millisecond))
-			m.TimestampMs = &ts
+			m.TimestampMs = ts
 			mf.Metric[j] = m
 		}
 		// Sort the time series within the metric family by timestamp so Prometheus will accept them.
@@ -310,20 +310,20 @@ func randomize(metric *clientmodel.Metric) *clientmodel.Metric {
 	if m.GetUntyped() != nil {
 		v := *m.GetUntyped()
 		f := math.Round(rand.Float64() * v.GetValue())
-		v.Value = &f
+		v.Value = f
 		m.Untyped = &v
 	}
 	if m.GetGauge() != nil {
 		v := *m.GetGauge()
 		f := math.Round(rand.Float64() * v.GetValue())
-		v.Value = &f
+		v.Value = f
 		m.Gauge = &v
 	}
 	if m.GetCounter() != nil {
 		if rand.Intn(2) == 1 {
 			v := *m.GetCounter()
 			f := v.GetValue() + 1
-			v.Value = &f
+			v.Value = f
 			m.Counter = &v
 		}
 	}

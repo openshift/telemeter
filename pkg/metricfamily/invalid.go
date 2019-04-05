@@ -25,10 +25,7 @@ func (t *errorInvalidFederateSamples) Transform(family *clientmodel.MetricFamily
 	if len(name) > 255 {
 		return false, fmt.Errorf("metrics_name cannot be longer than 255 characters")
 	}
-	if family.Type == nil {
-		return false, nil
-	}
-	switch t := *family.Type; t {
+	switch t := family.Type; t {
 	case clientmodel.MetricType_COUNTER:
 	case clientmodel.MetricType_GAUGE:
 	case clientmodel.MetricType_HISTOGRAM:
@@ -43,20 +40,20 @@ func (t *errorInvalidFederateSamples) Transform(family *clientmodel.MetricFamily
 			continue
 		}
 		for _, label := range m.Label {
-			if label.Name == nil || len(*label.Name) == 0 || len(*label.Name) > 255 {
+			if len(label.Name) == 0 || len(label.Name) > 255 {
 				return false, fmt.Errorf("label_name cannot be longer than 255 characters")
 			}
-			if label.Value == nil || len(*label.Value) > 255 {
+			if len(label.Value) > 255 {
 				return false, fmt.Errorf("label_value cannot be longer than 255 characters")
 			}
 		}
-		if m.TimestampMs == nil {
+		if m.TimestampMs == 0 {
 			return false, ErrNoTimestamp
 		}
-		if *m.TimestampMs < t.min {
+		if m.TimestampMs < t.min {
 			return false, ErrTimestampTooOld
 		}
-		switch t := *family.Type; t {
+		switch t := family.Type; t {
 		case clientmodel.MetricType_COUNTER:
 			if m.Counter == nil || m.Gauge != nil || m.Histogram != nil || m.Summary != nil || m.Untyped != nil {
 				return false, fmt.Errorf("metric type %s must have counter field set", t)
@@ -100,10 +97,7 @@ func (t *dropInvalidFederateSamples) Transform(family *clientmodel.MetricFamily)
 	if len(name) > 255 {
 		return false, nil
 	}
-	if family.Type == nil {
-		return false, nil
-	}
-	switch t := *family.Type; t {
+	switch t := family.Type; t {
 	case clientmodel.MetricType_COUNTER:
 	case clientmodel.MetricType_GAUGE:
 	case clientmodel.MetricType_HISTOGRAM:
@@ -119,23 +113,23 @@ func (t *dropInvalidFederateSamples) Transform(family *clientmodel.MetricFamily)
 		}
 		packLabels := false
 		for j, label := range m.Label {
-			if label.Name == nil || len(*label.Name) == 0 || len(*label.Name) > 255 {
-				m.Label[j] = nil
+			if len(label.Name) == 0 || len(label.Name) > 255 {
+				m.Label[j] = clientmodel.LabelPair{}
 				packLabels = true
 			}
-			if label.Value == nil || len(*label.Value) > 255 {
-				m.Label[j] = nil
+			if len(label.Value) > 255 {
+				m.Label[j] = clientmodel.LabelPair{}
 				packLabels = true
 			}
 		}
 		if packLabels {
 			m.Label = PackLabels(m.Label)
 		}
-		if m.TimestampMs == nil || *m.TimestampMs < t.min {
+		if m.TimestampMs < t.min {
 			family.Metric[i] = nil
 			continue
 		}
-		switch t := *family.Type; t {
+		switch t := family.Type; t {
 		case clientmodel.MetricType_COUNTER:
 			if m.Counter == nil || m.Gauge != nil || m.Histogram != nil || m.Summary != nil || m.Untyped != nil {
 				family.Metric[i] = nil
@@ -163,12 +157,12 @@ func (t *dropInvalidFederateSamples) Transform(family *clientmodel.MetricFamily)
 
 // PackLabels fills holes in the label slice by shifting items towards the zero index.
 // It will modify the slice in place.
-func PackLabels(labels []*clientmodel.LabelPair) []*clientmodel.LabelPair {
+func PackLabels(labels []clientmodel.LabelPair) []clientmodel.LabelPair {
 	j := len(labels)
 	next := 0
 Found:
 	for i := 0; i < j; i++ {
-		if labels[i] != nil {
+		if labels[i].Name != "" {
 			continue
 		}
 		// scan for the next non-nil metric
@@ -176,11 +170,11 @@ Found:
 			next = i + 1
 		}
 		for k := next; k < j; k++ {
-			if labels[k] == nil {
+			if labels[k].Name == "" {
 				continue
 			}
 			// fill the current i with a non-nil metric
-			labels[i], labels[k] = labels[k], nil
+			labels[i], labels[k] = labels[k], clientmodel.LabelPair{}
 			next = k + 1
 			continue Found
 		}

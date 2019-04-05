@@ -26,7 +26,7 @@ func (t requireLabel) Transform(family *clientmodel.MetricFamily) (bool, error) 
 				continue
 			}
 			for _, label := range m.Label {
-				if label == nil {
+				if label.Name == "" {
 					continue
 				}
 				if label.GetName() == k {

@@ -7,11 +7,11 @@ type RenameMetrics struct {
 }
 
 func (m RenameMetrics) Transform(family *clientmodel.MetricFamily) (bool, error) {
-	if family == nil || family.Name == nil {
+	if family == nil || len(family.Name) == 0 {
 		return true, nil
 	}
-	if replace, ok := m.Names[*family.Name]; ok {
-		family.Name = &replace
+	if replace, ok := m.Names[family.Name]; ok {
+		family.Name = replace
 	}
 	return true, nil
 }

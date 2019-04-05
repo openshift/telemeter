@@ -30,8 +30,8 @@ func (t *errorOnUnsorted) Transform(family *clientmodel.MetricFamily) (bool, err
 			continue
 		}
 		var ts int64
-		if m.TimestampMs != nil {
-			ts = *m.TimestampMs
+		if m.TimestampMs != 0 {
+			ts = m.TimestampMs
 		} else if t.require {
 			return false, ErrNoTimestamp
 		}

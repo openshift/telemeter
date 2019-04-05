@@ -25,13 +25,13 @@ func (m MetricsByTimestamp) Less(i int, j int) bool {
 	if b == nil {
 		return false
 	}
-	if a.TimestampMs == nil {
-		return b.TimestampMs != nil
+	if a.TimestampMs == 0 {
+		return b.TimestampMs != 0
 	}
-	if b.TimestampMs == nil {
+	if b.TimestampMs == 0 {
 		return false
 	}
-	return *a.TimestampMs < *b.TimestampMs
+	return a.TimestampMs < b.TimestampMs
 }
 
 func (m MetricsByTimestamp) Swap(i int, j int) {
@@ -56,8 +56,8 @@ func MergeSortedWithTimestamps(families []*clientmodel.MetricFamily) []*clientmo
 		lenI, lenJ := len(dst.Metric), len(src.Metric)
 
 		// if the ranges don't overlap, we can block merge
-		dstBegin, dstEnd := *dst.Metric[0].TimestampMs, *dst.Metric[lenI-1].TimestampMs
-		srcBegin, srcEnd := *src.Metric[0].TimestampMs, *src.Metric[lenJ-1].TimestampMs
+		dstBegin, dstEnd := dst.Metric[0].TimestampMs, dst.Metric[lenI-1].TimestampMs
+		srcBegin, srcEnd := src.Metric[0].TimestampMs, src.Metric[lenJ-1].TimestampMs
 		if dstEnd < srcBegin {
 			dst.Metric = append(dst.Metric, src.Metric...)
 			families[pos] = nil
@@ -86,7 +86,7 @@ func MergeSortedWithTimestamps(families []*clientmodel.MetricFamily) []*clientmo
 				}
 				break Merge
 			default:
-				a, b := *dst.Metric[i].TimestampMs, *src.Metric[j].TimestampMs
+				a, b := dst.Metric[i].TimestampMs, src.Metric[j].TimestampMs
 				if a <= b {
 					result = append(result, dst.Metric[i])
 					i++
@@ -119,7 +119,7 @@ func (families PackedFamilyWithTimestampsByName) Less(i int, j int) bool {
 	if a > b {
 		return false
 	}
-	tA, tB := *families[i].Metric[0].TimestampMs, *families[j].Metric[0].TimestampMs
+	tA, tB := families[i].Metric[0].TimestampMs, families[j].Metric[0].TimestampMs
 	return tA < tB
 }
 

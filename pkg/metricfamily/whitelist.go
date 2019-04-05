@@ -52,7 +52,7 @@ Matcher:
 			continue
 		}
 		for _, label := range metric.Label {
-			if label == nil || m.Name != label.GetName() || !m.Matches(label.GetValue()) {
+			if label.Name == "" || m.Name != label.GetName() || !m.Matches(label.GetValue()) {
 				continue
 			}
 			continue Matcher

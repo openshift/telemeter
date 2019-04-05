@@ -57,7 +57,7 @@ func transformMetricLabelValues(salt string, metrics []*clientmodel.Metric, sets
 			continue
 		}
 		for _, pair := range m.Label {
-			if pair.Value == nil || *pair.Value == "" {
+			if pair.Value == "" {
 				continue
 			}
 			name := pair.GetName()
@@ -67,7 +67,7 @@ func transformMetricLabelValues(salt string, metrics []*clientmodel.Metric, sets
 					continue
 				}
 				v := secureValueHash(salt, pair.GetValue())
-				pair.Value = &v
+				pair.Value = v
 				break
 			}
 		}

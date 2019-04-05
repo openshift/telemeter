@@ -11,16 +11,16 @@ type LabelRetriever interface {
 }
 
 type label struct {
-	labels    map[string]*clientmodel.LabelPair
+	labels    map[string]clientmodel.LabelPair
 	retriever LabelRetriever
 	mu        sync.Mutex
 }
 
 func NewLabel(labels map[string]string, retriever LabelRetriever) Transformer {
-	pairs := make(map[string]*clientmodel.LabelPair)
+	pairs := make(map[string]clientmodel.LabelPair)
 	for k, v := range labels {
 		name, value := k, v
-		pairs[k] = &clientmodel.LabelPair{Name: &name, Value: &value}
+		pairs[k] = clientmodel.LabelPair{Name: name, Value: value}
 	}
 	return &label{
 		labels:    pairs,
@@ -40,7 +40,7 @@ func (t *label) Transform(family *clientmodel.MetricFamily) (bool, error) {
 		t.retriever = nil
 		for k, v := range added {
 			name, value := k, v
-			t.labels[k] = &clientmodel.LabelPair{Name: &name, Value: &value}
+			t.labels[k] = clientmodel.LabelPair{Name: name, Value: value}
 		}
 	}
 	for _, m := range family.Metric {
@@ -49,7 +49,7 @@ func (t *label) Transform(family *clientmodel.MetricFamily) (bool, error) {
 	return true, nil
 }
 
-func appendLabels(existing []*clientmodel.LabelPair, overrides map[string]*clientmodel.LabelPair) []*clientmodel.LabelPair {
+func appendLabels(existing []clientmodel.LabelPair, overrides map[string]clientmodel.LabelPair) []clientmodel.LabelPair {
 	var found []string
 	for i, pair := range existing {
 		name := pair.GetName()

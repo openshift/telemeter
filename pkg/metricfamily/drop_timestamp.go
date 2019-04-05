@@ -12,7 +12,7 @@ func DropTimestamp(family *clientmodel.MetricFamily) (bool, error) {
 		if m == nil {
 			continue
 		}
-		m.TimestampMs = nil
+		m.TimestampMs = 0
 	}
 
 	return true, nil

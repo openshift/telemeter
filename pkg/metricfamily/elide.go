@@ -26,7 +26,7 @@ func (t *elide) Transform(family *prom.MetricFamily) (bool, error) {
 	}
 
 	for i := range family.Metric {
-		var filtered []*prom.LabelPair
+		var filtered []prom.LabelPair
 		for j := range family.Metric[i].Label {
 			if _, elide := t.labelSet[family.Metric[i].Label[j].GetName()]; elide {
 				continue

@@ -11,10 +11,7 @@ func (o *DropUnsorted) Transform(family *clientmodel.MetricFamily) (bool, error)
 		if m == nil {
 			continue
 		}
-		var ts int64
-		if m.TimestampMs != nil {
-			ts = *m.TimestampMs
-		}
+		var ts = m.TimestampMs
 		if ts < o.timestamp {
 			family.Metric[i] = nil
 			continue
