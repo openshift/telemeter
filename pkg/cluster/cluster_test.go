@@ -362,6 +362,7 @@ func TestWriteMetrics(t *testing.T) {
 			if tc.initDynamicCluster != nil {
 				tc.initDynamicCluster(dc)
 			}
+			dc.refreshRing()
 
 			if err := tc.writeMetricsCheck(dc.WriteMetrics(ctx, &store.PartitionedMetrics{
 				PartitionKey: tc.partitionKey,
