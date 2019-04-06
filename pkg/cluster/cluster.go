@@ -101,7 +101,6 @@ type DynamicCluster struct {
 	queue chan ([]byte)
 
 	lock        sync.RWMutex
-	updated     time.Time
 	ring        *hashring.HashRing
 	problematic map[string]*nodeData
 }
