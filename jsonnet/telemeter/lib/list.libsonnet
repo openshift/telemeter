@@ -43,10 +43,10 @@
       for o in super.objects
     ],
     parameters+: [
-      { name: std.asciiUpper(varContainerName)+'_CPU_REQUEST', value: if std.objectHas(requests, 'cpu') then requests.cpu else "0" },
-      { name: std.asciiUpper(varContainerName)+'_CPU_LIMIT', value: if std.objectHas(limits, 'cpu') then limits.cpu else "0" },
-      { name: std.asciiUpper(varContainerName)+'_MEMORY_REQUEST', value: if std.objectHas(requests, 'memory') then requests.memory else "0" },
-      { name: std.asciiUpper(varContainerName)+'_MEMORY_LIMIT', value: if std.objectHas(limits, 'memory') then limits.memory else "0" },
+      { name: std.asciiUpper(varContainerName)+'_CPU_REQUEST', value: if std.objectHas(requests, 'cpu') then requests.cpu else "100m" },
+      { name: std.asciiUpper(varContainerName)+'_CPU_LIMIT', value: if std.objectHas(limits, 'cpu') then limits.cpu else "1" },
+      { name: std.asciiUpper(varContainerName)+'_MEMORY_REQUEST', value: if std.objectHas(requests, 'memory') then requests.memory else "500Mi" },
+      { name: std.asciiUpper(varContainerName)+'_MEMORY_LIMIT', value: if std.objectHas(limits, 'memory') then limits.memory else "1Gi" },
     ],
   },
 

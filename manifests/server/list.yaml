@@ -221,10 +221,10 @@ parameters:
 - name: IMAGE_TAG
   value: v4.0
 - name: TELEMETER_SERVER_CPU_REQUEST
-  value: "0"
+  value: 100m
 - name: TELEMETER_SERVER_CPU_LIMIT
-  value: "0"
+  value: "1"
 - name: TELEMETER_SERVER_MEMORY_REQUEST
-  value: "0"
+  value: 500Mi
 - name: TELEMETER_SERVER_MEMORY_LIMIT
-  value: "0"
+  value: 1Gi
