@@ -23,8 +23,19 @@ build:
 image:
 	imagebuilder -t openshift/telemeter:latest .
 
-$(DOCS): $(JSONNET_SRC) $(EMBEDMD_BIN)
+$(DOCS): $(JSONNET_SRC) $(EMBEDMD_BIN) docs/telemeter_query
 	$(EMBEDMD_BIN) -w $@
+
+# Can't add test/timeseries.txt as a dependency, otherwise
+# running make --always-make will try to regenerate the timeseries
+# on CI, which will fail because there is no OpenShift cluster.
+docs/telemeter_query: $(JSONNET_SRC)
+	query=""; \
+	for rule in $$(jsonnet metrics.json | jq -r '.[]'); do \
+	    [ ! -z "$$query" ] && query="$$query or "; \
+	    query="$$query$$rule"; \
+	done; \
+	echo "$$query" > $@
 
 test-generate:
 	make --always-make && git diff --exit-code
@@ -46,12 +57,12 @@ test-benchmark: build
 test/timeseries.txt:
 	oc port-forward -n openshift-monitoring prometheus-k8s-0 9090 > /dev/null & \
 	sleep 5 ; \
-	c="curl --fail --silent -G http://localhost:9090/federate"; \
-	for r in $$(jsonnet metrics.json | jq -r '.[]'); \
-	    do c="$$c $$(printf -- "--data-urlencode match[]=%s" $$r)"; \
+	query="curl --fail --silent -G http://localhost:9090/federate"; \
+	for rule in $$(jsonnet metrics.json | jq -r '.[]'); do \
+	    query="$$query $$(printf -- "--data-urlencode match[]=%s" $$rule)"; \
 	done; \
 	echo '# This file was generated using `make $@`.' > $@ ; \
-	$$c >> $@ ; \
+	$$query >> $@ ; \
 	jobs -p | xargs -r kill
 
 vendor:
