@@ -10,12 +10,14 @@ $ oc get route prometheus-k8s -n openshift-monitoring -o jsonpath="{.spec.host}"
 
 Next, navigate to this URL and run the following query, which will
 return the full set of metrics that the Telemeter client captures:
+
 [embedmd]:# (telemeter_query txt)
 ```txt
 {__name__="up"} or {__name__="cluster_version"} or {__name__="cluster_version_available_updates"} or {__name__="cluster_operator_up"} or {__name__="cluster_operator_conditions"} or {__name__="cluster_version_payload"} or {__name__="cluster_version_payload_errors"} or {__name__="machine_cpu_cores"} or {__name__="machine_memory_bytes"} or {__name__="etcd_object_counts"} or {__name__="ALERTS",alertstate="firing"} or {__name__="code:apiserver_request_count:rate:sum"} or {__name__="kube_pod_status_ready:etcd:sum"} or {__name__="kube_pod_status_ready:image_registry:sum"} or {__name__="cluster:capacity_cpu_cores:sum"} or {__name__="cluster:capacity_memory_bytes:sum"} or {__name__="cluster:cpu_usage_cores:sum"} or {__name__="cluster:memory_usage_bytes:sum"} or {__name__="openshift:cpu_usage_cores:sum"} or {__name__="openshift:memory_usage_bytes:sum"} or {__name__="cluster:node_instance_type_count:sum"}
 ```
 
 For reference, here is an example response produced by a running OpenShift cluster:
+
 [embedmd]:# (../test/timeseries.txt)
 ```txt
 # This file was generated using `make test/timeseries.txt`.
