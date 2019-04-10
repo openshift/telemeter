@@ -29,14 +29,6 @@
   // can be used to identify whether a set of errors that occur during
   // an upgrade are trending up or down from previous updates.
   '{__name__="cluster_version_payload_errors"}',
-  // machine_cpu_cores helps estimate the size of a cluster and the
-  // instances in use. Some errors on upgrades may only manifest at
-  // certain scale and sizes.
-  '{__name__="machine_cpu_cores"}',
-  // machine_memory_bytes helps estimate the size of a cluster and
-  // the instances in use. Some errors on upgrades may only manifest at
-  // certain scale and sizes.
-  '{__name__="machine_memory_bytes"}',
   // etcd_object_counts identifies two key metrics - the rough size of
   // the data stored in etcd and the features in use - both of which
   // may cause upgrades to exhibit failures. For instance, an upgrade
