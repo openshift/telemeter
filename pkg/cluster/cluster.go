@@ -100,8 +100,7 @@ type DynamicCluster struct {
 	// and is processed in the #handleMessage function.
 	queue chan ([]byte)
 
-	lock        sync.Mutex
-	updated     time.Time
+	lock        sync.RWMutex
 	ring        *hashring.HashRing
 	problematic map[string]*nodeData
 }
@@ -124,6 +123,18 @@ func NewDynamic(name string, store store.Store) *DynamicCluster {
 func (c *DynamicCluster) Start(ml memberlister, ctx context.Context) {
 	c.ml = ml
 	c.ctx = ctx
+
+	go func() {
+		defer func() {
+			if err := recover(); err != nil {
+				log.Fatalf("Unable to refresh the hash ring: %v", err)
+			}
+		}()
+		for {
+			c.refreshRing()
+			time.Sleep(time.Minute)
+		}
+	}()
 
 	go func() {
 		for {
@@ -173,25 +184,21 @@ func (c *DynamicCluster) debugInfo() debugInfo {
 	return info
 }
 
+// refreshRing is invoked periodically to update the hash ring
 func (c *DynamicCluster) refreshRing() {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	if !c.updated.IsZero() && c.updated.Before(time.Now().Add(-time.Minute)) {
-		return
-	}
-
 	members := make([]string, 0, c.ml.NumMembers())
 	for _, n := range c.ml.Members() {
 		members = append(members, n.Name)
 	}
+
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	c.ring = hashring.New(members)
 }
 
 func (c *DynamicCluster) getNodeForKey(partitionKey string) (string, bool) {
-	c.refreshRing()
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
+	c.lock.RLock()
+	defer c.lock.RUnlock()
 	return c.ring.GetNode(partitionKey)
 }
 
