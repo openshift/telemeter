@@ -29,12 +29,10 @@
   // can be used to identify whether a set of errors that occur during
   // an upgrade are trending up or down from previous updates.
   '{__name__="cluster_version_payload_errors"}',
-  // etcd_object_counts identifies two key metrics - the rough size of
-  // the data stored in etcd and the features in use - both of which
-  // may cause upgrades to exhibit failures. For instance, an upgrade
-  // which only fails when service catalog objects are present may
-  // identify a regression in that specific component.
-  '{__name__="etcd_object_counts"}',
+  // instance:etcd_object_counts:sum identifies two key metrics:
+  // - the rough size of the data stored in etcd and
+  // - the consistency between the etcd instances.
+  '{__name__="instance:etcd_object_counts:sum"}',
   // alerts are the key summarization of the system state. They are
   // reported via telemetry to assess their value in detecting
   // upgrade failure causes and also to prevent the need to gather
