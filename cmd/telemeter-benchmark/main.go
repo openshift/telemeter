@@ -30,9 +30,10 @@ type options struct {
 	ToToken     string
 	ToTokenFile string
 
-	Interval    time.Duration
-	MetricsFile string
-	Workers     int
+	Interval          time.Duration
+	MetricsFile       string
+	Workers           int
+	FaultyProbability float64
 }
 
 var opt options = options{
@@ -61,6 +62,7 @@ func main() {
 	cmd.Flags().DurationVar(&opt.Interval, "interval", opt.Interval, "The interval between scrapes. Prometheus returns the last 5 minutes of metrics when invoking the federation endpoint.")
 	cmd.Flags().StringVar(&opt.Listen, "listen", opt.Listen, "A host:port to listen on for health and metrics.")
 	cmd.Flags().IntVar(&opt.Workers, "workers", opt.Workers, "The number of workers to run in parallel.")
+	cmd.Flags().Float64Var(&opt.FaultyProbability, "faulty-probability", opt.FaultyProbability, "The probability a worker is a cluster, which sends faulty payloads.")
 
 	if err := cmd.Execute(); err != nil {
 		os.Exit(1)
@@ -114,14 +116,15 @@ func runCmd() error {
 	}
 
 	cfg := &benchmark.Config{
-		ToAuthorize: toAuthorize,
-		ToUpload:    toUpload,
-		ToCAFile:    opt.ToCAFile,
-		ToToken:     opt.ToToken,
-		ToTokenFile: opt.ToTokenFile,
-		Interval:    opt.Interval,
-		MetricsFile: opt.MetricsFile,
-		Workers:     opt.Workers,
+		ToAuthorize:       toAuthorize,
+		ToUpload:          toUpload,
+		ToCAFile:          opt.ToCAFile,
+		ToToken:           opt.ToToken,
+		ToTokenFile:       opt.ToTokenFile,
+		Interval:          opt.Interval,
+		MetricsFile:       opt.MetricsFile,
+		Workers:           opt.Workers,
+		FaultyProbability: opt.FaultyProbability,
 	}
 
 	b, err := benchmark.New(cfg)

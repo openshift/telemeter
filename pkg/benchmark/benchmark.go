@@ -63,26 +63,32 @@ type Benchmark struct {
 // Config defines the parameters that can be used to configure a worker.
 // The only required field is `From`.
 type Config struct {
-	ToAuthorize *url.URL
-	ToUpload    *url.URL
-	ToCAFile    string
-	ToToken     string
-	ToTokenFile string
-	Interval    time.Duration
-	MetricsFile string
-	Workers     int
+	ToAuthorize       *url.URL
+	ToUpload          *url.URL
+	ToCAFile          string
+	ToToken           string
+	ToTokenFile       string
+	Interval          time.Duration
+	MetricsFile       string
+	Workers           int
+	FaultyProbability float64
+}
+
+type sender interface {
+	Send(ctx context.Context, req *http.Request, families []*clientmodel.MetricFamily) error
 }
 
 // worker represents a metrics forwarding agent. It collects metrics from a source URL and forwards them to a sink.
 // A worker should be configured with a `Config` and instantiated with the `New` func.
 // workers are thread safe; all access to shared fields is synchronized.
 type worker struct {
-	client      *metricsclient.Client
+	client      sender
 	id          string
 	interval    time.Duration
 	metrics     []*clientmodel.MetricFamily
 	to          *url.URL
 	transformer metricfamily.Transformer
+	faulty      bool
 }
 
 // New creates a new Benchmark based on the provided Config. If the Config contains invalid
@@ -129,6 +135,7 @@ func New(cfg *Config) (*Benchmark, error) {
 		}
 	}
 
+	rand.Seed(time.Now().UnixNano())
 	for i := range b.workers {
 		w := &worker{
 			id:       uuid.Must(uuid.NewV4()).String(),
@@ -176,7 +183,15 @@ func New(cfg *Config) (*Benchmark, error) {
 			client.Transport = rt
 			transformer.With(metricfamily.NewLabel(nil, rt))
 		}
-		w.client = metricsclient.New(client, LimitBytes, w.interval, "federate_to")
+
+		if rand.Float64() < cfg.FaultyProbability {
+			w.client = metricsclient.NewFaultySender(client, LimitBytes, w.interval, "federate_to")
+			w.faulty = true
+		} else {
+			w.client = metricsclient.New(client, LimitBytes, w.interval, "federate_to")
+			w.faulty = false
+		}
+
 		w.transformer = transformer
 		b.workers[i] = w
 	}
@@ -207,7 +222,7 @@ func (b *Benchmark) Run() {
 		for i, w := range b.workers {
 			wg.Add(1)
 			go func(i int, w *worker) {
-				log.Printf("Started worker %d of %d: %s", i+1, len(b.workers), w.id)
+				log.Printf("Started faulty=%t worker %d of %d: %s", w.faulty, i+1, len(b.workers), w.id)
 				select {
 				case <-time.After(time.Duration(rand.Int63n(int64(w.interval)))):
 					w.run(ctx)
