@@ -23,12 +23,12 @@ build:
 image:
 	imagebuilder -t openshift/telemeter:latest .
 
-$(DOCS): $(JSONNET_SRC) $(EMBEDMD_BIN) docs/telemeter_query
-	$(EMBEDMD_BIN) -w $@
-
 # Can't add test/timeseries.txt as a dependency, otherwise
 # running make --always-make will try to regenerate the timeseries
 # on CI, which will fail because there is no OpenShift cluster.
+$(DOCS): $(JSONNET_SRC) $(EMBEDMD_BIN) docs/telemeter_query
+	$(EMBEDMD_BIN) -w $@
+
 docs/telemeter_query: $(JSONNET_SRC)
 	query=""; \
 	for rule in $$(jsonnet metrics.json | jq -r '.[]'); do \
