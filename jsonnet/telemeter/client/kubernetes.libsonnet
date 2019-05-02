@@ -157,6 +157,7 @@ local securePort = 8443;
       deployment.mixin.spec.selector.withMatchLabels(podLabels) +
       deployment.mixin.spec.template.spec.withServiceAccountName('telemeter-client') +
       deployment.mixin.spec.template.spec.withPriorityClassName('system-cluster-critical') +
+      deployment.mixin.spec.template.spec.withNodeSelector({'beta.kubernetes.io/os': 'linux'}) +
       deployment.mixin.spec.template.spec.withVolumes([sccabVolume, secretVolume, tlsVolume]),
 
     secret:
