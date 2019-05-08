@@ -210,12 +210,24 @@ func withCancel(ctx context.Context, client *http.Client, req *http.Request, fn 
 
 	select {
 	case <-ctx.Done():
-		err = resp.Body.Close()
+		closeErr := resp.Body.Close()
+
+		// wait for the goroutine to finish.
 		<-done
+
+		// err is propagated from the goroutine above
+		// if it is nil, we bubble up the close err, if any.
+		if err == nil {
+			err = closeErr
+		}
+
+		// if there is no close err,
+		// we propagate the context context error.
 		if err == nil {
 			err = ctx.Err()
 		}
 	case <-done:
+		// propagate the err from the spawned goroutine, if any.
 	}
 
 	return err
