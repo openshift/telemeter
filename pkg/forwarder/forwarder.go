@@ -276,6 +276,9 @@ func (w *Worker) forward(ctx context.Context) error {
 
 	// Load the match rules each time.
 	from := w.from
+
+	// reset query from last invocation, otherwise match rules will be appended
+	w.from.RawQuery = ""
 	v := from.Query()
 	for _, rule := range w.rules {
 		v.Add("match[]", rule)
