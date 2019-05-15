@@ -16,6 +16,7 @@ items:
     - name: http
       port: 80
       targetPort: 9090
+    sessionAffinity: ClientIP
 - kind: StatefulSet
   apiVersion: apps/v1
   metadata:
