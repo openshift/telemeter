@@ -198,23 +198,6 @@ objects:
     - get
     - list
     - watch
-- apiVersion: v1
-  kind: Route
-  metadata:
-    annotations:
-      haproxy.router.openshift.io/balance: source
-      kubernetes.io/tls-acme: "true"
-      kubernetes.io/tls-acme-secretname: prometheus-telemeter-acme
-    name: prometheus-telemeter
-    namespace: ${NAMESPACE}
-  spec:
-    port:
-      targetPort: https
-    tls:
-      termination: Reencrypt
-    to:
-      kind: Service
-      name: prometheus-telemeter
 - apiVersion: monitoring.coreos.com/v1
   kind: PrometheusRule
   metadata:

@@ -45,32 +45,6 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
       secret.mixin.metadata.withNamespace($._config.namespace) +
       secret.mixin.metadata.withLabels({ 'k8s-app': 'prometheus-' + $._config.prometheus.name }),
 
-    route: {
-      apiVersion: 'v1',
-      kind: 'Route',
-      metadata: {
-        annotations: {
-          'kubernetes.io/tls-acme': 'true',
-          'kubernetes.io/tls-acme-secretname': 'prometheus-%s-acme' % $._config.prometheus.name,
-          'haproxy.router.openshift.io/balance': 'source',
-        },
-        name: 'prometheus-' + $._config.prometheus.name,
-        namespace: $._config.namespace,
-      },
-      spec: {
-        to: {
-          kind: 'Service',
-          name: 'prometheus-' + $._config.prometheus.name,
-        },
-        port: {
-          targetPort: 'https',
-        },
-        tls: {
-          termination: 'Reencrypt',
-        },
-      },
-    },
-
     serviceAccount:
       local serviceAccount = k.core.v1.serviceAccount;
 
