@@ -4,7 +4,6 @@ SHELL=/bin/bash -o pipefail
 GO_PKG=github.com/openshift/telemeter
 REPO?=quay.io/openshift/telemeter
 TAG?=$(shell git rev-parse --short HEAD)
-VERSION=$(shell cat VERSION | tr -d " \t\n\r")
 
 PKGS=$(shell go list ./... | grep -v -E '/vendor/|/test')
 GOLANG_FILES:=$(shell find . -name \*.go -print)
@@ -117,7 +116,7 @@ benchmark.pdf: $(BENCHMARK_RESULTS)
 lint: $(GOLANGCI_LINT_BIN)
 	# megacheck fails to respect build flags, causing compilation failure during linting.
 	# instead, use the unused, gosimple, and staticcheck linters directly
-	$(BIN)/golangci-lint run -D megacheck -E unused,gosimple,staticcheck
+	$(GOLANGCI_LINT_BIN) run -D megacheck -E unused,gosimple,staticcheck
 
 .PHONY: format
 format: go-fmt shellcheck
@@ -175,13 +174,13 @@ $(EMBEDMD_BIN):
 $(GOBINDATA_BIN):
 	go get -u github.com/jteeuwen/go-bindata/...
 
-$(JB_BINARY):
+$(JB_BIN):
 	go get -u github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb
 
-$(GOJSONTOYAML_BINARY):
+$(GOJSONTOYAML_BIN):
 	go get -u github.com/brancz/gojsontoyaml
 
 $(GOLANGCI_LINT_BIN):
-	curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $(BIN) v1.10.2
+	curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $(FIRST_GOPATH)/bin v1.10.2
 
 
