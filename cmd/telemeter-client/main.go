@@ -175,11 +175,9 @@ func (o *Options) Run() error {
 			}
 			toAuthorize = &u
 		}
-		if toUpload == nil {
-			u := *to
-			u.Path = path.Join(to.Path, "upload")
-			toUpload = &u
-		}
+		u := *to
+		u.Path = path.Join(to.Path, "upload")
+		toUpload = &u
 	}
 
 	if toUpload == nil || toAuthorize == nil {

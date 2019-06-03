@@ -102,11 +102,9 @@ func runCmd() error {
 			u.Path = path.Join(to.Path, "authorize")
 			toAuthorize = &u
 		}
-		if toUpload == nil {
-			u := *to
-			u.Path = path.Join(to.Path, "upload")
-			toUpload = &u
-		}
+		u := *to
+		u.Path = path.Join(to.Path, "upload")
+		toUpload = &u
 	}
 
 	if toUpload == nil || toAuthorize == nil {
