@@ -31,7 +31,6 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/tsdb/encoding"
 	"github.com/prometheus/tsdb/fileutil"
 	"github.com/prometheus/tsdb/labels"
 	"github.com/prometheus/tsdb/wal"
@@ -288,16 +287,16 @@ func (w *SegmentWAL) Reader() WALReader {
 	}
 }
 
-func (w *SegmentWAL) getBuffer() *encoding.Encbuf {
+func (w *SegmentWAL) getBuffer() *encbuf {
 	b := w.buffers.Get()
 	if b == nil {
-		return &encoding.Encbuf{B: make([]byte, 0, 64*1024)}
+		return &encbuf{b: make([]byte, 0, 64*1024)}
 	}
-	return b.(*encoding.Encbuf)
+	return b.(*encbuf)
 }
 
-func (w *SegmentWAL) putBuffer(b *encoding.Encbuf) {
-	b.Reset()
+func (w *SegmentWAL) putBuffer(b *encbuf) {
+	b.reset()
 	w.buffers.Put(b)
 }
 
@@ -367,7 +366,7 @@ func (w *SegmentWAL) Truncate(mint int64, keep func(uint64) bool) error {
 		buf := w.getBuffer()
 		flag = w.encodeSeries(buf, activeSeries)
 
-		_, err = w.writeTo(csf, crc32, WALEntrySeries, flag, buf.Get())
+		_, err = w.writeTo(csf, crc32, WALEntrySeries, flag, buf.get())
 		w.putBuffer(buf)
 
 		if err != nil {
@@ -428,7 +427,7 @@ func (w *SegmentWAL) LogSeries(series []RefSeries) error {
 	w.mtx.Lock()
 	defer w.mtx.Unlock()
 
-	err := w.write(WALEntrySeries, flag, buf.Get())
+	err := w.write(WALEntrySeries, flag, buf.get())
 
 	w.putBuffer(buf)
 
@@ -455,7 +454,7 @@ func (w *SegmentWAL) LogSamples(samples []RefSample) error {
 	w.mtx.Lock()
 	defer w.mtx.Unlock()
 
-	err := w.write(WALEntrySamples, flag, buf.Get())
+	err := w.write(WALEntrySamples, flag, buf.get())
 
 	w.putBuffer(buf)
 
@@ -481,7 +480,7 @@ func (w *SegmentWAL) LogDeletes(stones []Stone) error {
 	w.mtx.Lock()
 	defer w.mtx.Unlock()
 
-	err := w.write(WALEntryDeletes, flag, buf.Get())
+	err := w.write(WALEntryDeletes, flag, buf.get())
 
 	w.putBuffer(buf)
 
@@ -784,20 +783,20 @@ const (
 	walDeletesSimple = 1
 )
 
-func (w *SegmentWAL) encodeSeries(buf *encoding.Encbuf, series []RefSeries) uint8 {
+func (w *SegmentWAL) encodeSeries(buf *encbuf, series []RefSeries) uint8 {
 	for _, s := range series {
-		buf.PutBE64(s.Ref)
-		buf.PutUvarint(len(s.Labels))
+		buf.putBE64(s.Ref)
+		buf.putUvarint(len(s.Labels))
 
 		for _, l := range s.Labels {
-			buf.PutUvarintStr(l.Name)
-			buf.PutUvarintStr(l.Value)
+			buf.putUvarintStr(l.Name)
+			buf.putUvarintStr(l.Value)
 		}
 	}
 	return walSeriesSimple
 }
 
-func (w *SegmentWAL) encodeSamples(buf *encoding.Encbuf, samples []RefSample) uint8 {
+func (w *SegmentWAL) encodeSamples(buf *encbuf, samples []RefSample) uint8 {
 	if len(samples) == 0 {
 		return walSamplesSimple
 	}
@@ -807,23 +806,23 @@ func (w *SegmentWAL) encodeSamples(buf *encoding.Encbuf, samples []RefSample) ui
 	// TODO(fabxc): optimize for all samples having the same timestamp.
 	first := samples[0]
 
-	buf.PutBE64(first.Ref)
-	buf.PutBE64int64(first.T)
+	buf.putBE64(first.Ref)
+	buf.putBE64int64(first.T)
 
 	for _, s := range samples {
-		buf.PutVarint64(int64(s.Ref) - int64(first.Ref))
-		buf.PutVarint64(s.T - first.T)
-		buf.PutBE64(math.Float64bits(s.V))
+		buf.putVarint64(int64(s.Ref) - int64(first.Ref))
+		buf.putVarint64(s.T - first.T)
+		buf.putBE64(math.Float64bits(s.V))
 	}
 	return walSamplesSimple
 }
 
-func (w *SegmentWAL) encodeDeletes(buf *encoding.Encbuf, stones []Stone) uint8 {
+func (w *SegmentWAL) encodeDeletes(buf *encbuf, stones []Stone) uint8 {
 	for _, s := range stones {
 		for _, iv := range s.intervals {
-			buf.PutBE64(s.ref)
-			buf.PutVarint64(iv.Mint)
-			buf.PutVarint64(iv.Maxt)
+			buf.putBE64(s.ref)
+			buf.putVarint64(iv.Mint)
+			buf.putVarint64(iv.Maxt)
 		}
 	}
 	return walDeletesSimple
@@ -1116,16 +1115,16 @@ func (r *walReader) entry(cr io.Reader) (WALEntryType, byte, []byte, error) {
 }
 
 func (r *walReader) decodeSeries(flag byte, b []byte, res *[]RefSeries) error {
-	dec := encoding.Decbuf{B: b}
+	dec := decbuf{b: b}
 
-	for len(dec.B) > 0 && dec.Err() == nil {
-		ref := dec.Be64()
+	for len(dec.b) > 0 && dec.err() == nil {
+		ref := dec.be64()
 
-		lset := make(labels.Labels, dec.Uvarint())
+		lset := make(labels.Labels, dec.uvarint())
 
 		for i := range lset {
-			lset[i].Name = dec.UvarintStr()
-			lset[i].Value = dec.UvarintStr()
+			lset[i].Name = dec.uvarintStr()
+			lset[i].Value = dec.uvarintStr()
 		}
 		sort.Sort(lset)
 
@@ -1134,11 +1133,11 @@ func (r *walReader) decodeSeries(flag byte, b []byte, res *[]RefSeries) error {
 			Labels: lset,
 		})
 	}
-	if dec.Err() != nil {
-		return dec.Err()
+	if dec.err() != nil {
+		return dec.err()
 	}
-	if len(dec.B) > 0 {
-		return errors.Errorf("unexpected %d bytes left in entry", len(dec.B))
+	if len(dec.b) > 0 {
+		return errors.Errorf("unexpected %d bytes left in entry", len(dec.b))
 	}
 	return nil
 }
@@ -1147,17 +1146,17 @@ func (r *walReader) decodeSamples(flag byte, b []byte, res *[]RefSample) error {
 	if len(b) == 0 {
 		return nil
 	}
-	dec := encoding.Decbuf{B: b}
+	dec := decbuf{b: b}
 
 	var (
-		baseRef  = dec.Be64()
-		baseTime = dec.Be64int64()
+		baseRef  = dec.be64()
+		baseTime = dec.be64int64()
 	)
 
-	for len(dec.B) > 0 && dec.Err() == nil {
-		dref := dec.Varint64()
-		dtime := dec.Varint64()
-		val := dec.Be64()
+	for len(dec.b) > 0 && dec.err() == nil {
+		dref := dec.varint64()
+		dtime := dec.varint64()
+		val := dec.be64()
 
 		*res = append(*res, RefSample{
 			Ref: uint64(int64(baseRef) + dref),
@@ -1166,31 +1165,31 @@ func (r *walReader) decodeSamples(flag byte, b []byte, res *[]RefSample) error {
 		})
 	}
 
-	if dec.Err() != nil {
-		return errors.Wrapf(dec.Err(), "decode error after %d samples", len(*res))
+	if dec.err() != nil {
+		return errors.Wrapf(dec.err(), "decode error after %d samples", len(*res))
 	}
-	if len(dec.B) > 0 {
-		return errors.Errorf("unexpected %d bytes left in entry", len(dec.B))
+	if len(dec.b) > 0 {
+		return errors.Errorf("unexpected %d bytes left in entry", len(dec.b))
 	}
 	return nil
 }
 
 func (r *walReader) decodeDeletes(flag byte, b []byte, res *[]Stone) error {
-	dec := &encoding.Decbuf{B: b}
+	dec := &decbuf{b: b}
 
-	for dec.Len() > 0 && dec.Err() == nil {
+	for dec.len() > 0 && dec.err() == nil {
 		*res = append(*res, Stone{
-			ref: dec.Be64(),
+			ref: dec.be64(),
 			intervals: Intervals{
-				{Mint: dec.Varint64(), Maxt: dec.Varint64()},
+				{Mint: dec.varint64(), Maxt: dec.varint64()},
 			},
 		})
 	}
-	if dec.Err() != nil {
-		return dec.Err()
+	if dec.err() != nil {
+		return dec.err()
 	}
-	if len(dec.B) > 0 {
-		return errors.Errorf("unexpected %d bytes left in entry", len(dec.B))
+	if len(dec.b) > 0 {
+		return errors.Errorf("unexpected %d bytes left in entry", len(dec.b))
 	}
 	return nil
 }

@@ -1,3 +1,5 @@
+# sudo is enabled because it provides more memory which was needed to run go test -race
+sudo: required
 dist: trusty
 language: go
 os:
@@ -8,7 +10,6 @@ os:
 go:
   - 1.10.x
   - 1.11.x
-  - 1.12.x
 
 go_import_path: github.com/prometheus/tsdb
 
@@ -19,4 +20,5 @@ install:
   - make deps
 
 script:
-  - if [[ "$TRAVIS_OS_NAME" == "windows" ]]; then make test; else make all; fi
+  # `staticcheck` target is omitted due to linting errors
+  - if [[ "$TRAVIS_OS_NAME" == "windows" ]]; then make test; else make; fi

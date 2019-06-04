@@ -19,7 +19,6 @@ import (
 	"sort"
 
 	"github.com/pkg/errors"
-	"github.com/prometheus/tsdb/encoding"
 	"github.com/prometheus/tsdb/labels"
 )
 
@@ -57,19 +56,19 @@ func (d *RecordDecoder) Type(rec []byte) RecordType {
 
 // Series appends series in rec to the given slice.
 func (d *RecordDecoder) Series(rec []byte, series []RefSeries) ([]RefSeries, error) {
-	dec := encoding.Decbuf{B: rec}
+	dec := decbuf{b: rec}
 
-	if RecordType(dec.Byte()) != RecordSeries {
+	if RecordType(dec.byte()) != RecordSeries {
 		return nil, errors.New("invalid record type")
 	}
-	for len(dec.B) > 0 && dec.Err() == nil {
-		ref := dec.Be64()
+	for len(dec.b) > 0 && dec.err() == nil {
+		ref := dec.be64()
 
-		lset := make(labels.Labels, dec.Uvarint())
+		lset := make(labels.Labels, dec.uvarint())
 
 		for i := range lset {
-			lset[i].Name = dec.UvarintStr()
-			lset[i].Value = dec.UvarintStr()
+			lset[i].Name = dec.uvarintStr()
+			lset[i].Value = dec.uvarintStr()
 		}
 		sort.Sort(lset)
 
@@ -78,33 +77,33 @@ func (d *RecordDecoder) Series(rec []byte, series []RefSeries) ([]RefSeries, err
 			Labels: lset,
 		})
 	}
-	if dec.Err() != nil {
-		return nil, dec.Err()
+	if dec.err() != nil {
+		return nil, dec.err()
 	}
-	if len(dec.B) > 0 {
-		return nil, errors.Errorf("unexpected %d bytes left in entry", len(dec.B))
+	if len(dec.b) > 0 {
+		return nil, errors.Errorf("unexpected %d bytes left in entry", len(dec.b))
 	}
 	return series, nil
 }
 
 // Samples appends samples in rec to the given slice.
 func (d *RecordDecoder) Samples(rec []byte, samples []RefSample) ([]RefSample, error) {
-	dec := encoding.Decbuf{B: rec}
+	dec := decbuf{b: rec}
 
-	if RecordType(dec.Byte()) != RecordSamples {
+	if RecordType(dec.byte()) != RecordSamples {
 		return nil, errors.New("invalid record type")
 	}
-	if dec.Len() == 0 {
+	if dec.len() == 0 {
 		return samples, nil
 	}
 	var (
-		baseRef  = dec.Be64()
-		baseTime = dec.Be64int64()
+		baseRef  = dec.be64()
+		baseTime = dec.be64int64()
 	)
-	for len(dec.B) > 0 && dec.Err() == nil {
-		dref := dec.Varint64()
-		dtime := dec.Varint64()
-		val := dec.Be64()
+	for len(dec.b) > 0 && dec.err() == nil {
+		dref := dec.varint64()
+		dtime := dec.varint64()
+		val := dec.be64()
 
 		samples = append(samples, RefSample{
 			Ref: uint64(int64(baseRef) + dref),
@@ -113,35 +112,35 @@ func (d *RecordDecoder) Samples(rec []byte, samples []RefSample) ([]RefSample, e
 		})
 	}
 
-	if dec.Err() != nil {
-		return nil, errors.Wrapf(dec.Err(), "decode error after %d samples", len(samples))
+	if dec.err() != nil {
+		return nil, errors.Wrapf(dec.err(), "decode error after %d samples", len(samples))
 	}
-	if len(dec.B) > 0 {
-		return nil, errors.Errorf("unexpected %d bytes left in entry", len(dec.B))
+	if len(dec.b) > 0 {
+		return nil, errors.Errorf("unexpected %d bytes left in entry", len(dec.b))
 	}
 	return samples, nil
 }
 
 // Tombstones appends tombstones in rec to the given slice.
 func (d *RecordDecoder) Tombstones(rec []byte, tstones []Stone) ([]Stone, error) {
-	dec := encoding.Decbuf{B: rec}
+	dec := decbuf{b: rec}
 
-	if RecordType(dec.Byte()) != RecordTombstones {
+	if RecordType(dec.byte()) != RecordTombstones {
 		return nil, errors.New("invalid record type")
 	}
-	for dec.Len() > 0 && dec.Err() == nil {
+	for dec.len() > 0 && dec.err() == nil {
 		tstones = append(tstones, Stone{
-			ref: dec.Be64(),
+			ref: dec.be64(),
 			intervals: Intervals{
-				{Mint: dec.Varint64(), Maxt: dec.Varint64()},
+				{Mint: dec.varint64(), Maxt: dec.varint64()},
 			},
 		})
 	}
-	if dec.Err() != nil {
-		return nil, dec.Err()
+	if dec.err() != nil {
+		return nil, dec.err()
 	}
-	if len(dec.B) > 0 {
-		return nil, errors.Errorf("unexpected %d bytes left in entry", len(dec.B))
+	if len(dec.b) > 0 {
+		return nil, errors.Errorf("unexpected %d bytes left in entry", len(dec.b))
 	}
 	return tstones, nil
 }
@@ -153,56 +152,56 @@ type RecordEncoder struct {
 
 // Series appends the encoded series to b and returns the resulting slice.
 func (e *RecordEncoder) Series(series []RefSeries, b []byte) []byte {
-	buf := encoding.Encbuf{B: b}
-	buf.PutByte(byte(RecordSeries))
+	buf := encbuf{b: b}
+	buf.putByte(byte(RecordSeries))
 
 	for _, s := range series {
-		buf.PutBE64(s.Ref)
-		buf.PutUvarint(len(s.Labels))
+		buf.putBE64(s.Ref)
+		buf.putUvarint(len(s.Labels))
 
 		for _, l := range s.Labels {
-			buf.PutUvarintStr(l.Name)
-			buf.PutUvarintStr(l.Value)
+			buf.putUvarintStr(l.Name)
+			buf.putUvarintStr(l.Value)
 		}
 	}
-	return buf.Get()
+	return buf.get()
 }
 
 // Samples appends the encoded samples to b and returns the resulting slice.
 func (e *RecordEncoder) Samples(samples []RefSample, b []byte) []byte {
-	buf := encoding.Encbuf{B: b}
-	buf.PutByte(byte(RecordSamples))
+	buf := encbuf{b: b}
+	buf.putByte(byte(RecordSamples))
 
 	if len(samples) == 0 {
-		return buf.Get()
+		return buf.get()
 	}
 
 	// Store base timestamp and base reference number of first sample.
 	// All samples encode their timestamp and ref as delta to those.
 	first := samples[0]
 
-	buf.PutBE64(first.Ref)
-	buf.PutBE64int64(first.T)
+	buf.putBE64(first.Ref)
+	buf.putBE64int64(first.T)
 
 	for _, s := range samples {
-		buf.PutVarint64(int64(s.Ref) - int64(first.Ref))
-		buf.PutVarint64(s.T - first.T)
-		buf.PutBE64(math.Float64bits(s.V))
+		buf.putVarint64(int64(s.Ref) - int64(first.Ref))
+		buf.putVarint64(s.T - first.T)
+		buf.putBE64(math.Float64bits(s.V))
 	}
-	return buf.Get()
+	return buf.get()
 }
 
 // Tombstones appends the encoded tombstones to b and returns the resulting slice.
 func (e *RecordEncoder) Tombstones(tstones []Stone, b []byte) []byte {
-	buf := encoding.Encbuf{B: b}
-	buf.PutByte(byte(RecordTombstones))
+	buf := encbuf{b: b}
+	buf.putByte(byte(RecordTombstones))
 
 	for _, s := range tstones {
 		for _, iv := range s.intervals {
-			buf.PutBE64(s.ref)
-			buf.PutVarint64(iv.Mint)
-			buf.PutVarint64(iv.Maxt)
+			buf.putBE64(s.ref)
+			buf.putVarint64(iv.Mint)
+			buf.putVarint64(iv.Maxt)
 		}
 	}
-	return buf.Get()
+	return buf.get()
 }

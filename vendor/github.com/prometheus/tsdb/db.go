@@ -16,7 +16,6 @@ package tsdb
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -45,11 +44,10 @@ import (
 // DefaultOptions used for the DB. They are sane for setups using
 // millisecond precision timestamps.
 var DefaultOptions = &Options{
-	WALSegmentSize:         wal.DefaultSegmentSize,
-	RetentionDuration:      15 * 24 * 60 * 60 * 1000, // 15 days in milliseconds
-	BlockRanges:            ExponentialBlockRanges(int64(2*time.Hour)/1e6, 3, 5),
-	NoLockfile:             false,
-	AllowOverlappingBlocks: false,
+	WALSegmentSize:    wal.DefaultSegmentSize,
+	RetentionDuration: 15 * 24 * 60 * 60 * 1000, // 15 days in milliseconds
+	BlockRanges:       ExponentialBlockRanges(int64(2*time.Hour)/1e6, 3, 5),
+	NoLockfile:        false,
 }
 
 // Options of the DB storage.
@@ -72,10 +70,6 @@ type Options struct {
 
 	// NoLockfile disables creation and consideration of a lock file.
 	NoLockfile bool
-
-	// Overlapping blocks are allowed if AllowOverlappingBlocks is true.
-	// This in-turn enables vertical compaction and vertical query merge.
-	AllowOverlappingBlocks bool
 }
 
 // Appender allows appending a batch of data. It must be completed with a
@@ -132,9 +126,6 @@ type DB struct {
 	// changing the autoCompact var.
 	autoCompactMtx sync.Mutex
 	autoCompact    bool
-
-	// Cancel a running compaction when a shutdown is initiated.
-	compactCancel context.CancelFunc
 }
 
 type dbMetrics struct {
@@ -211,7 +202,7 @@ func newDBMetrics(db *DB, r prometheus.Registerer) *dbMetrics {
 		Help: "The time taken to recompact blocks to remove tombstones.",
 	})
 	m.blocksBytes = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "prometheus_tsdb_storage_blocks_bytes",
+		Name: "prometheus_tsdb_storage_blocks_bytes_total",
 		Help: "The number of bytes that are currently used for local storage by all blocks.",
 	})
 	m.sizeRetentionCount = prometheus.NewCounter(prometheus.CounterOpts{
@@ -280,13 +271,10 @@ func Open(dir string, l log.Logger, r prometheus.Registerer, opts *Options) (db 
 		db.lockf = lockf
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	db.compactor, err = NewLeveledCompactor(ctx, r, l, opts.BlockRanges, db.chunkPool)
+	db.compactor, err = NewLeveledCompactor(r, l, opts.BlockRanges, db.chunkPool)
 	if err != nil {
-		cancel()
 		return nil, errors.Wrap(err, "create leveled compactor")
 	}
-	db.compactCancel = cancel
 
 	segmentSize := wal.DefaultSegmentSize
 	if opts.WALSegmentSize > 0 {
@@ -437,9 +425,6 @@ func (db *DB) compact() (err error) {
 		runtime.GC()
 
 		if err := db.reload(); err != nil {
-			if err := os.RemoveAll(filepath.Join(db.dir, uid.String())); err != nil {
-				return errors.Wrapf(err, "delete persisted head block after failed db reload:%s", uid)
-			}
 			return errors.Wrap(err, "reload blocks")
 		}
 		if (uid == ulid.ULID{}) {
@@ -469,16 +454,12 @@ func (db *DB) compact() (err error) {
 		default:
 		}
 
-		uid, err := db.compactor.Compact(db.dir, plan, db.blocks)
-		if err != nil {
+		if _, err := db.compactor.Compact(db.dir, plan, db.blocks); err != nil {
 			return errors.Wrapf(err, "compact %s", plan)
 		}
 		runtime.GC()
 
 		if err := db.reload(); err != nil {
-			if err := os.RemoveAll(filepath.Join(db.dir, uid.String())); err != nil {
-				return errors.Wrapf(err, "delete compacted block after failed db reload:%s", uid)
-			}
 			return errors.Wrap(err, "reload blocks")
 		}
 		runtime.GC()
@@ -524,13 +505,7 @@ func (db *DB) reload() (err error) {
 		}
 	}
 	if len(corrupted) > 0 {
-		// Close all new blocks to release the lock for windows.
-		for _, block := range loadable {
-			if _, loaded := db.getBlock(block.Meta().ULID); !loaded {
-				block.Close()
-			}
-		}
-		return fmt.Errorf("unexpected corrupted block:%v", corrupted)
+		return errors.Wrap(err, "unexpected corrupted block")
 	}
 
 	// All deletable blocks should not be loaded.
@@ -551,12 +526,10 @@ func (db *DB) reload() (err error) {
 	db.metrics.blocksBytes.Set(float64(blocksSize))
 
 	sort.Slice(loadable, func(i, j int) bool {
-		return loadable[i].Meta().MinTime < loadable[j].Meta().MinTime
+		return loadable[i].Meta().MaxTime < loadable[j].Meta().MaxTime
 	})
-	if !db.opts.AllowOverlappingBlocks {
-		if err := validateBlockSequence(loadable); err != nil {
-			return errors.Wrap(err, "invalid block sequence")
-		}
+	if err := validateBlockSequence(loadable); err != nil {
+		return errors.Wrap(err, "invalid block sequence")
 	}
 
 	// Swap new blocks first for subsequently created readers to be seen.
@@ -564,14 +537,6 @@ func (db *DB) reload() (err error) {
 	oldBlocks := db.blocks
 	db.blocks = loadable
 	db.mtx.Unlock()
-
-	blockMetas := make([]BlockMeta, 0, len(loadable))
-	for _, b := range loadable {
-		blockMetas = append(blockMetas, b.Meta())
-	}
-	if overlaps := OverlappingBlocks(blockMetas); len(overlaps) > 0 {
-		level.Warn(db.logger).Log("msg", "overlapping blocks found during reload", "detail", overlaps.String())
-	}
 
 	for _, b := range oldBlocks {
 		if _, ok := deletable[b.Meta().ULID]; ok {
@@ -848,7 +813,6 @@ func (db *DB) Head() *Head {
 // Close the partition.
 func (db *DB) Close() error {
 	close(db.stopc)
-	db.compactCancel()
 	<-db.donec
 
 	db.mtx.Lock()
@@ -924,7 +888,6 @@ func (db *DB) Snapshot(dir string, withHead bool) error {
 // A goroutine must not handle more than one open Querier.
 func (db *DB) Querier(mint, maxt int64) (Querier, error) {
 	var blocks []BlockReader
-	var blockMetas []BlockMeta
 
 	db.mtx.RLock()
 	defer db.mtx.RUnlock()
@@ -932,7 +895,6 @@ func (db *DB) Querier(mint, maxt int64) (Querier, error) {
 	for _, b := range db.blocks {
 		if b.OverlapsClosedInterval(mint, maxt) {
 			blocks = append(blocks, b)
-			blockMetas = append(blockMetas, b.Meta())
 		}
 	}
 	if maxt >= db.head.MinTime() {
@@ -943,31 +905,22 @@ func (db *DB) Querier(mint, maxt int64) (Querier, error) {
 		})
 	}
 
-	blockQueriers := make([]Querier, 0, len(blocks))
+	sq := &querier{
+		blocks: make([]Querier, 0, len(blocks)),
+	}
 	for _, b := range blocks {
 		q, err := NewBlockQuerier(b, mint, maxt)
 		if err == nil {
-			blockQueriers = append(blockQueriers, q)
+			sq.blocks = append(sq.blocks, q)
 			continue
 		}
 		// If we fail, all previously opened queriers must be closed.
-		for _, q := range blockQueriers {
+		for _, q := range sq.blocks {
 			q.Close()
 		}
 		return nil, errors.Wrapf(err, "open querier for block %s", b)
 	}
-
-	if len(OverlappingBlocks(blockMetas)) > 0 {
-		return &verticalQuerier{
-			querier: querier{
-				blocks: blockQueriers,
-			},
-		}, nil
-	}
-
-	return &querier{
-		blocks: blockQueriers,
-	}, nil
+	return sq, nil
 }
 
 func rangeForTimestamp(t int64, width int64) (maxt int64) {
@@ -1131,7 +1084,7 @@ func (es MultiError) Err() error {
 	return es
 }
 
-func closeAll(cs []io.Closer) error {
+func closeAll(cs ...io.Closer) error {
 	var merr MultiError
 
 	for _, c := range cs {
