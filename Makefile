@@ -20,12 +20,12 @@ JSONNET_VENDOR=jsonnet/jsonnetfile.lock.json jsonnet/vendor
 DOCS=$(shell grep -rlF [embedmd] docs)
 
 GO_BUILD_RECIPE=GOOS=linux CGO_ENABLED=0 go build
-# TODO(paulfantom): add '-e GO111MODULE=on' when moving to go 1.12
 CONTAINER_CMD:=docker run --rm \
 		-u="$(shell id -u):$(shell id -g)" \
 		-v "$(shell go env GOCACHE):/.cache/go-build" \
 		-v "$(PWD):/go/src/$(GO_PKG):Z" \
 		-w "/go/src/$(GO_PKG)" \
+		-e GO111MODULE=on \
 		quay.io/coreos/jsonnet-ci
 
 
@@ -67,7 +67,9 @@ image: .hack-operator-image
 ##############
 
 vendor:
-	glide update -v --skip-test
+	go mod vendor
+	go mod tidy
+	go mod verify
 
 .PHONY: generate
 generate: $(DOCS) manifests
@@ -181,6 +183,6 @@ $(GOJSONTOYAML_BIN):
 	go get -u github.com/brancz/gojsontoyaml
 
 $(GOLANGCI_LINT_BIN):
-	curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $(FIRST_GOPATH)/bin v1.10.2
+	curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $(FIRST_GOPATH)/bin v1.16.0
 
 

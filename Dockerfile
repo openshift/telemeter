@@ -1,4 +1,4 @@
-FROM openshift/origin-release:golang-1.10
+FROM openshift/origin-release:golang-1.12
 COPY . /go/src/github.com/openshift/telemeter
 RUN cd /go/src/github.com/openshift/telemeter && \
     go build ./cmd/telemeter-client && \
