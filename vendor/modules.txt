@@ -1,0 +1,133 @@
+# github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf
+github.com/alecthomas/units
+# github.com/armon/go-metrics v0.0.0-20180917152333-f0300d1749da
+github.com/armon/go-metrics
+# github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973
+github.com/beorn7/perks/quantile
+# github.com/cespare/xxhash v1.1.0
+github.com/cespare/xxhash
+# github.com/coreos/go-oidc v2.0.0+incompatible
+github.com/coreos/go-oidc
+# github.com/go-kit/kit v0.8.0
+github.com/go-kit/kit/log
+github.com/go-kit/kit/log/level
+# github.com/go-logfmt/logfmt v0.4.0
+github.com/go-logfmt/logfmt
+# github.com/golang/protobuf v1.2.0
+github.com/golang/protobuf/proto
+# github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db
+github.com/golang/snappy
+# github.com/google/btree v0.0.0-20180813153112-4030bb1f1f0c
+github.com/google/btree
+# github.com/hashicorp/errwrap v1.0.0
+github.com/hashicorp/errwrap
+# github.com/hashicorp/go-immutable-radix v1.0.0
+github.com/hashicorp/go-immutable-radix
+# github.com/hashicorp/go-msgpack v0.5.3
+github.com/hashicorp/go-msgpack/codec
+# github.com/hashicorp/go-multierror v1.0.0
+github.com/hashicorp/go-multierror
+# github.com/hashicorp/go-sockaddr v1.0.0
+github.com/hashicorp/go-sockaddr
+# github.com/hashicorp/golang-lru v0.5.0
+github.com/hashicorp/golang-lru/simplelru
+# github.com/hashicorp/memberlist v0.1.4
+github.com/hashicorp/memberlist
+# github.com/inconshreveable/mousetrap v1.0.0
+github.com/inconshreveable/mousetrap
+# github.com/kr/logfmt v0.0.0-20140226030751-b84e30acd515
+github.com/kr/logfmt
+# github.com/matttproud/golang_protobuf_extensions v1.0.1
+github.com/matttproud/golang_protobuf_extensions/pbutil
+# github.com/miekg/dns v1.0.14
+github.com/miekg/dns
+# github.com/oklog/run v0.0.0-20180308005104-6934b124db28
+github.com/oklog/run
+# github.com/oklog/ulid v1.3.1
+github.com/oklog/ulid
+# github.com/opentracing/opentracing-go v1.0.1
+github.com/opentracing/opentracing-go
+github.com/opentracing/opentracing-go/log
+# github.com/pkg/errors v0.8.0
+github.com/pkg/errors
+# github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35
+github.com/pquerna/cachecontrol
+github.com/pquerna/cachecontrol/cacheobject
+# github.com/prometheus/client_golang v0.9.1
+github.com/prometheus/client_golang/prometheus
+github.com/prometheus/client_golang/prometheus/promhttp
+github.com/prometheus/client_golang/prometheus/internal
+# github.com/prometheus/client_model v0.0.0-20180712105110-5c3871d89910
+github.com/prometheus/client_model/go
+# github.com/prometheus/common v0.2.0
+github.com/prometheus/common/expfmt
+github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg
+github.com/prometheus/common/model
+# github.com/prometheus/procfs v0.0.0-20181005140218-185b4288413d
+github.com/prometheus/procfs
+github.com/prometheus/procfs/nfs
+github.com/prometheus/procfs/xfs
+github.com/prometheus/procfs/internal/util
+# github.com/prometheus/prometheus v2.7.1+incompatible
+github.com/prometheus/prometheus/pkg/labels
+github.com/prometheus/prometheus/promql
+github.com/prometheus/prometheus/pkg/gate
+github.com/prometheus/prometheus/pkg/textparse
+github.com/prometheus/prometheus/pkg/timestamp
+github.com/prometheus/prometheus/pkg/value
+github.com/prometheus/prometheus/storage
+github.com/prometheus/prometheus/util/stats
+github.com/prometheus/prometheus/util/strutil
+github.com/prometheus/prometheus/util/testutil
+github.com/prometheus/prometheus/storage/tsdb
+# github.com/prometheus/tsdb v0.4.0
+github.com/prometheus/tsdb
+github.com/prometheus/tsdb/labels
+github.com/prometheus/tsdb/chunkenc
+github.com/prometheus/tsdb/chunks
+github.com/prometheus/tsdb/fileutil
+github.com/prometheus/tsdb/index
+github.com/prometheus/tsdb/wal
+# github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b
+github.com/satori/go.uuid
+# github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529
+github.com/sean-/seed
+# github.com/serialx/hashring v0.0.0-20180504054112-49a4782e9908
+github.com/serialx/hashring
+# github.com/spf13/cobra v0.0.3
+github.com/spf13/cobra
+# github.com/spf13/pflag v1.0.3
+github.com/spf13/pflag
+# golang.org/x/crypto v0.0.0-20181029021203-45a5f77698d3
+golang.org/x/crypto/ed25519
+golang.org/x/crypto/ed25519/internal/edwards25519
+# golang.org/x/net v0.0.0-20181114220301-adae6a3d119a
+golang.org/x/net/context
+golang.org/x/net/context/ctxhttp
+golang.org/x/net/ipv4
+golang.org/x/net/ipv6
+golang.org/x/net/bpf
+golang.org/x/net/internal/iana
+golang.org/x/net/internal/socket
+# golang.org/x/oauth2 v0.0.0-20180821212333-d2e6202438be
+golang.org/x/oauth2
+golang.org/x/oauth2/internal
+# golang.org/x/sync v0.0.0-20181221193216-37e7f081c4d4
+golang.org/x/sync/errgroup
+# golang.org/x/sys v0.0.0-20190124100055-b90733256f2e
+golang.org/x/sys/unix
+# golang.org/x/time v0.0.0-20170424234030-8be79e1e0910
+golang.org/x/time/rate
+# google.golang.org/appengine v1.1.0
+google.golang.org/appengine/urlfetch
+google.golang.org/appengine/internal
+google.golang.org/appengine/internal/urlfetch
+google.golang.org/appengine/internal/base
+google.golang.org/appengine/internal/datastore
+google.golang.org/appengine/internal/log
+google.golang.org/appengine/internal/remote_api
+# gopkg.in/square/go-jose.v2 v2.0.0-20180411045311-89060dee6a84
+gopkg.in/square/go-jose.v2
+gopkg.in/square/go-jose.v2/jwt
+gopkg.in/square/go-jose.v2/cipher
+gopkg.in/square/go-jose.v2/json
