@@ -171,18 +171,16 @@ test/timeseries.txt:
 dependencies: $(JB_BIN) $(GOLANGCI_LINT_BIN)
 
 $(EMBEDMD_BIN):
-	go get -u github.com/campoy/embedmd
+	GO111MODULE=off go get -u github.com/campoy/embedmd
 
 $(GOBINDATA_BIN):
-	go get -u github.com/jteeuwen/go-bindata/...
+	GO111MODULE=off go get -u github.com/jteeuwen/go-bindata/...
 
 $(JB_BIN):
-	go get -u github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb
+	GO111MODULE=off go get -u github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb
 
 $(GOJSONTOYAML_BIN):
-	go get -u github.com/brancz/gojsontoyaml
+	GO111MODULE=off go get -u github.com/brancz/gojsontoyaml
 
 $(GOLANGCI_LINT_BIN):
 	curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $(FIRST_GOPATH)/bin v1.16.0
-
-
