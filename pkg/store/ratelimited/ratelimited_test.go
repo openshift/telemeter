@@ -47,13 +47,13 @@ func TestWriteMetrics(t *testing.T) {
 			name:        "write after 1 second fails",
 			advance:     time.Second,
 			metrics:     &store.PartitionedMetrics{PartitionKey: "a"},
-			expectedErr: ErrWriteLimitReached,
+			expectedErr: ErrWriteLimitReached("a"),
 		},
 		{
 			name:        "write after 10 seconds still fails",
 			advance:     9 * time.Second,
 			metrics:     &store.PartitionedMetrics{PartitionKey: "a"},
-			expectedErr: ErrWriteLimitReached,
+			expectedErr: ErrWriteLimitReached("a"),
 		},
 		{
 			name:        "write after 10 seconds for another partition succeeds",

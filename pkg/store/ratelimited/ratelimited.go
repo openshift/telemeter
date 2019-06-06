@@ -2,7 +2,7 @@ package ratelimited
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -10,7 +10,11 @@ import (
 	"golang.org/x/time/rate"
 )
 
-var ErrWriteLimitReached = errors.New("write limit reached")
+type ErrWriteLimitReached string
+
+func (e ErrWriteLimitReached) Error() string {
+	return fmt.Sprintf("write limit reached for key %q", e)
+}
 
 type lstore struct {
 	limit time.Duration
@@ -44,7 +48,7 @@ func (s *lstore) writeMetrics(ctx context.Context, p *store.PartitionedMetrics, 
 	}
 
 	if limiter := s.limiter(p.PartitionKey); !limiter.AllowN(now, 1) {
-		return ErrWriteLimitReached
+		return ErrWriteLimitReached(p.PartitionKey)
 	}
 
 	return s.next.WriteMetrics(ctx, p)

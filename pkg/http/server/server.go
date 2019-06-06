@@ -128,7 +128,7 @@ func (s *Server) Post(w http.ResponseWriter, req *http.Request) {
 		switch err {
 		case nil:
 			break
-		case ratelimited.ErrWriteLimitReached:
+		case ratelimited.ErrWriteLimitReached(partitionKey):
 			http.Error(w, err.Error(), http.StatusTooManyRequests)
 		default:
 			http.Error(w, err.Error(), http.StatusInternalServerError)
