@@ -3,6 +3,7 @@ package oauth2
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -42,10 +43,6 @@ func NewPasswordCredentialsTokenSource(ctx context.Context, cfg *oauth2.Config, 
 }
 
 func (c *passwordCredentialsTokenSource) Token() (*oauth2.Token, error) {
-	return c.token(time.Now)
-}
-
-func (c *passwordCredentialsTokenSource) token(now func() time.Time) (*oauth2.Token, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -56,6 +53,12 @@ func (c *passwordCredentialsTokenSource) token(now func() time.Time) (*oauth2.To
 
 	if c.refreshToken.Valid() {
 		tok, err = c.accessTokenSource.Token()
+
+		rerr, ok := err.(*oauth2.RetrieveError)
+		if ok && rerr.Response != nil && rerr.Response.StatusCode == http.StatusBadRequest {
+			return c.passwordCredentialsToken()
+		}
+
 		if err != nil {
 			return nil, fmt.Errorf("access token source failed: %v", err)
 		}
@@ -65,26 +68,46 @@ func (c *passwordCredentialsTokenSource) token(now func() time.Time) (*oauth2.To
 		if tok.RefreshToken == c.refreshToken.RefreshToken {
 			return tok, nil
 		}
-	} else {
-		tok, err = c.cfg.PasswordCredentialsToken(c.ctx, c.username, c.password)
+
+		err = c.setRefreshToken(tok)
 		if err != nil {
-			return nil, fmt.Errorf("password credentials token source failed: %v", err)
+			return nil, err
 		}
 
-		c.accessTokenSource = c.cfg.TokenSource(c.ctx, tok)
+		return tok, nil
 	}
 
+	return c.passwordCredentialsToken()
+}
+
+func (c *passwordCredentialsTokenSource) passwordCredentialsToken() (*oauth2.Token, error) {
+	tok, err := c.cfg.PasswordCredentialsToken(c.ctx, c.username, c.password)
+	if err != nil {
+		return nil, fmt.Errorf("password credentials token source failed: %v", err)
+	}
+
+	c.accessTokenSource = c.cfg.TokenSource(c.ctx, tok)
+
+	err = c.setRefreshToken(tok)
+	if err != nil {
+		return nil, err
+	}
+
+	return tok, nil
+}
+
+func (c *passwordCredentialsTokenSource) setRefreshToken(tok *oauth2.Token) error {
 	expires, ok := tok.Extra("refresh_expires_in").(float64)
 	if !ok {
-		return nil, fmt.Errorf("refresh_expires_in is not a float64, but %T", tok.Extra("refresh_expires_in"))
+		return fmt.Errorf("refresh_expires_in is not a float64, but %T", tok.Extra("refresh_expires_in"))
 	}
 
 	// create a dummy access token to reuse calculation logic for the Valid() method
 	c.refreshToken = &oauth2.Token{
 		AccessToken:  tok.RefreshToken,
 		RefreshToken: tok.RefreshToken,
-		Expiry:       now().Add(time.Duration(int64(expires)) * time.Second),
+		Expiry:       time.Now().Add(time.Duration(int64(expires)) * time.Second),
 	}
 
-	return tok, nil
+	return nil
 }
