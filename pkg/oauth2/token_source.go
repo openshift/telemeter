@@ -7,8 +7,22 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/oauth2"
 )
+
+var (
+	grantsTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "password_credentials_grants_total",
+			Help: "Tracks the number of resource owner password credential grants.",
+		},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(grantsTotal)
+}
 
 type passwordCredentialsTokenSource struct {
 	ctx                context.Context
@@ -81,6 +95,8 @@ func (c *passwordCredentialsTokenSource) Token() (*oauth2.Token, error) {
 }
 
 func (c *passwordCredentialsTokenSource) passwordCredentialsToken() (*oauth2.Token, error) {
+	grantsTotal.Inc()
+
 	tok, err := c.cfg.PasswordCredentialsToken(c.ctx, c.username, c.password)
 	if err != nil {
 		return nil, fmt.Errorf("password credentials token source failed: %v", err)
