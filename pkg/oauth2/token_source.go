@@ -7,27 +7,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/oauth2"
 )
-
-var (
-	grantsTotal = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "password_credentials_grants_total",
-			Help: "Tracks the number of resource owner password credential grants.",
-		},
-	)
-)
-
-func init() {
-	prometheus.MustRegister(grantsTotal)
-}
 
 type passwordCredentialsTokenSource struct {
 	ctx                context.Context
 	cfg                *oauth2.Config
 	username, password string
+	grantsCounter      func()
 
 	mu                sync.Mutex // protects the fields below
 	refreshToken      *oauth2.Token
@@ -47,12 +34,13 @@ type passwordCredentialsTokenSource struct {
 // using the given resource owner and password.
 //
 // It is safe for concurrent use.
-func NewPasswordCredentialsTokenSource(ctx context.Context, cfg *oauth2.Config, username, password string) *passwordCredentialsTokenSource {
+func NewPasswordCredentialsTokenSource(ctx context.Context, cfg *oauth2.Config, grantsCounter func(), username, password string) *passwordCredentialsTokenSource {
 	return &passwordCredentialsTokenSource{
-		ctx:      ctx,
-		username: username,
-		password: password,
-		cfg:      cfg,
+		ctx:           ctx,
+		username:      username,
+		password:      password,
+		cfg:           cfg,
+		grantsCounter: grantsCounter,
 	}
 }
 
@@ -95,7 +83,7 @@ func (c *passwordCredentialsTokenSource) Token() (*oauth2.Token, error) {
 }
 
 func (c *passwordCredentialsTokenSource) passwordCredentialsToken() (*oauth2.Token, error) {
-	grantsTotal.Inc()
+	c.grantsCounter()
 
 	tok, err := c.cfg.PasswordCredentialsToken(c.ctx, c.username, c.password)
 	if err != nil {

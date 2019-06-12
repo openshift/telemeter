@@ -23,6 +23,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	oidc "github.com/coreos/go-oidc"
 	"github.com/oklog/run"
 	"github.com/spf13/cobra"
@@ -250,8 +252,17 @@ func (o *Options) Run() error {
 				Endpoint: provider.Endpoint(),
 			}
 
+			grantsTotal := prometheus.NewCounter(
+				prometheus.CounterOpts{
+					Name: "telemeter_password_credentials_grants_total",
+					Help: "Tracks the number of resource owner password credential grants.",
+				},
+			)
+
+			prometheus.MustRegister(grantsTotal)
+
 			src := telemeter_oauth2.NewPasswordCredentialsTokenSource(
-				ctx, &cfg,
+				ctx, &cfg, grantsTotal.Inc,
 				o.AuthorizeUsername, o.AuthorizePassword,
 			)
 

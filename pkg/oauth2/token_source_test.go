@@ -80,7 +80,8 @@ func TestPasswordCredentialsTokenSource(t *testing.T) {
 				},
 			)
 
-			src := NewPasswordCredentialsTokenSource(ctx, conf, username, password)
+			nop := func() {}
+			src := NewPasswordCredentialsTokenSource(ctx, conf, nop, username, password)
 			return src, tr
 		}
 	}
