@@ -7,18 +7,49 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
-	"sync/atomic"
 	"testing"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
 
 	"golang.org/x/oauth2"
 )
+
+type headerModifier struct {
+	delegate http.RoundTripper
+	header   http.Header
+}
+
+func (hm *headerModifier) RoundTrip(req *http.Request) (*http.Response, error) {
+	r := new(http.Request)
+	*r = *req
+
+	h := make(http.Header, len(req.Header))
+	for k, vs := range req.Header {
+		newvs := make([]string, len(vs))
+		copy(newvs, vs)
+		h[k] = newvs
+	}
+
+	for k, vs := range hm.header {
+		h[k] = vs
+	}
+
+	r.Header = h
+	res, err := hm.delegate.RoundTrip(r)
+	hm.header = make(http.Header)
+	return res, err
+}
+
+func (hm *headerModifier) SetHeader(key, value string) {
+	hm.header.Set(key, value)
+}
 
 func TestPasswordCredentialsTokenSource(t *testing.T) {
 	ts := newTestServer(t)
 	defer ts.Close()
 
 	conf := newConf(ts.URL)
-	src := NewPasswordCredentialsTokenSource(context.Background(), conf, "user1", "password1")
 
 	type checkFunc func(*oauth2.Token, error) error
 
@@ -31,6 +62,72 @@ func TestPasswordCredentialsTokenSource(t *testing.T) {
 			}
 			return nil
 		})
+	}
+
+	type givenFunc func() (oauth2.TokenSource, *headerModifier)
+
+	passwordCredentials := func(username, password string) givenFunc {
+		return func() (oauth2.TokenSource, *headerModifier) {
+			h := make(http.Header)
+
+			tr := &headerModifier{
+				delegate: http.DefaultTransport,
+				header:   h,
+			}
+
+			ctx := context.WithValue(context.Background(), oauth2.HTTPClient,
+				&http.Client{
+					Timeout:   20 * time.Second,
+					Transport: tr,
+				},
+			)
+
+			src := NewPasswordCredentialsTokenSource(
+				ctx, conf, prometheus.NewCounterVec(prometheus.CounterOpts{}, []string{"cause", "status"}),
+				username, password,
+			)
+
+			return src, tr
+		}
+	}
+
+	type whenFunc func(oauth2.TokenSource, *headerModifier) (*oauth2.Token, error)
+
+	steps := func(whens ...whenFunc) whenFunc {
+		return func(src oauth2.TokenSource, m *headerModifier) (tok *oauth2.Token, err error) {
+			for _, wf := range whens {
+				tok, err = wf(src, m)
+				if err != nil {
+					return
+				}
+			}
+			return
+		}
+	}
+
+	expireNextAccessTokenIn := func(expiry int) whenFunc {
+		return func(_ oauth2.TokenSource, m *headerModifier) (*oauth2.Token, error) {
+			m.SetHeader("Expires-In", strconv.Itoa(expiry))
+			return nil, nil
+		}
+	}
+
+	expireNextRefreshTokenIn := func(expiry int) whenFunc {
+		return func(_ oauth2.TokenSource, m *headerModifier) (*oauth2.Token, error) {
+			m.SetHeader("Refresh-Expires-In", strconv.Itoa(expiry))
+			return nil, nil
+		}
+	}
+
+	nextRespondWith := func(code int) whenFunc {
+		return func(_ oauth2.TokenSource, m *headerModifier) (*oauth2.Token, error) {
+			m.SetHeader("Respond-With", strconv.Itoa(code))
+			return nil, nil
+		}
+	}
+
+	getToken := func(src oauth2.TokenSource, m *headerModifier) (*oauth2.Token, error) {
+		return src.Token()
 	}
 
 	hasAccessToken := func(expected string) checkFunc {
@@ -79,26 +176,40 @@ func TestPasswordCredentialsTokenSource(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		init  func(*passwordCredentialsTokenSource)
 		name  string
+		given givenFunc
+		when  whenFunc
 		check checkFunc
 	}{
 		{
 			name: "initial request",
+
+			given: passwordCredentials("user1", "password1"),
+
+			when: getToken,
+
 			check: checks(
 				hasError(nil),
-				hasAccessToken("access_token_1"),
-				hasRefreshToken("refresh_token_1"),
+				hasAccessToken("access_token"),
+				hasRefreshToken("refresh_token"),
 				hasTokenType("bearer"),
 				isValid(true),
 			),
 		},
 		{
 			name: "reuse access token",
+
+			given: passwordCredentials("user1", "password1"),
+
+			when: steps(
+				getToken,
+				getToken,
+			),
+
 			check: checks(
 				hasError(nil),
-				hasAccessToken("access_token_1"),
-				hasRefreshToken("refresh_token_1"),
+				hasAccessToken("access_token"),
+				hasRefreshToken("refresh_token"),
 				hasTokenType("bearer"),
 				isValid(true),
 			),
@@ -106,23 +217,50 @@ func TestPasswordCredentialsTokenSource(t *testing.T) {
 		{
 			name: "refresh the refresh token",
 
-			// invalidate current refresh token
-			init: func(src *passwordCredentialsTokenSource) { src.refreshToken = nil },
+			given: passwordCredentials("user1", "password1"),
+
+			when: steps(
+				// let the first token to be expired immediately
+				expireNextRefreshTokenIn(-1),
+				getToken,
+				// let the second refresh token be not expired
+				expireNextRefreshTokenIn(100),
+				getToken,
+			),
 
 			check: checks(
 				hasError(nil),
-				hasAccessToken("access_token_2"),
-				hasRefreshToken("refresh_token_2"),
+				hasAccessToken("access_token"),
+				hasRefreshToken("refresh_token"),
+				hasTokenType("bearer"),
+				isValid(true),
+			),
+		},
+		{
+			name: "invalidate refresh token session",
+
+			given: passwordCredentials("user1", "password1"),
+
+			when: steps(
+				// let the first access token be expired immmediately
+				expireNextAccessTokenIn(-1),
+				expireNextRefreshTokenIn(100),
+				getToken,
+				nextRespondWith(http.StatusBadRequest),
+				getToken,
+			),
+
+			check: checks(
+				hasError(nil),
+				hasAccessToken("access_token"),
+				hasRefreshToken("refresh_token"),
 				hasTokenType("bearer"),
 				isValid(true),
 			),
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.init != nil {
-				tc.init(src)
-			}
-			if err := tc.check(src.Token()); err != nil {
+			if err := tc.check(tc.when(tc.given())); err != nil {
 				t.Error(err)
 			}
 		})
@@ -142,41 +280,61 @@ func newConf(url string) *oauth2.Config {
 }
 
 func newTestServer(t *testing.T) *httptest.Server {
-	var counter uint64
-
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
+
 		expected := "/token"
 		if r.URL.String() != expected {
-			t.Errorf("URL = %q; want %q", r.URL, expected)
+			t.Fatalf("URL = %q; want %q", r.URL, expected)
 		}
 		headerAuth := r.Header.Get("Authorization")
+		// CLIENT_ID:CLIENT_SECRET
 		expected = "Basic Q0xJRU5UX0lEOkNMSUVOVF9TRUNSRVQ="
 		if headerAuth != expected {
-			t.Errorf("Authorization header = %q; want %q", headerAuth, expected)
+			t.Fatalf("Authorization header = %q; want %q", headerAuth, expected)
 		}
+
+		if codestr, ok := r.Header["Respond-With"]; ok {
+			code, err := strconv.Atoi(codestr[0])
+			if err != nil {
+				t.Fatal(err)
+			}
+			w.WriteHeader(code)
+			return
+		}
+
 		headerContentType := r.Header.Get("Content-Type")
 		expected = "application/x-www-form-urlencoded"
 		if headerContentType != expected {
-			t.Errorf("Content-Type header = %q; want %q", headerContentType, expected)
+			t.Fatalf("Content-Type header = %q; want %q", headerContentType, expected)
 		}
+
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			t.Errorf("Failed reading request body: %s.", err)
+			t.Fatalf("Failed reading request body: %s.", err)
 		}
+
 		expected = "grant_type=password&password=password1&username=user1"
 		if string(body) != expected {
 			t.Errorf("res.Body = %q; want %q", string(body), expected)
 		}
 		w.Header().Set("Content-Type", "application/json")
 
-		cnt := int(atomic.AddUint64(&counter, 1))
+		refreshExpiresIn := "100"
+		if _, ok := r.Header["Refresh-Expires-In"]; ok {
+			refreshExpiresIn = r.Header.Get("Refresh-Expires-In")
+		}
+
+		expiresIn := "100"
+		if _, ok := r.Header["Expires-In"]; ok {
+			expiresIn = r.Header.Get("Expires-In")
+		}
 
 		if _, err := w.Write([]byte(`{
-  "access_token": "access_token_` + strconv.Itoa(cnt) + `",
-  "expires_in": ` + strconv.Itoa(cnt) + `00,
-  "refresh_expires_in": ` + strconv.Itoa(cnt) + `00,
-  "refresh_token": "refresh_token_` + strconv.Itoa(cnt) + `",
+  "access_token": "access_token",
+  "expires_in": ` + expiresIn + `,
+  "refresh_expires_in": ` + refreshExpiresIn + `,
+  "refresh_token": "refresh_token",
   "token_type": "bearer"
 }`)); err != nil {
 			t.Errorf("error writing token: %v", err)
