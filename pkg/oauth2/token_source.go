@@ -15,7 +15,7 @@ type passwordCredentialsTokenSource struct {
 	ctx                context.Context
 	cfg                *oauth2.Config
 	username, password string
-	grantsCounter      prometheus.Counter
+	grantsCounter      *prometheus.CounterVec
 
 	mu                sync.Mutex // protects the fields below
 	refreshToken      *oauth2.Token
@@ -35,7 +35,7 @@ type passwordCredentialsTokenSource struct {
 // using the given resource owner and password.
 //
 // It is safe for concurrent use.
-func NewPasswordCredentialsTokenSource(ctx context.Context, cfg *oauth2.Config, grantsCounter prometheus.Counter, username, password string) *passwordCredentialsTokenSource {
+func NewPasswordCredentialsTokenSource(ctx context.Context, cfg *oauth2.Config, grantsCounter *prometheus.CounterVec, username, password string) *passwordCredentialsTokenSource {
 	return &passwordCredentialsTokenSource{
 		ctx:           ctx,
 		username:      username,
@@ -59,7 +59,7 @@ func (c *passwordCredentialsTokenSource) Token() (*oauth2.Token, error) {
 
 		rerr, ok := err.(*oauth2.RetrieveError)
 		if ok && rerr.Response != nil && rerr.Response.StatusCode == http.StatusBadRequest {
-			return c.passwordCredentialsToken()
+			return c.passwordCredentialsToken("session_removed")
 		}
 
 		if err != nil {
@@ -80,13 +80,19 @@ func (c *passwordCredentialsTokenSource) Token() (*oauth2.Token, error) {
 		return tok, nil
 	}
 
-	return c.passwordCredentialsToken()
+	return c.passwordCredentialsToken("token_expired")
 }
 
-func (c *passwordCredentialsTokenSource) passwordCredentialsToken() (*oauth2.Token, error) {
-	c.grantsCounter.Inc()
-
+func (c *passwordCredentialsTokenSource) passwordCredentialsToken(cause string) (*oauth2.Token, error) {
 	tok, err := c.cfg.PasswordCredentialsToken(c.ctx, c.username, c.password)
+
+	status := "success"
+	if err != nil {
+		status = "failed"
+	}
+
+	c.grantsCounter.WithLabelValues(cause, status).Inc()
+
 	if err != nil {
 		return nil, fmt.Errorf("password credentials token source failed: %v", err)
 	}

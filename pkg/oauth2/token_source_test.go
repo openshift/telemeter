@@ -82,7 +82,11 @@ func TestPasswordCredentialsTokenSource(t *testing.T) {
 				},
 			)
 
-			src := NewPasswordCredentialsTokenSource(ctx, conf, prometheus.NewCounter(prometheus.CounterOpts{}), username, password)
+			src := NewPasswordCredentialsTokenSource(
+				ctx, conf, prometheus.NewCounterVec(prometheus.CounterOpts{}, []string{"cause", "status"}),
+				username, password,
+			)
+
 			return src, tr
 		}
 	}

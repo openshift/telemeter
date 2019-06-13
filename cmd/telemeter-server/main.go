@@ -252,11 +252,12 @@ func (o *Options) Run() error {
 				Endpoint: provider.Endpoint(),
 			}
 
-			grantsTotal := prometheus.NewCounter(
+			grantsTotal := prometheus.NewCounterVec(
 				prometheus.CounterOpts{
 					Name: "telemeter_password_credentials_grants_total",
 					Help: "Tracks the number of resource owner password credential grants.",
 				},
+				[]string{"cause", "status"},
 			)
 
 			prometheus.MustRegister(grantsTotal)
