@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"golang.org/x/oauth2"
 )
 
@@ -80,8 +82,7 @@ func TestPasswordCredentialsTokenSource(t *testing.T) {
 				},
 			)
 
-			nop := func() {}
-			src := NewPasswordCredentialsTokenSource(ctx, conf, nop, username, password)
+			src := NewPasswordCredentialsTokenSource(ctx, conf, prometheus.NewCounter(prometheus.CounterOpts{}), username, password)
 			return src, tr
 		}
 	}

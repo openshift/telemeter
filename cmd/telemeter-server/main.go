@@ -262,7 +262,7 @@ func (o *Options) Run() error {
 			prometheus.MustRegister(grantsTotal)
 
 			src := telemeter_oauth2.NewPasswordCredentialsTokenSource(
-				ctx, &cfg, grantsTotal.Inc,
+				ctx, &cfg, grantsTotal,
 				o.AuthorizeUsername, o.AuthorizePassword,
 			)
 

@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/oauth2"
 )
 
@@ -14,7 +15,7 @@ type passwordCredentialsTokenSource struct {
 	ctx                context.Context
 	cfg                *oauth2.Config
 	username, password string
-	grantsCounter      func()
+	grantsCounter      prometheus.Counter
 
 	mu                sync.Mutex // protects the fields below
 	refreshToken      *oauth2.Token
@@ -34,7 +35,7 @@ type passwordCredentialsTokenSource struct {
 // using the given resource owner and password.
 //
 // It is safe for concurrent use.
-func NewPasswordCredentialsTokenSource(ctx context.Context, cfg *oauth2.Config, grantsCounter func(), username, password string) *passwordCredentialsTokenSource {
+func NewPasswordCredentialsTokenSource(ctx context.Context, cfg *oauth2.Config, grantsCounter prometheus.Counter, username, password string) *passwordCredentialsTokenSource {
 	return &passwordCredentialsTokenSource{
 		ctx:           ctx,
 		username:      username,
@@ -83,7 +84,7 @@ func (c *passwordCredentialsTokenSource) Token() (*oauth2.Token, error) {
 }
 
 func (c *passwordCredentialsTokenSource) passwordCredentialsToken() (*oauth2.Token, error) {
-	c.grantsCounter()
+	c.grantsCounter.Inc()
 
 	tok, err := c.cfg.PasswordCredentialsToken(c.ctx, c.username, c.password)
 	if err != nil {
