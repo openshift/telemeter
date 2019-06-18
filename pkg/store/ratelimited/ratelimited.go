@@ -13,7 +13,7 @@ import (
 type ErrWriteLimitReached string
 
 func (e ErrWriteLimitReached) Error() string {
-	return fmt.Sprintf("write limit reached for key %q", e)
+	return fmt.Sprintf("write limit reached for key %q", string(e))
 }
 
 type lstore struct {
