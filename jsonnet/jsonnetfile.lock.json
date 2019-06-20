@@ -8,7 +8,7 @@
                     "subdir": "jsonnet/telemeter"
                 }
             },
-            "version": "395b0a2dcd605c92dc9f0414ad2fde003f5a558b"
+            "version": "b6515f17cae04b90c7c3b29e459e2752f1d8bc6a"
         },
         {
             "name": "ksonnet",
@@ -28,7 +28,7 @@
                     "subdir": "jsonnet/prometheus-operator"
                 }
             },
-            "version": "18fbf558ab7f8809fd610a3dc50bf483508dc1bb"
+            "version": "f05d5228fe02bcd370acaa234c15f3d9fdef4a60"
         }
     ]
 }
