@@ -28,7 +28,7 @@ var (
 	forwardDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "telemeter_forward_request_duration_seconds",
 		Help:    "Tracks the current amount of families for a given partition.",
-		Buckets: nil,
+		Buckets: []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5}, // max = timeout
 	}, []string{"status_code"})
 )
 
