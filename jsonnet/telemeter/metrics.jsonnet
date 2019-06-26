@@ -29,6 +29,9 @@
   // can be used to identify whether a set of errors that occur during
   // an upgrade are trending up or down from previous updates.
   '{__name__="cluster_version_payload_errors"}',
+  // cluster_installer reports what installed the cluster, along with its
+  // version number and invoker.
+  '{__name__="cluster_installer"}',
   // instance:etcd_object_counts:sum identifies two key metrics:
   // - the rough size of the data stored in etcd and
   // - the consistency between the etcd instances.
