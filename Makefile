@@ -1,5 +1,5 @@
 .PHONY: all build image check test-generate test-integration test-benchmark vendor dependencies manifests
-SHELL=/bin/bash -o pipefail
+SHELL=/usr/bin/env bash -o pipefail
 
 GO_PKG=github.com/openshift/telemeter
 REPO?=quay.io/openshift/telemeter
