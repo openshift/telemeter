@@ -11,12 +11,31 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
-	"github.com/openshift/telemeter/pkg/store"
+	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/prompb"
+
+	"github.com/openshift/telemeter/pkg/store"
 )
 
 const metricName = "__name__"
+
+var (
+	forwardErrors = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "telemeter_forward_request_errors_total",
+		Help: "Total amount of errors encountered while forwarding",
+	})
+	forwardDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "telemeter_forward_request_duration_seconds",
+		Help:    "Tracks the current amount of families for a given partition.",
+		Buckets: nil,
+	}, []string{"status_code"})
+)
+
+func init() {
+	prometheus.MustRegister(forwardErrors)
+	prometheus.MustRegister(forwardDuration)
+}
 
 type Store struct {
 	next   store.Store
@@ -66,10 +85,15 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 
 		req = req.WithContext(ctx)
 
+		begin := time.Now()
 		resp, err := s.client.Do(req)
 		if err != nil {
 			return err
 		}
+
+		forwardDuration.
+			WithLabelValues(fmt.Sprintf("%d", resp.StatusCode)).
+			Observe(time.Since(begin).Seconds())
 
 		if resp.StatusCode/100 != 2 {
 			return fmt.Errorf("response was not 200 OK, but %s", resp.Status)
@@ -78,6 +102,7 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 		return nil
 	}()
 	if err != nil {
+		forwardErrors.Inc()
 		log.Printf("forwarding error: %v", err)
 	}
 
