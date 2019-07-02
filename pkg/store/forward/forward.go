@@ -62,7 +62,10 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 
 	// Run in a func to catch all transient errors
 	err := func() error {
-		timeseries := convertToTimeseries(p)
+		timeseries, err := convertToTimeseries(p)
+		if err != nil {
+			return err
+		}
 
 		wreq := &prompb.WriteRequest{
 			Timeseries: timeseries,
@@ -109,7 +112,7 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 	return nil
 }
 
-func convertToTimeseries(p *store.PartitionedMetrics) []prompb.TimeSeries {
+func convertToTimeseries(p *store.PartitionedMetrics) ([]prompb.TimeSeries, error) {
 	var timeseries []prompb.TimeSeries
 
 	for _, f := range p.Families {
@@ -141,7 +144,7 @@ func convertToTimeseries(p *store.PartitionedMetrics) []prompb.TimeSeries {
 			case clientmodel.MetricType_UNTYPED:
 				s.Value = *m.Untyped.Value
 			default:
-				panic(fmt.Sprintf("metric type %s not supported", f.Type.String()))
+				return nil, fmt.Errorf("metric type %s not supported", f.Type.String())
 			}
 
 			ts.Labels = append(ts.Labels, labelpairs...)
@@ -151,5 +154,5 @@ func convertToTimeseries(p *store.PartitionedMetrics) []prompb.TimeSeries {
 		}
 	}
 
-	return timeseries
+	return timeseries, nil
 }

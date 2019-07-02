@@ -151,7 +151,10 @@ func Test_convertToTimeseries(t *testing.T) {
 	}}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			out := convertToTimeseries(tt.in)
+			out, err := convertToTimeseries(tt.in)
+			if err != nil {
+				t.Errorf("converting timeseries errored: %v", err)
+			}
 			if ok, err := timeseriesEqual(tt.want, out); !ok {
 				t.Errorf("timeseries don't match: %v", err)
 			}
