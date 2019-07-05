@@ -244,6 +244,7 @@ objects:
   spec:
     endpoints:
     - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      honorLabels: true
       interval: 30s
       port: https
       scheme: https

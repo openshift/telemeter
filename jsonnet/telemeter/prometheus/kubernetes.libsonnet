@@ -305,6 +305,7 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
           },
           endpoints: [
             {
+              honorLabels: true,
               port: 'https',
               interval: '30s',
               scheme: 'https',
