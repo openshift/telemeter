@@ -67,6 +67,11 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 			return err
 		}
 
+		if len(timeseries) == 0 {
+			log.Println("no time series to forward to receive endpoint")
+			return nil
+		}
+
 		wreq := &prompb.WriteRequest{
 			Timeseries: timeseries,
 		}
