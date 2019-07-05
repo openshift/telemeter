@@ -21,6 +21,10 @@ import (
 const metricName = "__name__"
 
 var (
+	forwardSamples = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "telemeter_forward_samples_total",
+		Help: "Total amount of samples successfully forwarded",
+	})
 	forwardErrors = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "telemeter_forward_request_errors_total",
 		Help: "Total amount of errors encountered while forwarding",
@@ -107,6 +111,12 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 			return fmt.Errorf("response was not 200 OK, but %s", resp.Status)
 		}
 
+		s := 0
+		for _, ts := range wreq.Timeseries {
+			s = s + len(ts.Samples)
+		}
+		forwardSamples.Add(float64(s))
+
 		return nil
 	}()
 	if err != nil {
@@ -121,7 +131,6 @@ func convertToTimeseries(p *store.PartitionedMetrics) ([]prompb.TimeSeries, erro
 	var timeseries []prompb.TimeSeries
 
 	for _, f := range p.Families {
-
 		for _, m := range f.Metric {
 			var ts prompb.TimeSeries
 
