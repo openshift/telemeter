@@ -150,6 +150,9 @@ func mockedReceiver(t *testing.T) http.HandlerFunc {
 		}
 
 		reqBuf, err := snappy.Decode(nil, body)
+		if err != nil {
+			t.Errorf("failed to decode the snappy request: %v", err)
+		}
 
 		var wreq prompb.WriteRequest
 		if err := proto.Unmarshal(reqBuf, &wreq); err != nil {
