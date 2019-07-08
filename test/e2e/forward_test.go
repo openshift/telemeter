@@ -109,6 +109,10 @@ func TestForward(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
+	// As the fowarding happens asynchronously we want to wait a few seconds
+	// until the requests really has happened.
+	time.Sleep(3 * time.Second)
+
 	body, _ := ioutil.ReadAll(resp.Body)
 	if resp.StatusCode/100 != 2 {
 		t.Errorf("request did not return 2xx, but %s: %s", resp.Status, string(body))
