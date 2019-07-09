@@ -42,7 +42,7 @@ spec:
         - --whitelist={__name__="cluster_version_payload_errors"}
         - --whitelist={__name__="instance:etcd_object_counts:sum"}
         - --whitelist={__name__="alerts",alertstate="firing"}
-        - --whitelist={__name__="code:apiserver_request_count:rate:sum"}
+        - --whitelist={__name__="apiserver_request_count"}
         - --whitelist={__name__="kube_pod_status_ready:etcd:sum"}
         - --whitelist={__name__="kube_pod_status_ready:image_registry:sum"}
         - --whitelist={__name__="cluster:capacity_cpu_cores:sum"}
