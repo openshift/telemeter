@@ -23,10 +23,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-
 	oidc "github.com/coreos/go-oidc"
 	"github.com/oklog/run"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
 
@@ -40,6 +39,7 @@ import (
 	"github.com/openshift/telemeter/pkg/metricfamily"
 	telemeter_oauth2 "github.com/openshift/telemeter/pkg/oauth2"
 	"github.com/openshift/telemeter/pkg/store"
+	"github.com/openshift/telemeter/pkg/store/forward"
 	"github.com/openshift/telemeter/pkg/store/memstore"
 	"github.com/openshift/telemeter/pkg/store/ratelimited"
 	"github.com/openshift/telemeter/pkg/validate"
@@ -120,6 +120,7 @@ func main() {
 
 	cmd.Flags().DurationVar(&opt.Ratelimit, "ratelimit", opt.Ratelimit, "The rate limit of metric uploads per cluster ID. Uploads happening more often than this limit will be rejected.")
 	cmd.Flags().DurationVar(&opt.TTL, "ttl", opt.TTL, "The TTL for metrics to be held in memory.")
+	cmd.Flags().StringVar(&opt.ForwardURL, "forward-url", opt.ForwardURL, "All written metrics will be written to this URL additionally")
 
 	cmd.Flags().BoolVarP(&opt.Verbose, "verbose", "v", opt.Verbose, "Show verbose output.")
 
@@ -167,8 +168,9 @@ type Options struct {
 	ElideLabels       []string
 	WhitelistFile     string
 
-	TTL       time.Duration
-	Ratelimit time.Duration
+	TTL        time.Duration
+	Ratelimit  time.Duration
+	ForwardURL string
 
 	Verbose bool
 }
@@ -388,11 +390,23 @@ func (o *Options) Run() error {
 	auth := jwt.NewAuthorizeClusterHandler(o.PartitionKey, o.TokenExpireSeconds, signer, o.RequiredLabels, clusterAuth)
 	validator := validate.New(o.PartitionKey, o.LimitBytes, 24*time.Hour)
 
+	var store store.Store
+
 	ms := memstore.New(o.TTL)
 	ms.StartCleaner(ctx, time.Minute)
+	store = ms
+
+	// If specified all written metrics will be written to the remote forward URL
+	if o.ForwardURL != "" {
+		u, err := url.Parse(o.ForwardURL)
+		if err != nil {
+			return fmt.Errorf("--forward-url must be a valid URL: %v", err)
+		}
+		store = forward.New(u, store)
+	}
 
 	// Create a rate-limited store with a memory-store as its backend.
-	var store store.Store = ratelimited.New(o.Ratelimit, ms)
+	store = ratelimited.New(o.Ratelimit, store)
 
 	if len(o.ListenCluster) > 0 {
 		c := cluster.NewDynamic(o.Name, store)
