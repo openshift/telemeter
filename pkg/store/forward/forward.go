@@ -126,7 +126,7 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 		}
 	}()
 
-	return nil
+	return s.next.WriteMetrics(ctx, p)
 }
 
 func convertToTimeseries(p *store.PartitionedMetrics) ([]prompb.TimeSeries, error) {
