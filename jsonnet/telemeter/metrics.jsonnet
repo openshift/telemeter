@@ -48,6 +48,10 @@
   // code:apiserver_request_count:rate:sum identifies average of occurances
   // of each http status code over 10 minutes
   '{__name__="code:apiserver_request_count:rate:sum"}',
+  // code:registry_api_request_count:rate:sum identifies average of occurances
+  // of each http status code over 10 minutes, but only for API requests going
+  // to the image registry service
+  '{__name__="code:registry_api_request_count:rate:sum"}',
   // kube_pod_status_ready:etcd:sum is the total number of 'etcd.*' pods
   // in the namespace "kube-system" whose condition is true
   '{__name__="kube_pod_status_ready:etcd:sum"}',
