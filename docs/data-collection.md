@@ -72,6 +72,8 @@ For the OpenShift 4 Developer Preview we will be sending back these exact attrib
   // cluster:node_instance_type_count:sum is the number of nodes
   // of each instance type and role.
   '{__name__="cluster:node_instance_type_count:sum"}',
+  // cnv:vmi_status_running:count is the total number of VM instances running in the cluster.
+  '{__name__="cnv:vmi_status_running:count"}',
 ]
 ```
 
