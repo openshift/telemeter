@@ -38,8 +38,6 @@ spec:
         - --match={__name__="instance:etcd_object_counts:sum"}
         - --match={__name__="ALERTS",alertstate="firing"}
         - --match={__name__="code:apiserver_request_count:rate:sum"}
-        - --match={__name__="kube_pod_status_ready:etcd:sum"}
-        - --match={__name__="kube_pod_status_ready:image_registry:sum"}
         - --match={__name__="cluster:capacity_cpu_cores:sum"}
         - --match={__name__="cluster:capacity_memory_bytes:sum"}
         - --match={__name__="cluster:cpu_usage_cores:sum"}
