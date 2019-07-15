@@ -101,7 +101,6 @@ manifests: $(JSONNET_SRC) $(JSONNET_VENDOR) $(GOJSONTOYAML_BIN)
 	mkdir -p manifests/{benchmark,client,server,prometheus}
 	$(JSONNET_BIN) jsonnet/benchmark.jsonnet -J jsonnet/vendor -m manifests/benchmark
 	$(JSONNET_BIN) jsonnet/client.jsonnet -J jsonnet/vendor -m manifests/client
-	$(JSONNET_BIN) jsonnet/server.jsonnet -J jsonnet/vendor -m manifests/server
 	$(JSONNET_BIN) jsonnet/prometheus.jsonnet -J jsonnet/vendor -m manifests/prometheus
 	@for f in $$(find manifests -type f); do\
 	    cat $$f | $(GOJSONTOYAML_BIN) > $$f.yaml && rm $$f;\
