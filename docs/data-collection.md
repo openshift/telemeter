@@ -32,11 +32,6 @@ For the OpenShift 4 Developer Preview we will be sending back these exact attrib
   // version operator has progressed and can be used to identify whether
   // a particular payload entry is causing failures during upgrade.
   '{__name__="cluster_version_payload"}',
-  // cluster_version_payload_errors counts the errors that occur while
-  // attempting to apply the payload to a cluster. This measurement
-  // can be used to identify whether a set of errors that occur during
-  // an upgrade are trending up or down from previous updates.
-  '{__name__="cluster_version_payload_errors"}',
   // cluster_installer reports what installed the cluster, along with its
   // version number and invoker.
   '{__name__="cluster_installer"}',
