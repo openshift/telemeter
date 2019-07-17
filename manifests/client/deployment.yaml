@@ -33,7 +33,6 @@ spec:
         - --match={__name__="cluster_operator_up"}
         - --match={__name__="cluster_operator_conditions"}
         - --match={__name__="cluster_version_payload"}
-        - --match={__name__="cluster_version_payload_errors"}
         - --match={__name__="cluster_installer"}
         - --match={__name__="instance:etcd_object_counts:sum"}
         - --match={__name__="ALERTS",alertstate="firing"}
