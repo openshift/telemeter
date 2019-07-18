@@ -44,6 +44,7 @@ spec:
         - --match={__name__="openshift:cpu_usage_cores:sum"}
         - --match={__name__="openshift:memory_usage_bytes:sum"}
         - --match={__name__="cluster:node_instance_type_count:sum"}
+        - --match={__name__="cnv:vmi_status_running:count"}
         env:
         - name: ANONYMIZE_LABELS
           value: ""
