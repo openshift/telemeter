@@ -53,6 +53,12 @@ spec:
           value: ""
         - name: TO
           value: https://infogw.api.openshift.com
+        - name: HTTP_PROXY
+          value: ""
+        - name: HTTPS_PROXY
+          value: ""
+        - name: NO_PROXY
+          value: ""
         image: quay.io/openshift/origin-telemeter:v4.0
         name: telemeter-client
         ports:

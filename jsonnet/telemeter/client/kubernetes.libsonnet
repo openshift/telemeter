@@ -103,6 +103,9 @@ local securePort = 8443;
       local from = containerEnv.new('FROM', $._config.telemeterClient.from);
       local id = containerEnv.new('ID', '');
       local to = containerEnv.new('TO', $._config.telemeterClient.to);
+      local httpProxy = containerEnv.new('HTTP_PROXY', '');
+      local httpsProxy = containerEnv.new('HTTPS_PROXY', '');
+      local noProxy = containerEnv.new('NO_PROXY', '');
 
       local matchRules = std.map(
         function(rule) '--match=%s' % rule,
@@ -125,7 +128,7 @@ local securePort = 8443;
         ] + matchRules) +
         container.withPorts(containerPort.newNamed('http', metricsPort)) +
         container.withVolumeMounts([sccabMount, secretMount]) +
-        container.withEnv([anonymize, from, id, to]);
+        container.withEnv([anonymize, from, id, to, httpProxy, httpsProxy, noProxy]);
 
       local reload =
         container.new('reload', $._config.imageRepos.configmapReload + ':' + $._config.versions.configmapReload) +
