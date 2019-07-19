@@ -18,7 +18,6 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
       name: 'telemeter',
       replicas: 2,
       rules: { groups: [] },
-      htpasswdAuth: '',
       sessionSecret: '',
       resourceLimits: {},
       resourceRequests: { memory: '400Mi' },
@@ -32,15 +31,6 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
 
       secret.new('prometheus-%s-proxy' % $._config.prometheus.name, {
         session_secret: std.base64($._config.prometheus.sessionSecret),
-      }) +
-      secret.mixin.metadata.withNamespace($._config.namespace) +
-      secret.mixin.metadata.withLabels({ 'k8s-app': 'prometheus-' + $._config.prometheus.name }),
-
-    htpasswdSecret:
-      local secret = k.core.v1.secret;
-
-      secret.new('prometheus-%s-htpasswd' % $._config.prometheus.name, {
-        auth: std.base64($._config.prometheus.htpasswdAuth),
       }) +
       secret.mixin.metadata.withNamespace($._config.namespace) +
       secret.mixin.metadata.withLabels({ 'k8s-app': 'prometheus-' + $._config.prometheus.name }),
@@ -224,7 +214,6 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
           secrets: [
             'prometheus-%s-tls' % $._config.prometheus.name,
             'prometheus-%s-proxy' % $._config.prometheus.name,
-            'prometheus-%s-htpasswd' % $._config.prometheus.name,
           ],
           serviceMonitorSelector: selector.withMatchLabels({
             'k8s-app': 'telemeter-server',
@@ -255,7 +244,6 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
                 '-http-address=',
                 '-email-domain=*',
                 '-upstream=http://localhost:9090',
-                '-htpasswd-file=/etc/proxy/htpasswd/auth',
                 '-openshift-service-account=prometheus-' + $._config.prometheus.name,
                 '-openshift-sar={"resource": "namespaces", "verb": "get"}',
                 '-openshift-delegate-urls={"/": {"resource": "namespaces", "verb": "get"}}',
@@ -275,10 +263,6 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
                 {
                   mountPath: '/etc/proxy/secrets',
                   name: 'secret-prometheus-%s-proxy' % $._config.prometheus.name,
-                },
-                {
-                  mountPath: '/etc/proxy/htpasswd',
-                  name: 'secret-prometheus-%s-htpasswd' % $._config.prometheus.name,
                 },
               ],
             },

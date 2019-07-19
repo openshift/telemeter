@@ -14,7 +14,6 @@ spec:
     - -http-address=
     - -email-domain=*
     - -upstream=http://localhost:9090
-    - -htpasswd-file=/etc/proxy/htpasswd/auth
     - -openshift-service-account=prometheus-telemeter
     - '-openshift-sar={"resource": "namespaces", "verb": "get"}'
     - '-openshift-delegate-urls={"/": {"resource": "namespaces", "verb": "get"}}'
@@ -36,8 +35,6 @@ spec:
       name: secret-prometheus-telemeter-tls
     - mountPath: /etc/proxy/secrets
       name: secret-prometheus-telemeter-proxy
-    - mountPath: /etc/proxy/htpasswd
-      name: secret-prometheus-telemeter-htpasswd
   listenLocal: true
   nodeSelector:
     beta.kubernetes.io/os: linux
@@ -54,7 +51,6 @@ spec:
   secrets:
   - prometheus-telemeter-tls
   - prometheus-telemeter-proxy
-  - prometheus-telemeter-htpasswd
   securityContext: {}
   serviceAccountName: prometheus-telemeter
   serviceMonitorSelector:
