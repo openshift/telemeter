@@ -17,6 +17,7 @@ JSONNET_BIN=$(if $(shell which jsonnet 2>/dev/null),$(shell which jsonnet 2>/dev
 JB_BIN=$(FIRST_GOPATH)/bin/jb
 JSONNET_SRC=$(shell find ./jsonnet -type f)
 BENCHMARK_RESULTS=$(shell find ./benchmark -type f -name '*.json')
+BENCHMARK_GOAL?=5000
 JSONNET_VENDOR=jsonnet/jsonnetfile.lock.json jsonnet/vendor
 DOCS=$(shell grep -rlF [embedmd] docs)
 
@@ -150,7 +151,7 @@ test-integration: build
 	./test/integration.sh
 
 test-benchmark: build
-	./test/benchmark.sh
+	./test/benchmark.sh "" "" "" "" $(BENCHMARK_GOAL)
 
 test/timeseries.txt:
 	oc port-forward -n openshift-monitoring prometheus-k8s-0 9090 > /dev/null & \
