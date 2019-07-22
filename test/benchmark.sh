@@ -14,8 +14,9 @@ trap 'rc=$?; printf "cleaning up...\n" && oc delete -f ./manifests/benchmark/ --
 
 benchmark() {
     local current=$1
+    local goal=$2
     local success=0
-    while [ "$GOAL" == 0 ] || [ "$success" -lt "$GOAL" ]; do
+    while [ "$goal" == 0 ] || [ "$success" -lt "$goal" ]; do
         printf "benchmarking with %d clients sending %d time series\n" "$current" "$TSN"
         create
         client "$current" http://"$(route telemeter-server)" &
@@ -28,7 +29,7 @@ benchmark() {
     done
     printf "Successfully handled %s clients\n" "$success"
     # Only return non-zero if we set a goal and didn't meet it.
-    if [ "$GOAL" -gt 0 ] && [ "$success" -lt "$GOAL" ]; then
+    if [ "$goal" -gt 0 ] && [ "$success" -lt "$goal" ]; then
         return 1
     fi
     return 0
@@ -46,7 +47,7 @@ create() {
     # Create everything but the Prometheus resource.
     find ./manifests/benchmark/ ! -name 'prometheus*' -type f -print0 | xargs -0l -I{} oc apply -f {} > /dev/null
     oc scale statefulset telemeter-server --namespace telemeter-benchmark --replicas "$SERVERS"
-    local retries=10
+    local retries=20
     until [ "$(oc get pods -n telemeter-benchmark | grep telemeter-server- | grep Running -c)" -eq "$SERVERS" ]; do
         retries=$((retries-1))
         if [ $retries -eq 0 ]; then
@@ -60,7 +61,7 @@ create() {
     # Create everything but the Telemeter server resources as we want
     # to avoid undoing the scaling event.
     find ./manifests/benchmark/ ! -name '*TelemeterServer.yaml' -type f -print0 | xargs -0l -I{} oc apply -f {} > /dev/null
-    local retries=10
+    local retries=20
     until [ "$(oc get pods -n telemeter-benchmark | grep prometheus-benchmark | grep Running -c)" -eq 1 ]; do
         retries=$((retries-1))
         if [ $retries -eq 0 ]; then
@@ -120,6 +121,6 @@ save() {
     echo "$res" > "$DIR"/"$SERVERS"_"$n"_mem.json
 }
 
-benchmark "$CLIENTS"
+benchmark "$CLIENTS" "$GOAL"
 
 exit $?
