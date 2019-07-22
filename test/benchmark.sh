@@ -14,8 +14,9 @@ trap 'rc=$?; printf "cleaning up...\n" && oc delete -f ./manifests/benchmark/ --
 
 benchmark() {
     local current=$1
+    local goal=$2
     local success=0
-    while [ "$GOAL" == 0 ] || [ "$success" -lt "$GOAL" ]; do
+    while [ "$goal" == 0 ] || [ "$success" -lt "$goal" ]; do
         printf "benchmarking with %d clients sending %d time series\n" "$current" "$TSN"
         create
         client "$current" http://"$(route telemeter-server)" &
@@ -28,7 +29,7 @@ benchmark() {
     done
     printf "Successfully handled %s clients\n" "$success"
     # Only return non-zero if we set a goal and didn't meet it.
-    if [ "$GOAL" -gt 0 ] && [ "$success" -lt "$GOAL" ]; then
+    if [ "$goal" -gt 0 ] && [ "$success" -lt "$goal" ]; then
         return 1
     fi
     return 0
@@ -120,6 +121,6 @@ save() {
     echo "$res" > "$DIR"/"$SERVERS"_"$n"_mem.json
 }
 
-benchmark "$CLIENTS"
+benchmark "$CLIENTS" "$GOAL"
 
 exit $?
