@@ -151,7 +151,7 @@ test-integration: build
 	./test/integration.sh
 
 test-benchmark: build
-	./test/benchmark.sh "" "" "" "" $(BENCHMARK_GOAL)
+	./test/benchmark.sh "" "" $(BENCHMARK_GOAL) "" $(BENCHMARK_GOAL)
 
 test/timeseries.txt:
 	oc port-forward -n openshift-monitoring prometheus-k8s-0 9090 > /dev/null & \
