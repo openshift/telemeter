@@ -47,7 +47,7 @@ create() {
     # Create everything but the Prometheus resource.
     find ./manifests/benchmark/ ! -name 'prometheus*' -type f -print0 | xargs -0l -I{} oc apply -f {} > /dev/null
     oc scale statefulset telemeter-server --namespace telemeter-benchmark --replicas "$SERVERS"
-    local retries=10
+    local retries=20
     until [ "$(oc get pods -n telemeter-benchmark | grep telemeter-server- | grep Running -c)" -eq "$SERVERS" ]; do
         retries=$((retries-1))
         if [ $retries -eq 0 ]; then
@@ -61,7 +61,7 @@ create() {
     # Create everything but the Telemeter server resources as we want
     # to avoid undoing the scaling event.
     find ./manifests/benchmark/ ! -name '*TelemeterServer.yaml' -type f -print0 | xargs -0l -I{} oc apply -f {} > /dev/null
-    local retries=10
+    local retries=20
     until [ "$(oc get pods -n telemeter-benchmark | grep prometheus-benchmark | grep Running -c)" -eq 1 ]; do
         retries=$((retries-1))
         if [ $retries -eq 0 ]; then
