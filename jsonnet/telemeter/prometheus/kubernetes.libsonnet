@@ -41,6 +41,7 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
       serviceAccount.new('prometheus-' + $._config.prometheus.name) +
       serviceAccount.mixin.metadata.withNamespace($._config.namespace) +
       serviceAccount.mixin.metadata.withAnnotations({
+        'serviceaccounts.openshift.io/oauth-redirectreference.observatorium-thanos-querier':'{"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"observatorium-thanos-querier"}}',
         'serviceaccounts.openshift.io/oauth-redirectreference.prometheus-k8s': '{"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"prometheus-telemeter"}}',
       }),
 
