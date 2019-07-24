@@ -34,6 +34,8 @@ spec:
         - --match={__name__="cluster_operator_conditions"}
         - --match={__name__="cluster_version_payload"}
         - --match={__name__="cluster_installer"}
+        - --match={__name__="cluster_infrastructure_provider"}
+        - --match={__name__="cluster_feature_set"}
         - --match={__name__="instance:etcd_object_counts:sum"}
         - --match={__name__="ALERTS",alertstate="firing"}
         - --match={__name__="code:apiserver_request_count:rate:sum"}
