@@ -32,6 +32,13 @@
   // cluster_installer reports what installed the cluster, along with its
   // version number and invoker.
   '{__name__="cluster_installer"}',
+  // cluster_infrastructure_provider reports the configured cloud provider
+  // if any, along with the infrastructure region when running in the public
+  // cloud.
+  '{__name__="cluster_infrastructure_provider"}',
+  // cluster_feature_set reports the configured cluster feature set and
+  // whether the feature set is considered supported or unsupported.
+  '{__name__="cluster_feature_set"}',
   // instance:etcd_object_counts:sum identifies two key metrics:
   // - the rough size of the data stored in etcd and
   // - the consistency between the etcd instances.
