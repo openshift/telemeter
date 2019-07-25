@@ -13,7 +13,7 @@ local b = (import 'prometheus-operator/prometheus-operator.libsonnet') +
 
 {
   prometheusOperator+:: {
-    clusterRoleBinding: b.prometheusOperator.clusterRoleBinding,
+    clusterRoleBinding: b.prometheusOperator.clusterRoleBinding { metadata+: { name: 'telemeter-benchmark' } },
     serviceAccount: b.prometheusOperator.serviceAccount,
     deployment: b.prometheusOperator.deployment {
       spec+: {
