@@ -76,4 +76,22 @@
   // subscription_sync_total is the number of times an OLM operator
   // Subscription has been synced, labelled by name and installed csv
   '{__name__="subscription_sync_total"}',
+  //
+  // OCS metrics to be collected:
+  // ceph_cluster_total_bytes gives the size of ceph cluster in bytes.
+  '{__name__="ceph_cluster_total_bytes"}',
+  // ceph_cluster_total_used_raw_bytes is the amount of ceph cluster storage used in bytes.
+  '{__name__="ceph_cluster_total_used_raw_bytes"}',
+  // ceph_health_status gives the ceph cluster health status
+  '{__name__="ceph_health_status"}',
+  // job:ceph_osd_metadata:count is the total count of osds.
+  '{__name__="job:ceph_osd_metadata:count"}',
+  // job:kube_pv:count is the total number of Persistent Volumes present in OCP cluster.
+  '{__name__="job:kube_pv:count"}',
+  // job:ceph_pools_iops:total is the total iops (reads+writes) value for all the pools in ceph cluster
+  '{__name__="job:ceph_pools_iops:total"}',
+  // job:ceph_pools_iops:total is the total iops (reads+writes) value in bytes for all the pools in ceph cluster
+  '{__name__="job:ceph_pools_iops_bytes:total"}',
+  // job:ceph_versions_running:count is the total count of ceph cluster versions running.
+  '{__name__="job:ceph_versions_running:count"}',
 ]
