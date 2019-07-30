@@ -34,7 +34,7 @@ func (t *tokenStore) Load(endpoint *url.URL, initialToken string, rt http.RoundT
 		return t.value, nil
 	}
 
-	c := http.Client{Transport: rt, Timeout: 10 * time.Second}
+	c := http.Client{Transport: rt, Timeout: 30 * time.Second}
 	req, err := http.NewRequest("POST", endpoint.String(), nil)
 	if err != nil {
 		return "", fmt.Errorf("unable to create authentication request: %v", err)
