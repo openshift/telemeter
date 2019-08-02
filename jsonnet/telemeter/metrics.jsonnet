@@ -63,11 +63,19 @@
   // use across the whole cluster.
   '{__name__="cluster:memory_usage_bytes:sum"}',
   // openshift:cpu_usage_cores:sum is the current amount of CPU
-  // used by OpenShift components.
+  // used by OpenShift components, including the control plane and
+  // host services (including the kernel).
   '{__name__="openshift:cpu_usage_cores:sum"}',
   // openshift:memory_usage_bytes:sum is the current amount of memory
-  // used by OpenShift components.
+  // used by OpenShift components, including the control plane and
+  // host services (including the kernel).
   '{__name__="openshift:memory_usage_bytes:sum"}',
+  // workload:cpu_usage_cores:sum is the current amount of CPU
+  //used by cluster workloads, excluding infrastructure.
+  '{__name__="workload:cpu_usage_cores:sum"}',
+  // workload:memory_usage_bytes:sum is the current amount of memory
+  // used by cluster workloads, excluding infrastructure.
+  '{__name__="workload:memory_usage_bytes:sum"}',
   // cluster:node_instance_type_count:sum is the number of nodes
   // of each instance type and role.
   '{__name__="cluster:node_instance_type_count:sum"}',
