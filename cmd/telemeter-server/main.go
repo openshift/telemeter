@@ -28,6 +28,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/clientcredentials"
 
 	"github.com/openshift/telemeter/pkg/authorize"
 	"github.com/openshift/telemeter/pkg/authorize/jwt"
@@ -114,9 +115,14 @@ func main() {
 	cmd.Flags().StringVar(&opt.AuthorizeEndpoint, "authorize", opt.AuthorizeEndpoint, "A endpoint URL to authorize against when a client requests a token.")
 
 	cmd.Flags().StringVar(&opt.AuthorizeIssuerURL, "authorize-issuer-url", opt.AuthorizeIssuerURL, "The authorize OIDC issuer URL, see https://openid.net/specs/openid-connect-discovery-1_0.html#IssuerDiscovery.")
-	cmd.Flags().StringVar(&opt.AuthorizeUsername, "authorize-username", opt.AuthorizeUsername, "The authorize OIDC username, see rfc6749#section-4.3.")
-	cmd.Flags().StringVar(&opt.AuthorizePassword, "authorize-password", opt.AuthorizePassword, "The authorize OIDC password, see rfc6749#section-4.3.")
-	cmd.Flags().StringVar(&opt.AuthorizeClientID, "authorize-client-id", opt.AuthorizeClientID, "The authorize OIDC client ID, see rfc6749#section-4.3.")
+	cmd.Flags().StringVar(&opt.AuthorizeUsername, "authorize-username", opt.AuthorizeUsername,
+		"The authorize OIDC username according the resource owner password credentials grant flow, see rfc6749#section-4.3. " +
+		"If unset, the client credentials grant flow will be used, see rfc6749#section-4.4.")
+	cmd.Flags().StringVar(&opt.AuthorizePassword, "authorize-password", opt.AuthorizePassword,
+		"The authorize OIDC password, see rfc6749#section-4.3. " +
+		"If authorize username is unset, this will be used as the client credentials secret, see https://tools.ietf.org/html/rfc6749#section-4.4.2.",
+		)
+	cmd.Flags().StringVar(&opt.AuthorizeClientID, "authorize-client-id", opt.AuthorizeClientID, "The authorize OIDC client ID, see rfc6749#section-4.3 and https://tools.ietf.org/html/rfc6749#section-4.4.")
 
 	cmd.Flags().DurationVar(&opt.Ratelimit, "ratelimit", opt.Ratelimit, "The rate limit of metric uploads per cluster ID. Uploads happening more often than this limit will be rejected.")
 	cmd.Flags().DurationVar(&opt.TTL, "ttl", opt.TTL, "The TTL for metrics to be held in memory.")
@@ -249,11 +255,6 @@ func (o *Options) Run() error {
 				},
 			)
 
-			cfg := oauth2.Config{
-				ClientID: o.AuthorizeClientID,
-				Endpoint: provider.Endpoint(),
-			}
-
 			grantsTotal := prometheus.NewCounterVec(
 				prometheus.CounterOpts{
 					Name: "telemeter_password_credentials_grants_total",
@@ -264,10 +265,29 @@ func (o *Options) Run() error {
 
 			prometheus.MustRegister(grantsTotal)
 
-			src := telemeter_oauth2.NewPasswordCredentialsTokenSource(
-				ctx, &cfg, grantsTotal,
-				o.AuthorizeUsername, o.AuthorizePassword,
-			)
+			var src oauth2.TokenSource
+
+			if o.AuthorizeUsername == "" {
+				// if username is unset, use client credentials grant flow according to rfc6749#section-4.4.
+				cfg := clientcredentials.Config{
+					ClientID: o.AuthorizeClientID,
+					ClientSecret: o.AuthorizePassword,
+					TokenURL: provider.Endpoint().TokenURL,
+				}
+
+				src = cfg.TokenSource(ctx)
+			} else {
+				// if username is set, use resource owner password credentials grant flow according to rfc6749#section-4.3.
+				cfg := oauth2.Config{
+					ClientID: o.AuthorizeClientID,
+					Endpoint: provider.Endpoint(),
+				}
+
+				src = telemeter_oauth2.NewPasswordCredentialsTokenSource(
+					ctx, &cfg, grantsTotal,
+					o.AuthorizeUsername, o.AuthorizePassword,
+				)
+			}
 
 			// both the underlying upstream authorize transport
 			// and the oauth transport are already instrumented,
