@@ -18,7 +18,9 @@ import (
 	"github.com/openshift/telemeter/pkg/store"
 )
 
-const metricName = "__name__"
+const (
+	nameLabelName = "__name__"
+)
 
 var (
 	forwardSamples = prometheus.NewCounter(prometheus.CounterOpts{
@@ -67,7 +69,7 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 	go func() {
 		// Run in a func to catch all transient errors
 		err := func() error {
-			timeseries, err := convertToTimeseries(p)
+			timeseries, err := convertToTimeseries(p, time.Now())
 			if err != nil {
 				return err
 			}
@@ -129,15 +131,16 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 	return s.next.WriteMetrics(ctx, p)
 }
 
-func convertToTimeseries(p *store.PartitionedMetrics) ([]prompb.TimeSeries, error) {
+func convertToTimeseries(p *store.PartitionedMetrics, now time.Time) ([]prompb.TimeSeries, error) {
 	var timeseries []prompb.TimeSeries
 
+	timestamp := now.UnixNano() / int64(time.Millisecond)
 	for _, f := range p.Families {
 		for _, m := range f.Metric {
 			var ts prompb.TimeSeries
 
 			labelpairs := []prompb.Label{{
-				Name:  metricName,
+				Name:  nameLabelName,
 				Value: *f.Name,
 			}}
 
@@ -149,7 +152,7 @@ func convertToTimeseries(p *store.PartitionedMetrics) ([]prompb.TimeSeries, erro
 			}
 
 			s := prompb.Sample{
-				Timestamp: *m.TimestampMs,
+				Timestamp: timestamp,
 			}
 
 			switch *f.Type {

@@ -3,6 +3,7 @@ package forward
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/prompb"
@@ -29,6 +30,8 @@ func Test_convertToTimeseries(t *testing.T) {
 	value42 := 42.0
 	value50 := 50.0
 	timestamp := int64(15615582020000)
+	now := time.Now()
+	nowTimestamp := now.UnixNano() / int64(time.Millisecond)
 
 	tests := []struct {
 		name string
@@ -63,14 +66,14 @@ func Test_convertToTimeseries(t *testing.T) {
 			}},
 		},
 		want: []prompb.TimeSeries{{
-			Labels:  []prompb.Label{{Name: metricName, Value: fooMetricName}, {Name: fooLabelName, Value: fooLabelValue1}},
-			Samples: []prompb.Sample{{Value: value42, Timestamp: timestamp}},
+			Labels:  []prompb.Label{{Name: nameLabelName, Value: fooMetricName}, {Name: fooLabelName, Value: fooLabelValue1}},
+			Samples: []prompb.Sample{{Value: value42, Timestamp: nowTimestamp}},
 		}, {
-			Labels:  []prompb.Label{{Name: metricName, Value: fooMetricName}, {Name: fooLabelName, Value: fooLabelValue2}},
-			Samples: []prompb.Sample{{Value: value50, Timestamp: timestamp}},
+			Labels:  []prompb.Label{{Name: nameLabelName, Value: fooMetricName}, {Name: fooLabelName, Value: fooLabelValue2}},
+			Samples: []prompb.Sample{{Value: value50, Timestamp: nowTimestamp}},
 		}, {
-			Labels:  []prompb.Label{{Name: metricName, Value: barMetricName}, {Name: barLabelName, Value: barLabelValue1}},
-			Samples: []prompb.Sample{{Value: value42, Timestamp: timestamp}},
+			Labels:  []prompb.Label{{Name: nameLabelName, Value: barMetricName}, {Name: barLabelName, Value: barLabelValue1}},
+			Samples: []prompb.Sample{{Value: value42, Timestamp: nowTimestamp}},
 		}},
 	}, {
 		name: "gauge",
@@ -101,14 +104,14 @@ func Test_convertToTimeseries(t *testing.T) {
 			}},
 		},
 		want: []prompb.TimeSeries{{
-			Labels:  []prompb.Label{{Name: metricName, Value: fooMetricName}, {Name: fooLabelName, Value: fooLabelValue1}},
-			Samples: []prompb.Sample{{Value: value42, Timestamp: timestamp}},
+			Labels:  []prompb.Label{{Name: nameLabelName, Value: fooMetricName}, {Name: fooLabelName, Value: fooLabelValue1}},
+			Samples: []prompb.Sample{{Value: value42, Timestamp: nowTimestamp}},
 		}, {
-			Labels:  []prompb.Label{{Name: metricName, Value: fooMetricName}, {Name: fooLabelName, Value: fooLabelValue2}},
-			Samples: []prompb.Sample{{Value: value50, Timestamp: timestamp}},
+			Labels:  []prompb.Label{{Name: nameLabelName, Value: fooMetricName}, {Name: fooLabelName, Value: fooLabelValue2}},
+			Samples: []prompb.Sample{{Value: value50, Timestamp: nowTimestamp}},
 		}, {
-			Labels:  []prompb.Label{{Name: metricName, Value: barMetricName}, {Name: barLabelName, Value: barLabelValue1}},
-			Samples: []prompb.Sample{{Value: value42, Timestamp: timestamp}},
+			Labels:  []prompb.Label{{Name: nameLabelName, Value: barMetricName}, {Name: barLabelName, Value: barLabelValue1}},
+			Samples: []prompb.Sample{{Value: value42, Timestamp: nowTimestamp}},
 		}},
 	}, {
 		name: "untyped",
@@ -139,19 +142,19 @@ func Test_convertToTimeseries(t *testing.T) {
 			}},
 		},
 		want: []prompb.TimeSeries{{
-			Labels:  []prompb.Label{{Name: metricName, Value: fooMetricName}, {Name: fooLabelName, Value: fooLabelValue1}},
-			Samples: []prompb.Sample{{Value: value42, Timestamp: timestamp}},
+			Labels:  []prompb.Label{{Name: nameLabelName, Value: fooMetricName}, {Name: fooLabelName, Value: fooLabelValue1}},
+			Samples: []prompb.Sample{{Value: value42, Timestamp: nowTimestamp}},
 		}, {
-			Labels:  []prompb.Label{{Name: metricName, Value: fooMetricName}, {Name: fooLabelName, Value: fooLabelValue2}},
-			Samples: []prompb.Sample{{Value: value50, Timestamp: timestamp}},
+			Labels:  []prompb.Label{{Name: nameLabelName, Value: fooMetricName}, {Name: fooLabelName, Value: fooLabelValue2}},
+			Samples: []prompb.Sample{{Value: value50, Timestamp: nowTimestamp}},
 		}, {
-			Labels:  []prompb.Label{{Name: metricName, Value: barMetricName}, {Name: barLabelName, Value: barLabelValue1}},
-			Samples: []prompb.Sample{{Value: value42, Timestamp: timestamp}},
+			Labels:  []prompb.Label{{Name: nameLabelName, Value: barMetricName}, {Name: barLabelName, Value: barLabelValue1}},
+			Samples: []prompb.Sample{{Value: value42, Timestamp: nowTimestamp}},
 		}},
 	}}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			out, err := convertToTimeseries(tt.in)
+			out, err := convertToTimeseries(tt.in, now)
 			if err != nil {
 				t.Errorf("converting timeseries errored: %v", err)
 			}
