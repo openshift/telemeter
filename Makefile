@@ -17,7 +17,7 @@ JSONNET_BIN=$(if $(shell which jsonnet 2>/dev/null),$(shell which jsonnet 2>/dev
 JB_BIN=$(FIRST_GOPATH)/bin/jb
 JSONNET_SRC=$(shell find ./jsonnet -type f)
 BENCHMARK_RESULTS=$(shell find ./benchmark -type f -name '*.json')
-BENCHMARK_GOAL?=5000
+BENCHMARK_GOAL?=9000
 JSONNET_VENDOR=jsonnet/jsonnetfile.lock.json jsonnet/vendor
 DOCS=$(shell grep -rlF [embedmd] docs)
 
