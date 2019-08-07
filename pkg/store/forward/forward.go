@@ -109,7 +109,11 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 				Observe(time.Since(begin).Seconds())
 
 			if resp.StatusCode/100 != 2 {
-				return fmt.Errorf("response was not 200 OK, but %s", resp.Status)
+				mean := timeseriesMeanDrift(timeseries, time.Now().Unix()*1000)
+				return fmt.Errorf("response status code is %s - timestamp mean from now is: %.3fms",
+					resp.Status,
+					float64(time.Now().Second())-mean,
+				)
 			}
 
 			s := 0
@@ -171,4 +175,18 @@ func convertToTimeseries(p *store.PartitionedMetrics) ([]prompb.TimeSeries, erro
 	}
 
 	return timeseries, nil
+}
+
+func timeseriesMeanDrift(ts []prompb.TimeSeries, timestampSeconds int64) float64 {
+	var count float64
+	var sum float64
+
+	for _, t := range ts {
+		for _, s := range t.Samples {
+			sum = sum + (float64(timestampSeconds) - float64(s.Timestamp/1000))
+			count++
+		}
+	}
+
+	return sum / count
 }

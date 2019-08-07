@@ -189,3 +189,26 @@ func timeseriesEqual(t1 []prompb.TimeSeries, t2 []prompb.TimeSeries) (bool, erro
 
 	return true, nil
 }
+
+func Test_timeseriesMean(t *testing.T) {
+	ts := []prompb.TimeSeries{{
+		Samples: []prompb.Sample{
+			{Value: 0, Timestamp: 15615582010000},
+			{Value: 0, Timestamp: 15615582020000},
+			{Value: 0, Timestamp: 15615582030000},
+			{Value: 0, Timestamp: 15615582040000},
+			{Value: 0, Timestamp: 15615582050000},
+		},
+	}, {
+		Samples: []prompb.Sample{
+			{Value: 0, Timestamp: 15615582000000},
+			{Value: 0, Timestamp: 15615582010000},
+			{Value: 0, Timestamp: 15615582020000},
+		},
+	}}
+
+	mean := timeseriesMeanDrift(ts, 15615582050)
+	if mean != 27.50 {
+		t.Errorf("expected mean to be 2.75, but got: %.3f", mean)
+	}
+}
