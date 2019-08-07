@@ -108,13 +108,16 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 				WithLabelValues(fmt.Sprintf("%d", resp.StatusCode)).
 				Observe(time.Since(begin).Seconds())
 
-			if resp.StatusCode/100 != 2 {
-				meanDrift := timeseriesMeanDrift(timeseries, time.Now().Unix())
-				return fmt.Errorf("response status code is %s - mean drift from now for clusters %s is: %.3fs",
-					resp.Status,
+			meanDrift := timeseriesMeanDrift(timeseries, time.Now().Unix())
+			if meanDrift > 10 {
+				log.Printf("mean drift from now for clusters %s is: %.3fs",
 					p.PartitionKey,
 					meanDrift,
 				)
+			}
+
+			if resp.StatusCode/100 != 2 {
+				return fmt.Errorf("response status code is %s", resp.Status)
 			}
 
 			s := 0
