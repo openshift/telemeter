@@ -108,8 +108,16 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 				WithLabelValues(fmt.Sprintf("%d", resp.StatusCode)).
 				Observe(time.Since(begin).Seconds())
 
+			meanDrift := timeseriesMeanDrift(timeseries, time.Now().Unix())
+			if meanDrift > 10 {
+				log.Printf("mean drift from now for clusters %s is: %.3fs",
+					p.PartitionKey,
+					meanDrift,
+				)
+			}
+
 			if resp.StatusCode/100 != 2 {
-				return fmt.Errorf("response was not 200 OK, but %s", resp.Status)
+				return fmt.Errorf("response status code is %s", resp.Status)
 			}
 
 			s := 0
@@ -171,4 +179,18 @@ func convertToTimeseries(p *store.PartitionedMetrics) ([]prompb.TimeSeries, erro
 	}
 
 	return timeseries, nil
+}
+
+func timeseriesMeanDrift(ts []prompb.TimeSeries, timestampSeconds int64) float64 {
+	var count float64
+	var sum float64
+
+	for _, t := range ts {
+		for _, s := range t.Samples {
+			sum = sum + (float64(timestampSeconds) - float64(s.Timestamp/1000))
+			count++
+		}
+	}
+
+	return sum / count
 }
