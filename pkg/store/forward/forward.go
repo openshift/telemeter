@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"net/url"
 	"time"
@@ -109,7 +110,7 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 				Observe(time.Since(begin).Seconds())
 
 			meanDrift := timeseriesMeanDrift(timeseries, time.Now().Unix())
-			if meanDrift > 10 {
+			if math.Abs(meanDrift) > 10 {
 				log.Printf("mean drift from now for clusters %s is: %.3fs",
 					p.PartitionKey,
 					meanDrift,
