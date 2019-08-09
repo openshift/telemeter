@@ -40,6 +40,7 @@ var (
 )
 
 func init() {
+	prometheus.MustRegister(forwardSamples)
 	prometheus.MustRegister(forwardErrors)
 	prometheus.MustRegister(forwardDuration)
 }
