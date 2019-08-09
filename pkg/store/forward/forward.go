@@ -95,6 +95,7 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 			if err != nil {
 				return err
 			}
+			req.Header.Add("THANOS-TENANT", p.PartitionKey)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
