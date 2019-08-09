@@ -37,12 +37,17 @@ var (
 		Help:    "Tracks the duration of all forwarding requests",
 		Buckets: []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5}, // max = timeout
 	}, []string{"status_code"})
+	overwrittenTimestamps = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "telemeter_overwritten_timestamps_total",
+		Help: "Total number of timestamps that were overwritten",
+	})
 )
 
 func init() {
 	prometheus.MustRegister(forwardSamples)
 	prometheus.MustRegister(forwardErrors)
 	prometheus.MustRegister(forwardDuration)
+	prometheus.MustRegister(overwrittenTimestamps)
 }
 
 type Store struct {
@@ -162,7 +167,12 @@ func convertToTimeseries(p *store.PartitionedMetrics, now time.Time) ([]prompb.T
 			}
 
 			s := prompb.Sample{
-				Timestamp: timestamp,
+				Timestamp: *m.TimestampMs,
+			}
+			// If the sample is in the future, overrite it.
+			if *m.TimestampMs > timestamp {
+				s.Timestamp = timestamp
+				overwrittenTimestamps.Inc()
 			}
 
 			switch *f.Type {
