@@ -16,7 +16,6 @@ local clusterPort = 8082;
       authorizeURL: 'https://api.openshift.com/api/accounts_mgmt/v1/cluster_registrations',
       replicas: 10,
       rhdURL: '',
-      rhdUsername: '',
       rhdPassword: '',
       rhdClientID: '',
       whitelist: [],
@@ -48,7 +47,6 @@ local clusterPort = 8082;
       local tlsVolume = volume.fromSecret(tlsVolumeName, tlsSecret);
       local name = containerEnv.fromFieldPath('NAME', 'metadata.name');
       local rhdURL = containerEnv.fromSecretRef('RHD_URL', secretName, 'rhd.url');
-      local rhdUsername = containerEnv.fromSecretRef('RHD_USERNAME', secretName, 'rhd.username');
       local rhdPassword = containerEnv.fromSecretRef('RHD_PASSWORD', secretName, 'rhd.password');
       local rhdClientID = containerEnv.fromSecretRef('RHD_CLIENT_ID', secretName, 'rhd.client_id');
       local secretVolume = volume.fromSecret(secretVolumeName, secretName);
@@ -80,7 +78,6 @@ local clusterPort = 8082;
           '--authorize=' + $._config.telemeterServer.authorizeURL,
           '--authorize-issuer-url=$(RHD_URL)',
           '--authorize-client-id=$(RHD_CLIENT_ID)',
-          '--authorize-username=$(RHD_USERNAME)',
           '--authorize-password=$(RHD_PASSWORD)',
         ] + whitelist + elide) +
         container.withPorts([
@@ -91,7 +88,7 @@ local clusterPort = 8082;
         container.mixin.resources.withLimitsMixin($._config.telemeterServer.resourceLimits) +
         container.mixin.resources.withRequestsMixin($._config.telemeterServer.resourceRequests) +
         container.withVolumeMounts([tlsMount]) +
-        container.withEnv([name, rhdURL, rhdUsername, rhdPassword, rhdClientID]) + {
+        container.withEnv([name, rhdURL, rhdPassword, rhdClientID]) + {
           livenessProbe: {
             httpGet: {
               path: '/healthz',
@@ -126,7 +123,6 @@ local clusterPort = 8082;
 
       secret.new(secretName, {
         'rhd.url': std.base64($._config.telemeterServer.rhdURL),
-        'rhd.username': std.base64($._config.telemeterServer.rhdUsername),
         'rhd.password': std.base64($._config.telemeterServer.rhdPassword),
         'rhd.client_id': std.base64($._config.telemeterServer.rhdClientID),
       }) +
