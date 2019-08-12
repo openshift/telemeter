@@ -112,6 +112,16 @@ For the OpenShift 4 Developer Preview we will be sending back these exact attrib
   '{__name__="job:ceph_pools_iops_bytes:total"}',
   // job:ceph_versions_running:count is the total count of ceph cluster versions running.
   '{__name__="job:ceph_versions_running:count"}',
+  // job:noobaa_total_unhealthy_buckets:sum is the total number of unhealthy noobaa buckets
+  '{__name__="job:noobaa_total_unhealthy_buckets:sum"}',
+  // job:noobaa_bucket_count:sum is the total number of noobaa buckets
+  '{__name__="job:noobaa_bucket_count:sum"}',
+  // job:noobaa_total_object_count:sum is the total number of noobaa objects
+  '{__name__="job:noobaa_total_object_count:sum"}',
+  // noobaa_accounts_num gives the count of noobaa's accounts.
+  '{__name__="noobaa_accounts_num"}',
+  // noobaa_total_usage gives the total usage of noobaa's storage in bytes.
+  '{__name__="noobaa_total_usage"}',
 ]
 ```
 

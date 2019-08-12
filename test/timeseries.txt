@@ -170,7 +170,18 @@ kube_pod_status_ready:image_registry:sum{condition="true",instance="",prometheus
 openshift:cpu_usage_cores:sum{instance="",prometheus="openshift-monitoring/k8s",prometheus_replica="prometheus-k8s-0"} 1.7143732519333255 1562168616662
 # TYPE openshift:memory_usage_bytes:sum untyped
 openshift:memory_usage_bytes:sum{instance="",prometheus="openshift-monitoring/k8s",prometheus_replica="prometheus-k8s-0"} 1.8395660288e+10 1562168616662
+# TYPE job:noobaa_bucket_count:sum untyped
+job:noobaa_bucket_count:sum{instance="",prometheus="ocsdemo/example",prometheus_replica="prometheus-example-0"} 4 1564496667435
+# TYPE job:noobaa_total_object_count:sum untyped
+job:noobaa_total_object_count:sum{instance="",prometheus="ocsdemo/example",prometheus_replica="prometheus-example-0"} 10 1564496667435
+# TYPE job:noobaa_total_unhealthy_buckets:sum untyped
+job:noobaa_total_unhealthy_buckets:sum{instance="",prometheus="ocsdemo/example",prometheus_replica="prometheus-example-0"} 1 1564496667435
+# TYPE noobaa_accounts_num untyped
+noobaa_accounts_num{endpoint="mgmt",instance="10.131.1.141:8080",job="noobaa-mgmt",namespace="ocsdemo",pod="noobaa-server-0",service="noobaa-mgmt",prometheus="ocsdemo/example",prometheus_replica="prometheus-example-0"} 3 1564496667435
+# TYPE noobaa_total_usage untyped
+noobaa_total_usage{endpoint="mgmt",instance="10.131.1.141:8080",job="noobaa-mgmt",namespace="ocsdemo",pod="noobaa-server-0",service="noobaa-mgmt",prometheus="ocsdemo/example",prometheus_replica="prometheus-example-0"} 593096 1564496667435
 # TYPE up untyped
+up{endpoint="mgmt",instance="10.131.1.141:8080",job="noobaa-mgmt",namespace="ocsdemo",pod="noobaa-server-0",service="noobaa-mgmt",prometheus="ocsdemo/example",prometheus_replica="prometheus-example-0"} 1 1564496664533
 up{endpoint="https",instance="10.0.169.146:9100",job="node-exporter",namespace="openshift-monitoring",pod="node-exporter-w9fjk",service="node-exporter",prometheus="openshift-monitoring/k8s",prometheus_replica="prometheus-k8s-0"} 1 1562168612460
 up{endpoint="crio",instance="10.0.131.31:9537",job="crio",namespace="kube-system",node="ip-10-0-131-31.us-west-2.compute.internal",service="kubelet",prometheus="openshift-monitoring/k8s",prometheus_replica="prometheus-k8s-0"} 1 1562168616576
 up{endpoint="crio",instance="10.0.139.97:9537",job="crio",namespace="kube-system",node="ip-10-0-139-97.us-west-2.compute.internal",service="kubelet",prometheus="openshift-monitoring/k8s",prometheus_replica="prometheus-k8s-0"} 1 1562168629557
