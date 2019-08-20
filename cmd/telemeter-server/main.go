@@ -37,6 +37,7 @@ import (
 	telemeter_http "github.com/openshift/telemeter/pkg/http"
 	httpserver "github.com/openshift/telemeter/pkg/http/server"
 	"github.com/openshift/telemeter/pkg/metricfamily"
+	"github.com/openshift/telemeter/pkg/receive"
 	"github.com/openshift/telemeter/pkg/store"
 	"github.com/openshift/telemeter/pkg/store/forward"
 	"github.com/openshift/telemeter/pkg/store/memstore"
@@ -432,9 +433,10 @@ func (o *Options) Run() error {
 	transforms.With(metricfamily.NewElide(o.ElideLabels...))
 
 	server := httpserver.New(store, validator, transforms, o.TTL)
+	receiver := receive.NewHandler(o.ForwardURL)
 
 	internalPathJSON, _ := json.MarshalIndent(Paths{Paths: internalPaths}, "", "  ")
-	externalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/authorize", "/upload", "/healthz", "/healthz/ready"}}, "", "  ")
+	externalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/authorize", "/upload", "/healthz", "/healthz/ready", "/metrics/v1/receive"}}, "", "  ")
 
 	// TODO: add internal authorization
 	telemeter_http.DebugRoutes(internalProtected)
@@ -468,6 +470,13 @@ func (o *Options) Run() error {
 	}))
 	telemeter_http.HealthRoutes(external)
 	external.Handle("/authorize", telemeter_http.NewInstrumentedHandler("authorize", auth))
+	external.Handle("/metris/v1/receive",
+		telemeter_http.NewInstrumentedHandler("receive",
+			//receiver.Authorizer(clusterAuth,
+			http.HandlerFunc(receiver.Receive),
+			//),
+		),
+	)
 
 	log.Printf("Starting telemeter-server %s on %s (internal=%s, cluster=%s)", o.Name, o.Listen, o.ListenInternal, o.ListenCluster)
 
