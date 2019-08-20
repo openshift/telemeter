@@ -472,9 +472,9 @@ func (o *Options) Run() error {
 	external.Handle("/authorize", telemeter_http.NewInstrumentedHandler("authorize", auth))
 	external.Handle("/metris/v1/receive",
 		telemeter_http.NewInstrumentedHandler("receive",
-			//receiver.Authorizer(clusterAuth,
-			http.HandlerFunc(receiver.Receive),
-			//),
+			receiver.Authorizer(clusterAuth,
+				http.HandlerFunc(receiver.Receive),
+			),
 		),
 	)
 
