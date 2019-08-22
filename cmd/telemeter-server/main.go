@@ -25,7 +25,6 @@ import (
 
 	oidc "github.com/coreos/go-oidc"
 	"github.com/oklog/run"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
@@ -38,7 +37,6 @@ import (
 	telemeter_http "github.com/openshift/telemeter/pkg/http"
 	httpserver "github.com/openshift/telemeter/pkg/http/server"
 	"github.com/openshift/telemeter/pkg/metricfamily"
-	telemeter_oauth2 "github.com/openshift/telemeter/pkg/oauth2"
 	"github.com/openshift/telemeter/pkg/store"
 	"github.com/openshift/telemeter/pkg/store/forward"
 	"github.com/openshift/telemeter/pkg/store/memstore"
@@ -112,17 +110,11 @@ func main() {
 	cmd.Flags().StringVar(&opt.SharedKey, "shared-key", opt.SharedKey, "The path to a private key file that will be used to sign authentication requests and secure the cluster protocol.")
 	cmd.Flags().Int64Var(&opt.TokenExpireSeconds, "token-expire-seconds", opt.TokenExpireSeconds, "The expiration of auth tokens in seconds.")
 
-	cmd.Flags().StringVar(&opt.AuthorizeEndpoint, "authorize", opt.AuthorizeEndpoint, "A endpoint URL to authorize against when a client requests a token.")
+	cmd.Flags().StringVar(&opt.AuthorizeEndpoint, "authorize", opt.AuthorizeEndpoint, "A URL against which to authorize client requests.")
 
-	cmd.Flags().StringVar(&opt.AuthorizeIssuerURL, "authorize-issuer-url", opt.AuthorizeIssuerURL, "The authorize OIDC issuer URL, see https://openid.net/specs/openid-connect-discovery-1_0.html#IssuerDiscovery.")
-	cmd.Flags().StringVar(&opt.AuthorizeUsername, "authorize-username", opt.AuthorizeUsername,
-		"The authorize OIDC username according the resource owner password credentials grant flow, see rfc6749#section-4.3. " +
-		"If unset, the client credentials grant flow will be used, see rfc6749#section-4.4.")
-	cmd.Flags().StringVar(&opt.AuthorizePassword, "authorize-password", opt.AuthorizePassword,
-		"The authorize OIDC password, see rfc6749#section-4.3. " +
-		"If authorize username is unset, this will be used as the client credentials secret, see https://tools.ietf.org/html/rfc6749#section-4.4.2.",
-		)
-	cmd.Flags().StringVar(&opt.AuthorizeClientID, "authorize-client-id", opt.AuthorizeClientID, "The authorize OIDC client ID, see rfc6749#section-4.3 and https://tools.ietf.org/html/rfc6749#section-4.4.")
+	cmd.Flags().StringVar(&opt.OIDCIssuer, "oidc-issuer", opt.OIDCIssuer, "The OIDC issuer URL, see https://openid.net/specs/openid-connect-discovery-1_0.html#IssuerDiscovery.")
+	cmd.Flags().StringVar(&opt.ClientSecret, "client-secret", opt.ClientSecret, "The OIDC client secret, see https://tools.ietf.org/html/rfc6749#section-2.3.")
+	cmd.Flags().StringVar(&opt.ClientID, "client-id", opt.ClientID, "The OIDC client ID, see https://tools.ietf.org/html/rfc6749#section-2.3.")
 
 	cmd.Flags().DurationVar(&opt.Ratelimit, "ratelimit", opt.Ratelimit, "The rate limit of metric uploads per cluster ID. Uploads happening more often than this limit will be rejected.")
 	cmd.Flags().DurationVar(&opt.TTL, "ttl", opt.TTL, "The TTL for metrics to be held in memory.")
@@ -159,10 +151,9 @@ type Options struct {
 
 	AuthorizeEndpoint string
 
-	AuthorizeIssuerURL string
-	AuthorizeClientID  string
-	AuthorizeUsername  string
-	AuthorizePassword  string
+	OIDCIssuer   string
+	ClientID     string
+	ClientSecret string
 
 	PartitionKey      string
 	LabelFlag         []string
@@ -242,8 +233,8 @@ func (o *Options) Run() error {
 			Transport: telemeter_http.NewInstrumentedRoundTripper("authorize", transport),
 		}
 
-		if o.AuthorizeIssuerURL != "" {
-			provider, err := oidc.NewProvider(ctx, o.AuthorizeIssuerURL)
+		if o.OIDCIssuer != "" {
+			provider, err := oidc.NewProvider(ctx, o.OIDCIssuer)
 			if err != nil {
 				return fmt.Errorf("OIDC provider initialization failed: %v", err)
 			}
@@ -255,46 +246,15 @@ func (o *Options) Run() error {
 				},
 			)
 
-			grantsTotal := prometheus.NewCounterVec(
-				prometheus.CounterOpts{
-					Name: "telemeter_password_credentials_grants_total",
-					Help: "Tracks the number of resource owner password credential grants.",
-				},
-				[]string{"cause", "status"},
-			)
-
-			prometheus.MustRegister(grantsTotal)
-
-			var src oauth2.TokenSource
-
-			if o.AuthorizeUsername == "" {
-				// if username is unset, use client credentials grant flow according to rfc6749#section-4.4.
-				cfg := clientcredentials.Config{
-					ClientID: o.AuthorizeClientID,
-					ClientSecret: o.AuthorizePassword,
-					TokenURL: provider.Endpoint().TokenURL,
-				}
-
-				src = cfg.TokenSource(ctx)
-			} else {
-				// if username is set, use resource owner password credentials grant flow according to rfc6749#section-4.3.
-				cfg := oauth2.Config{
-					ClientID: o.AuthorizeClientID,
-					Endpoint: provider.Endpoint(),
-				}
-
-				src = telemeter_oauth2.NewPasswordCredentialsTokenSource(
-					ctx, &cfg, grantsTotal,
-					o.AuthorizeUsername, o.AuthorizePassword,
-				)
+			cfg := clientcredentials.Config{
+				ClientID:     o.ClientID,
+				ClientSecret: o.ClientSecret,
+				TokenURL:     provider.Endpoint().TokenURL,
 			}
 
-			// both the underlying upstream authorize transport
-			// and the oauth transport are already instrumented,
-			// hence this doesn't need another instrumentation.
 			authorizeClient.Transport = &oauth2.Transport{
 				Base:   authorizeClient.Transport,
-				Source: src,
+				Source: cfg.TokenSource(ctx),
 			}
 		}
 	}

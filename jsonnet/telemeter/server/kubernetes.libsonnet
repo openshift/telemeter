@@ -15,9 +15,9 @@ local clusterPort = 8082;
     telemeterServer+:: {
       authorizeURL: 'https://api.openshift.com/api/accounts_mgmt/v1/cluster_registrations',
       replicas: 10,
-      rhdURL: '',
-      rhdPassword: '',
-      rhdClientID: '',
+      oidcIssuer: '',
+      clientSecret: '',
+      clientID: '',
       whitelist: [],
       elideLabels: [],
       resourceLimits: {},
@@ -46,9 +46,9 @@ local clusterPort = 8082;
       local tlsMount = containerVolumeMount.new(tlsVolumeName, tlsMountPath);
       local tlsVolume = volume.fromSecret(tlsVolumeName, tlsSecret);
       local name = containerEnv.fromFieldPath('NAME', 'metadata.name');
-      local rhdURL = containerEnv.fromSecretRef('RHD_URL', secretName, 'rhd.url');
-      local rhdPassword = containerEnv.fromSecretRef('RHD_PASSWORD', secretName, 'rhd.password');
-      local rhdClientID = containerEnv.fromSecretRef('RHD_CLIENT_ID', secretName, 'rhd.client_id');
+      local oidcIssuer = containerEnv.fromSecretRef('OIDC_ISSUER', secretName, 'oidc_issuer');
+      local clientSecret = containerEnv.fromSecretRef('CLIENT_SECRET', secretName, 'client_secret');
+      local clientID = containerEnv.fromSecretRef('CLIENT_ID', secretName, 'client_id');
       local secretVolume = volume.fromSecret(secretVolumeName, secretName);
 
       local whitelist = std.map(
@@ -76,9 +76,9 @@ local clusterPort = 8082;
           '--internal-tls-key=%s/tls.key' % tlsMountPath,
           '--internal-tls-crt=%s/tls.crt' % tlsMountPath,
           '--authorize=' + $._config.telemeterServer.authorizeURL,
-          '--authorize-issuer-url=$(RHD_URL)',
-          '--authorize-client-id=$(RHD_CLIENT_ID)',
-          '--authorize-password=$(RHD_PASSWORD)',
+          '--oidc-issuer=$(OIDC_ISSUER)',
+          '--client-id=$(CLIENT_ID)',
+          '--client-secret=$(CLIENT_SECRET)',
         ] + whitelist + elide) +
         container.withPorts([
           containerPort.newNamed('external', externalPort),
@@ -88,7 +88,7 @@ local clusterPort = 8082;
         container.mixin.resources.withLimitsMixin($._config.telemeterServer.resourceLimits) +
         container.mixin.resources.withRequestsMixin($._config.telemeterServer.resourceRequests) +
         container.withVolumeMounts([tlsMount]) +
-        container.withEnv([name, rhdURL, rhdPassword, rhdClientID]) + {
+        container.withEnv([name, oidcIssuer, clientSecret, clientID]) + {
           livenessProbe: {
             httpGet: {
               path: '/healthz',
@@ -122,9 +122,9 @@ local clusterPort = 8082;
       local secret = k.core.v1.secret;
 
       secret.new(secretName, {
-        'rhd.url': std.base64($._config.telemeterServer.rhdURL),
-        'rhd.password': std.base64($._config.telemeterServer.rhdPassword),
-        'rhd.client_id': std.base64($._config.telemeterServer.rhdClientID),
+        oidc_issuer: std.base64($._config.telemeterServer.oidcIssuer),
+        client_secret: std.base64($._config.telemeterServer.clientSecret),
+        client_id: std.base64($._config.telemeterServer.clientID),
       }) +
       secret.mixin.metadata.withNamespace($._config.namespace) +
       secret.mixin.metadata.withLabels({ 'k8s-app': 'telemeter-server' }),
