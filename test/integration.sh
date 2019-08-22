@@ -45,7 +45,7 @@ trap 'kill $(jobs -p); exit 0' EXIT
     --interval 15s \
     --anonymize-labels "instance" --anonymize-salt "a-unique-value" \
     --rename ALERTS=alerts --rename openshift_build_info=build_info --rename scrape_samples_scraped=scraped \
-    --match-file "deploy/default-rules" \
+    --match '{__name__="ALERTS",alertstate="firing"}' \
     --match '{__name__="scrape_samples_scraped"}'
 ) &
 
