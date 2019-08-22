@@ -127,6 +127,8 @@ For the OpenShift 4 Developer Preview we will be sending back these exact attrib
   '{__name__="noobaa_total_usage"}',
   // console_url is the url of the console running on the cluster.
   '{__name__="console_url"}',
+  // knative_serving_health gives the health status of installed knative serving.
+  '{__name__="knative_serving_health"}',
 ]
 ```
 
