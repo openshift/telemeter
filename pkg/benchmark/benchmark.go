@@ -153,6 +153,7 @@ func New(cfg *Config) (*Benchmark, error) {
 		}
 
 		transport := metricsclient.DefaultTransport()
+		transport.Proxy = http.ProxyFromEnvironment
 		if pool != nil {
 			if transport.TLSClientConfig == nil {
 				transport.TLSClientConfig = &tls.Config{}

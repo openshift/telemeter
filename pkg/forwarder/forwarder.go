@@ -167,7 +167,9 @@ func New(cfg Config) (*Worker, error) {
 	w.fromClient = metricsclient.New(fromClient, cfg.LimitBytes, w.interval, "federate_from")
 
 	// Create the `toClient`.
-	toClient := &http.Client{Transport: metricsclient.DefaultTransport()}
+	toTransport := metricsclient.DefaultTransport()
+	toTransport.Proxy = http.ProxyFromEnvironment
+	toClient := &http.Client{Transport: toTransport}
 	if cfg.Debug {
 		toClient.Transport = telemeterhttp.NewDebugRoundTripper(toClient.Transport)
 	}
