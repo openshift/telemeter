@@ -235,7 +235,6 @@ func withCancel(ctx context.Context, client *http.Client, req *http.Request, fn 
 
 func DefaultTransport() *http.Transport {
 	return &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
 		Dial: (&net.Dialer{
 			Timeout:   30 * time.Second,
 			KeepAlive: 30 * time.Second,
