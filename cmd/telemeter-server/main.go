@@ -116,6 +116,7 @@ func main() {
 	cmd.Flags().StringVar(&opt.OIDCIssuer, "oidc-issuer", opt.OIDCIssuer, "The OIDC issuer URL, see https://openid.net/specs/openid-connect-discovery-1_0.html#IssuerDiscovery.")
 	cmd.Flags().StringVar(&opt.ClientSecret, "client-secret", opt.ClientSecret, "The OIDC client secret, see https://tools.ietf.org/html/rfc6749#section-2.3.")
 	cmd.Flags().StringVar(&opt.ClientID, "client-id", opt.ClientID, "The OIDC client ID, see https://tools.ietf.org/html/rfc6749#section-2.3.")
+	cmd.Flags().StringVar(&opt.TenantKey, "tenant-key", opt.TenantKey, "The JSON key in the bearer token whose value to use as the tenant ID.")
 
 	cmd.Flags().DurationVar(&opt.Ratelimit, "ratelimit", opt.Ratelimit, "The rate limit of metric uploads per cluster ID. Uploads happening more often than this limit will be rejected.")
 	cmd.Flags().DurationVar(&opt.TTL, "ttl", opt.TTL, "The TTL for metrics to be held in memory.")
@@ -155,6 +156,7 @@ type Options struct {
 	OIDCIssuer   string
 	ClientID     string
 	ClientSecret string
+	TenantKey    string
 
 	PartitionKey      string
 	LabelFlag         []string
@@ -356,9 +358,7 @@ func (o *Options) Run() error {
 	secret := h.Sum(nil)[:32]
 
 	external := http.NewServeMux()
-	externalProtected := http.NewServeMux()
 	internal := http.NewServeMux()
-	internalProtected := http.NewServeMux()
 
 	internalPaths := []string{"/", "/federate", "/metrics", "/debug/pprof", "/healthz", "/healthz/ready"}
 
@@ -411,7 +411,7 @@ func (o *Options) Run() error {
 			}()
 		}
 		internalPaths = append(internalPaths, "/debug/cluster")
-		internalProtected.Handle("/debug/cluster", c)
+		internal.Handle("/debug/cluster", c)
 		store = c
 		// Wrap the cluster store within a rate-limited store.
 		// This guarantees an upper-bound on the total inter-node requests that
@@ -439,8 +439,7 @@ func (o *Options) Run() error {
 	externalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/authorize", "/upload", "/healthz", "/healthz/ready", "/metrics/v1/receive"}}, "", "  ")
 
 	// TODO: add internal authorization
-	telemeter_http.DebugRoutes(internalProtected)
-	internalProtected.Handle("/federate", http.HandlerFunc(server.Get))
+	telemeter_http.DebugRoutes(internal)
 
 	internal.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.URL.Path == "/" && req.Method == "GET" {
@@ -450,13 +449,11 @@ func (o *Options) Run() error {
 			}
 			return
 		}
-		internalProtected.ServeHTTP(w, req)
+		w.WriteHeader(http.StatusNotFound)
 	}))
+	internal.Handle("/federate", http.HandlerFunc(server.Get))
 	telemeter_http.MetricRoutes(internal)
 	telemeter_http.HealthRoutes(internal)
-
-	externalProtected.Handle("/upload", telemeter_http.NewInstrumentedHandler("upload", http.HandlerFunc(server.Post)))
-	externalProtectedHandler := authorize.NewAuthorizeClientHandler(jwtAuthorizer, externalProtected)
 
 	external.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.URL.Path == "/" && req.Method == "GET" {
@@ -466,13 +463,24 @@ func (o *Options) Run() error {
 			}
 			return
 		}
-		externalProtectedHandler.ServeHTTP(w, req)
+		w.WriteHeader(http.StatusNotFound)
 	}))
 	telemeter_http.HealthRoutes(external)
+
+	// v1 routes
 	external.Handle("/authorize", telemeter_http.NewInstrumentedHandler("authorize", auth))
+	external.Handle("/upload",
+		authorize.NewAuthorizeClientHandler(jwtAuthorizer,
+			telemeter_http.NewInstrumentedHandler("upload",
+				http.HandlerFunc(server.Post),
+			),
+		),
+	)
+
+	// v1 routes
 	external.Handle("/metris/v1/receive",
 		telemeter_http.NewInstrumentedHandler("receive",
-			receiver.Authorizer(clusterAuth,
+			authorize.NewHandler(authorizeClient, authorizeURL, o.TenantKey,
 				http.HandlerFunc(receiver.Receive),
 			),
 		),

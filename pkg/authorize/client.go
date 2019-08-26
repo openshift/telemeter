@@ -13,10 +13,6 @@ type Client struct {
 	Labels map[string]string
 }
 
-var clientKey key
-
-type key int
-
 func WithClient(ctx context.Context, client *Client) context.Context {
 	return context.WithValue(ctx, clientKey, client)
 }
