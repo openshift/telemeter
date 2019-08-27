@@ -71,12 +71,7 @@ func (a *authorizeClusterHandler) ServeHTTP(w http.ResponseWriter, req *http.Req
 	subject, err := a.clusterAuth.AuthorizeCluster(clientToken, cluster)
 
 	if err != nil {
-		type statusCodeErr interface {
-			Error() string
-			HTTPStatusCode() int
-		}
-
-		if scerr, ok := err.(statusCodeErr); ok {
+		if scerr, ok := err.(authorize.ErrorWithCode); ok {
 			if scerr.HTTPStatusCode() >= http.StatusInternalServerError {
 				log.Printf("error: unable to authorize request: %v", scerr)
 			}
