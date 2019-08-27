@@ -56,6 +56,8 @@ func (e errorWithCode) HTTPStatusCode() int {
 	return e.code
 }
 
+const requestBodyLimit = 32 * 1024 // 32MiB
+
 func AgainstEndpoint(client *http.Client, endpoint *url.URL, buf io.Reader, cluster string, validate func(*http.Response) error) ([]byte, error) {
 	req, err := http.NewRequest("POST", endpoint.String(), buf)
 	if err != nil {
@@ -80,7 +82,8 @@ func AgainstEndpoint(client *http.Client, endpoint *url.URL, buf io.Reader, clus
 			res.Body.Close()
 		}
 	}()
-	body, err := ioutil.ReadAll(io.LimitReader(res.Body, 32*1024))
+
+	body, err := ioutil.ReadAll(io.LimitReader(res.Body, requestBodyLimit))
 	if err != nil {
 		return nil, err
 	}
