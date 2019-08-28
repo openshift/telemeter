@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/oklog/run"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"
 	"github.com/spf13/cobra"
 
@@ -205,6 +206,8 @@ func (o *Options) Run() error {
 	transformer.With(metricfamily.TransformerFunc(metricfamily.PackMetrics))
 	transformer.With(metricfamily.TransformerFunc(metricfamily.SortMetrics))
 
+	registry := prometheus.NewRegistry()
+
 	cfg := forwarder.Config{
 		From:          from,
 		ToAuthorize:   toAuthorize,
@@ -271,7 +274,7 @@ func (o *Options) Run() error {
 		handlers := http.NewServeMux()
 		telemeterhttp.DebugRoutes(handlers)
 		telemeterhttp.HealthRoutes(handlers)
-		telemeterhttp.MetricRoutes(handlers)
+		telemeterhttp.MetricRoutes(handlers, registry)
 		telemeterhttp.ReloadRoutes(handlers, func() error {
 			return worker.Reconfigure(cfg)
 		})

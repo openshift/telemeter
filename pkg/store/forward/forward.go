@@ -23,45 +23,50 @@ const (
 	nameLabelName = "__name__"
 )
 
-var (
-	forwardSamples = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "telemeter_forward_samples_total",
-		Help: "Total amount of samples successfully forwarded",
-	})
-	forwardErrors = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "telemeter_forward_request_errors_total",
-		Help: "Total amount of errors encountered while forwarding",
-	})
-	forwardDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "telemeter_forward_request_duration_seconds",
-		Help:    "Tracks the duration of all forwarding requests",
-		Buckets: []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5}, // max = timeout
-	}, []string{"status_code"})
-	overwrittenTimestamps = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "telemeter_overwritten_timestamps_total",
-		Help: "Total number of timestamps that were overwritten",
-	})
-)
-
-func init() {
-	prometheus.MustRegister(forwardSamples)
-	prometheus.MustRegister(forwardErrors)
-	prometheus.MustRegister(forwardDuration)
-	prometheus.MustRegister(overwrittenTimestamps)
-}
-
 type Store struct {
 	next   store.Store
 	url    *url.URL
 	client *http.Client
+
+	forwardSamples        prometheus.Counter
+	forwardErrors         prometheus.Counter
+	forwardDuration       *prometheus.HistogramVec
+	overwrittenTimestamps prometheus.Counter
 }
 
-func New(url *url.URL, next store.Store) *Store {
-	return &Store{
+func New(reg *prometheus.Registry, url *url.URL, next store.Store) *Store {
+	s := &Store{
 		next:   next,
 		url:    url,
 		client: &http.Client{},
+
+		forwardSamples: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "telemeter_forward_samples_total",
+			Help: "Total amount of samples successfully forwarded",
+		}),
+		forwardErrors: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "telemeter_forward_request_errors_total",
+			Help: "Total amount of errors encountered while forwarding",
+		}),
+		forwardDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "telemeter_forward_request_duration_seconds",
+			Help:    "Tracks the duration of all forwarding requests",
+			Buckets: []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5}, // max = timeout
+		}, []string{"status_code"}),
+		overwrittenTimestamps: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "telemeter_overwritten_timestamps_total",
+			Help: "Total number of timestamps that were overwritten",
+		}),
 	}
+
+	reg.MustRegister(
+		s.forwardSamples,
+		s.forwardErrors,
+		s.forwardDuration,
+		s.overwrittenTimestamps,
+	)
+
+	return s
 }
 
 func (s *Store) ReadMetrics(ctx context.Context, minTimestampMs int64) ([]*store.PartitionedMetrics, error) {
@@ -76,7 +81,7 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 	go func() {
 		// Run in a func to catch all transient errors
 		err := func() error {
-			timeseries, err := convertToTimeseries(p, time.Now())
+			timeseries, err := convertToTimeseries(s.overwrittenTimestamps, p, time.Now())
 			if err != nil {
 				return err
 			}
@@ -114,7 +119,7 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 				return err
 			}
 
-			forwardDuration.
+			s.forwardDuration.
 				WithLabelValues(fmt.Sprintf("%d", resp.StatusCode)).
 				Observe(time.Since(begin).Seconds())
 
@@ -130,16 +135,16 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 				return fmt.Errorf("response status code is %s", resp.Status)
 			}
 
-			s := 0
+			sc := 0
 			for _, ts := range wreq.Timeseries {
-				s = s + len(ts.Samples)
+				sc = sc + len(ts.Samples)
 			}
-			forwardSamples.Add(float64(s))
+			s.forwardSamples.Add(float64(sc))
 
 			return nil
 		}()
 		if err != nil {
-			forwardErrors.Inc()
+			s.forwardErrors.Inc()
 			log.Printf("forwarding error: %v", err)
 		}
 	}()
@@ -147,7 +152,7 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 	return s.next.WriteMetrics(ctx, p)
 }
 
-func convertToTimeseries(p *store.PartitionedMetrics, now time.Time) ([]prompb.TimeSeries, error) {
+func convertToTimeseries(overwritten prometheus.Counter, p *store.PartitionedMetrics, now time.Time) ([]prompb.TimeSeries, error) {
 	var timeseries []prompb.TimeSeries
 
 	timestamp := now.UnixNano() / int64(time.Millisecond)
@@ -167,28 +172,28 @@ func convertToTimeseries(p *store.PartitionedMetrics, now time.Time) ([]prompb.T
 				})
 			}
 
-			s := prompb.Sample{
+			sample := prompb.Sample{
 				Timestamp: *m.TimestampMs,
 			}
 			// If the sample is in the future, overrite it.
 			if *m.TimestampMs > timestamp {
-				s.Timestamp = timestamp
-				overwrittenTimestamps.Inc()
+				sample.Timestamp = timestamp
+				overwritten.Inc()
 			}
 
 			switch *f.Type {
 			case clientmodel.MetricType_COUNTER:
-				s.Value = *m.Counter.Value
+				sample.Value = *m.Counter.Value
 			case clientmodel.MetricType_GAUGE:
-				s.Value = *m.Gauge.Value
+				sample.Value = *m.Gauge.Value
 			case clientmodel.MetricType_UNTYPED:
-				s.Value = *m.Untyped.Value
+				sample.Value = *m.Untyped.Value
 			default:
 				return nil, fmt.Errorf("metric type %s not supported", f.Type.String())
 			}
 
 			ts.Labels = append(ts.Labels, labelpairs...)
-			ts.Samples = append(ts.Samples, s)
+			ts.Samples = append(ts.Samples, sample)
 
 			timeseries = append(timeseries, ts)
 		}

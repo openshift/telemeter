@@ -7,41 +7,12 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/openshift/telemeter/pkg/store"
 	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
 
 	"github.com/openshift/telemeter/pkg/metricfamily"
+	"github.com/openshift/telemeter/pkg/store"
 )
-
-var (
-	families = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "telemeter_families",
-		Help: "Tracks the current amount of families for a given partition.",
-	}, []string{"partition"})
-
-	partitions = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "telemeter_partitions",
-		Help: "Tracks the current amount of stored partitions.",
-	})
-
-	cleanupsTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "telemeter_cleanups_total",
-		Help: "Tracks the total amount of cleanups.",
-	})
-
-	samplesTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "telemeter_samples_total",
-		Help: "Tracks the number of samples processed by this server.",
-	})
-)
-
-func init() {
-	prometheus.MustRegister(families)
-	prometheus.MustRegister(partitions)
-	prometheus.MustRegister(cleanupsTotal)
-	prometheus.MustRegister(samplesTotal)
-}
 
 type clusterMetricSlice struct {
 	newest   int64
@@ -52,13 +23,47 @@ type memoryStore struct {
 	ttl   time.Duration
 	mu    sync.RWMutex
 	store map[string]*clusterMetricSlice
+
+	families      *prometheus.GaugeVec
+	partitions    prometheus.Gauge
+	cleanupsTotal prometheus.Counter
+	samplesTotal  prometheus.Counter
 }
 
-func New(ttl time.Duration) *memoryStore {
-	return &memoryStore{
+func New(reg *prometheus.Registry, ttl time.Duration) *memoryStore {
+	ms := &memoryStore{
 		ttl:   ttl,
 		store: make(map[string]*clusterMetricSlice),
+
+		families: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "telemeter_families",
+			Help: "Tracks the current amount of families for a given partition.",
+		}, []string{"partition"}),
+		partitions: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "telemeter_partitions",
+			Help: "Tracks the current amount of stored partitions.",
+		}),
+		cleanupsTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "telemeter_cleanups_total",
+			Help: "Tracks the total amount of cleanups.",
+		}),
+		samplesTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "telemeter_samples_total",
+			Help: "Tracks the number of samples processed by this server.",
+		}),
 	}
+
+	reg.MustRegister(
+		ms.families,
+		ms.partitions,
+		ms.cleanupsTotal,
+		ms.samplesTotal,
+	)
+
+	ms.cleanupsTotal.Add(0)
+	ms.samplesTotal.Add(0)
+
+	return ms
 }
 
 // StartCleaner starts a goroutine, executing the cleanup of stored data
@@ -88,13 +93,13 @@ func (s *memoryStore) cleanup(now time.Time) {
 		ttlTimestampMs := now.Add(-s.ttl).UnixNano() / int64(time.Millisecond)
 
 		if slice.newest < ttlTimestampMs {
-			families.WithLabelValues(partitionKey).Set(0)
+			s.families.WithLabelValues(partitionKey).Set(0)
 			delete(s.store, partitionKey)
 		}
 	}
 
-	cleanupsTotal.Inc()
-	partitions.Set(float64(len(s.store)))
+	s.cleanupsTotal.Inc()
+	s.partitions.Set(float64(len(s.store)))
 }
 
 func (s *memoryStore) ReadMetrics(ctx context.Context, minTimestampMs int64) ([]*store.PartitionedMetrics, error) {
@@ -150,9 +155,9 @@ func (s *memoryStore) WriteMetrics(ctx context.Context, p *store.PartitionedMetr
 
 	m.families = p.Families
 
-	partitions.Set(float64(len(s.store)))
-	families.WithLabelValues(p.PartitionKey).Set(float64(len(p.Families)))
-	samplesTotal.Add(float64(metricfamily.MetricsCount(p.Families)))
+	s.partitions.Set(float64(len(s.store)))
+	s.families.WithLabelValues(p.PartitionKey).Set(float64(len(p.Families)))
+	s.samplesTotal.Add(float64(metricfamily.MetricsCount(p.Families)))
 
 	return nil
 }

@@ -25,6 +25,7 @@ import (
 
 	oidc "github.com/coreos/go-oidc"
 	"github.com/oklog/run"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
@@ -210,6 +211,12 @@ func (o *Options) Run() error {
 		o.Name = fmt.Sprintf("%s-%s", hostname, strconv.FormatUint(uint64(mathrand.Int63()), 32))
 	}
 
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(
+		prometheus.NewGoCollector(),
+		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
+	)
+
 	// set up the upstream authorization
 	var authorizeURL *url.URL
 	var authorizeClient *http.Client
@@ -373,7 +380,7 @@ func (o *Options) Run() error {
 
 	var store store.Store
 
-	ms := memstore.New(o.TTL)
+	ms := memstore.New(registry, o.TTL)
 	ms.StartCleaner(ctx, time.Minute)
 	store = ms
 
@@ -383,7 +390,7 @@ func (o *Options) Run() error {
 		if err != nil {
 			return fmt.Errorf("--forward-url must be a valid URL: %v", err)
 		}
-		store = forward.New(u, store)
+		store = forward.New(registry, u, store)
 	}
 
 	// Create a rate-limited store with a memory-store as its backend.
@@ -452,7 +459,7 @@ func (o *Options) Run() error {
 		w.WriteHeader(http.StatusNotFound)
 	}))
 	internal.Handle("/federate", http.HandlerFunc(server.Get))
-	telemeter_http.MetricRoutes(internal)
+	telemeter_http.MetricRoutes(internal, registry)
 	telemeter_http.HealthRoutes(internal)
 
 	external.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {

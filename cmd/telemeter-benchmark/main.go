@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/oklog/run"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 
 	"github.com/openshift/telemeter/pkg/benchmark"
@@ -111,6 +112,8 @@ func runCmd() error {
 		return fmt.Errorf("either --to or --to-auth and --to-upload must be specified")
 	}
 
+	registry := prometheus.NewRegistry()
+
 	cfg := &benchmark.Config{
 		ToAuthorize: toAuthorize,
 		ToUpload:    toUpload,
@@ -173,7 +176,7 @@ func runCmd() error {
 		handlers := http.NewServeMux()
 		telemeterhttp.DebugRoutes(handlers)
 		telemeterhttp.HealthRoutes(handlers)
-		telemeterhttp.MetricRoutes(handlers)
+		telemeterhttp.MetricRoutes(handlers, registry)
 		telemeterhttp.ReloadRoutes(handlers, func() error {
 			return b.Reconfigure(cfg)
 		})
