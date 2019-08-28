@@ -1,4 +1,4 @@
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: telemeter-server
@@ -67,7 +67,7 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
-        image: quay.io/openshift/origin-telemeter:v4.0
+        image: quay.io/openshift/origin-telemeter:4.2
         livenessProbe:
           httpGet:
             path: /healthz
@@ -97,7 +97,7 @@ spec:
         - /usr/bin/authorization-server
         - localhost:8083
         - /etc/telemeter/tokens.json
-        image: quay.io/openshift/origin-telemeter:v4.0
+        image: quay.io/openshift/origin-telemeter:4.2
         name: authorization-server
         volumeMounts:
         - mountPath: /etc/telemeter

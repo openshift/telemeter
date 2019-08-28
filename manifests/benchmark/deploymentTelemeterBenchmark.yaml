@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/name: telemeter-benchmark
+  name: telemeter-benchmark
+  namespace: telemeter-benchmark
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: telemeter-benchmark
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: telemeter-benchmark
+    spec:
+      containers:
+      - command:
+        - /usr/bin/telemeter-benchmark
+        - --listen=localhost:8080
+        - --metrics-file=/etc/config/timeseries.txt
+        - --to=$(TO)
+        - --to-token-file=/etc/telemeter/token
+        - --workers=2000
+        env:
+        - name: TO
+          value: https://infogw.api.openshift.com
+        image: quay.io/openshift/origin-telemeter:4.2
+        name: telemeter-benchmark
+        ports:
+        - containerPort: 8080
+          name: http
+        volumeMounts:
+        - mountPath: /etc/config
+          name: config
+          readOnly: false
+        - mountPath: /etc/telemeter
+          name: secret
+          readOnly: false
+      - args:
+        - --webhook-url=http://localhost:8080/-/reload
+        - --volume-dir=/etc/config
+        image: quay.io/openshift/origin-configmap-reload:v4.0.0
+        name: reload
+        volumeMounts:
+        - mountPath: /etc/config
+          name: config
+          readOnly: false
+      nodeSelector:
+        beta.kubernetes.io/os: linux
+      serviceAccountName: telemeter-benchmark
+      volumes:
+      - configMap:
+          name: telemeter-benchmark
+        name: config
+      - name: secret
+        secret:
+          secretName: telemeter-benchmark

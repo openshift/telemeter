@@ -5,6 +5,9 @@ local b = (import 'prometheus-operator/prometheus-operator.libsonnet') +
           (import 'benchmark/kubernetes.libsonnet') + {
   _config+:: {
     namespace: 'telemeter-benchmark',
+    telemeterBenchmark+: {
+      timeseries: (importstr 'timeseries.txt'),
+    },
     telemeterServer+: {
       whitelist+: (import 'metrics.jsonnet'),
     },
@@ -31,6 +34,7 @@ local b = (import 'prometheus-operator/prometheus-operator.libsonnet') +
       },
     },
   },
+  telemeterBenchmark+:: b.telemeterBenchmark,
   telemeterServer+:: b.telemeterServer,
   prometheus+:: b.prometheus,
 }

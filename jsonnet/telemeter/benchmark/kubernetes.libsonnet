@@ -1,4 +1,4 @@
-local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
+local k = import 'ksonnet/ksonnet.beta.4/k.libsonnet';
 local secretName = 'telemeter-server';
 local secretMountPath = '/etc/telemeter';
 local secretVolumeName = 'secret-telemeter-server';
@@ -9,11 +9,20 @@ local authorizePort = 8083;
 local externalPort = 8080;
 local internalPort = 8081;
 local clusterPort = 8082;
+local benchmarkPort = 8080;
 local tokensFileName = 'tokens.json';
+local timeseriesFileName = 'timeseries.txt';
+local configmapMountPath = '/etc/config';
 
 {
   _config+:: {
     namespace: 'telemeter-benchmark',
+
+    telemeterBenchmark+:: {
+      to: 'https://infogw.api.openshift.com',
+      token: '',
+      workers: 2000,
+    },
 
     telemeterServer+:: {
       authorizeURL: 'http://localhost:' + authorizePort,
@@ -28,12 +37,16 @@ local tokensFileName = 'tokens.json';
     },
 
     versions+:: {
+      configmapReload: 'v4.0.0',
       prometheus: 'v2.7.1',
-      telemeterServer: 'v4.0',
+      telemeterBenchmark: '4.2',
+      telemeterServer: '4.2',
     },
 
     imageRepos+:: {
+      configmapReload: 'quay.io/openshift/origin-configmap-reload',
       prometheus: 'quay.io/prometheus/prometheus',
+      telemeterBenchmark: 'quay.io/openshift/origin-telemeter',
       telemeterServer: 'quay.io/openshift/origin-telemeter',
     },
   },
@@ -62,9 +75,9 @@ local tokensFileName = 'tokens.json';
     },
 
     statefulSet:
-      local statefulSet = k.apps.v1beta2.statefulSet;
-      local container = k.apps.v1beta2.statefulSet.mixin.spec.template.spec.containersType;
-      local volume = k.apps.v1beta2.statefulSet.mixin.spec.template.spec.volumesType;
+      local statefulSet = k.apps.v1.statefulSet;
+      local container = k.apps.v1.statefulSet.mixin.spec.template.spec.containersType;
+      local volume = k.apps.v1.statefulSet.mixin.spec.template.spec.volumesType;
       local containerPort = container.portsType;
       local containerVolumeMount = container.volumeMountsType;
       local containerEnv = container.envType;
@@ -94,9 +107,9 @@ local tokensFileName = 'tokens.json';
           '--authorize=' + $._config.telemeterServer.authorizeURL,
         ] + whitelist) +
         container.withPorts([
-          containerPort.newNamed('external', externalPort),
-          containerPort.newNamed('internal', internalPort),
-          containerPort.newNamed('cluster', clusterPort),
+          containerPort.newNamed(externalPort, 'external'),
+          containerPort.newNamed(internalPort, 'internal'),
+          containerPort.newNamed(clusterPort, 'cluster'),
         ]) +
         container.withVolumeMounts([secretMount, tlsMount]) +
         container.withEnv([name]) + {
@@ -327,7 +340,7 @@ local tokensFileName = 'tokens.json';
     prometheus:
       local container = k.core.v1.pod.mixin.spec.containersType;
       local resourceRequirements = container.mixin.resourcesType;
-      local selector = k.apps.v1beta2.deployment.mixin.spec.selectorType;
+      local selector = k.apps.v1.deployment.mixin.spec.selectorType;
 
       local resources =
         resourceRequirements.new() +
@@ -383,4 +396,113 @@ local tokensFileName = 'tokens.json';
       },
     },
   },
+
+  telemeterBenchmark+:: {
+    deployment:
+      local deployment = k.apps.v1.deployment;
+      local container = k.apps.v1.deployment.mixin.spec.template.spec.containersType;
+      local volume = k.apps.v1.deployment.mixin.spec.template.spec.volumesType;
+      local containerPort = container.portsType;
+      local containerVolumeMount = container.volumeMountsType;
+      local containerEnv = container.envType;
+
+      local podLabels = { 'app.kubernetes.io/name': 'telemeter-benchmark' };
+      local secretMount = containerVolumeMount.new('secret', secretMountPath);
+      local secretVolume = volume.fromSecret('secret', 'telemeter-benchmark');
+      local configmapMount = containerVolumeMount.new('config', configmapMountPath);
+      local configmapVolume = volume.withName('config') + volume.mixin.configMap.withName('telemeter-benchmark');
+      local to = containerEnv.new('TO', $._config.telemeterBenchmark.to);
+      local token = containerEnv.new('TO', $._config.telemeterBenchmark.to);
+
+      local telemeterBenchmark =
+        container.new('telemeter-benchmark', $._config.imageRepos.telemeterBenchmark + ':' + $._config.versions.telemeterBenchmark) +
+        container.withCommand([
+          '/usr/bin/telemeter-benchmark',
+          '--listen=localhost:' + benchmarkPort,
+          '--metrics-file=%s/%s' % [configmapMountPath, timeseriesFileName],
+          '--to=$(TO)',
+          '--to-token-file=%s/token' % secretMountPath,
+          '--workers=' + $._config.telemeterBenchmark.workers,
+        ]) +
+        container.withPorts(containerPort.newNamed(benchmarkPort, 'http')) +
+        container.withVolumeMounts([configmapMount, secretMount]) +
+        container.withEnv([to]);
+
+      local reload =
+        container.new('reload', $._config.imageRepos.configmapReload + ':' + $._config.versions.configmapReload) +
+        container.withArgs([
+          '--webhook-url=http://localhost:%s/-/reload' % benchmarkPort,
+          '--volume-dir=' + configmapMountPath,
+        ]) +
+        container.withVolumeMounts([configmapMount]);
+
+      deployment.new('telemeter-benchmark', 1, [telemeterBenchmark, reload], podLabels) +
+      deployment.mixin.metadata.withNamespace($._config.namespace) +
+      deployment.mixin.metadata.withLabels(podLabels) +
+      deployment.mixin.spec.selector.withMatchLabels(podLabels) +
+      deployment.mixin.spec.template.spec.withServiceAccountName('telemeter-benchmark') +
+      deployment.mixin.spec.template.spec.withNodeSelector({ 'beta.kubernetes.io/os': 'linux' }) +
+      deployment.mixin.spec.template.spec.withVolumes([configmapVolume, secretVolume]),
+
+    secret:
+      local secret = k.core.v1.secret;
+
+      secret.new('telemeter-benchmark', {
+        token: std.base64($._config.telemeterBenchmark.token),
+      }) +
+      secret.mixin.metadata.withNamespace($._config.namespace) +
+      secret.mixin.metadata.withLabels({ 'app.kubernetes.io/name': 'telemeter-benchmark' }),
+
+    service:
+      local service = k.core.v1.service;
+      local servicePort = k.core.v1.service.mixin.spec.portsType;
+
+      local servicePortHTTP = servicePort.newNamed('http', benchmarkPort, 'http');
+
+      service.new('telemeter-benchmark', $.telemeterBenchmark.deployment.spec.selector.matchLabels, [servicePortHTTP]) +
+      service.mixin.metadata.withNamespace($._config.namespace) +
+      service.mixin.metadata.withLabels({ 'app.kubernetes.io/name': 'telemeter-benchmark' }) +
+      service.mixin.spec.withClusterIp('None'),
+
+    serviceAccount:
+      local serviceAccount = k.core.v1.serviceAccount;
+
+      serviceAccount.new('telemeter-benchmark') +
+      serviceAccount.mixin.metadata.withNamespace($._config.namespace),
+
+    serviceMonitor:
+      {
+        apiVersion: 'monitoring.coreos.com/v1',
+        kind: 'ServiceMonitor',
+        metadata: {
+          name: 'telemeter-benchmark',
+          namespace: $._config.namespace,
+          labels: {
+            'app.kubernetes.io/name': 'telemeter-benchmark',
+          },
+        },
+        spec: {
+          jobLabel: 'k8s-app',
+          selector: {
+            matchLabels: {
+              'app.kubernetes.io/name': 'telemeter-benchmark',
+            },
+          },
+          endpoints: [
+            {
+              interval: '30s',
+              port: 'http',
+              scheme: 'http',
+            },
+          ],
+        },
+      },
+
+    configmap:
+      local configmap = k.core.v1.configMap;
+
+      configmap.new('telemeter-benchmark', { [timeseriesFileName]: $._config.telemeterBenchmark.timeseries }) +
+      configmap.mixin.metadata.withNamespace($._config.namespace),
+  },
+
 }
