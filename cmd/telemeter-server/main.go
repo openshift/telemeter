@@ -462,6 +462,8 @@ func (o *Options) Run() error {
 	telemeter_http.MetricRoutes(internal, registry)
 	telemeter_http.HealthRoutes(internal)
 
+	instrumentedHandler := telemeter_http.NewInstrumentedHandler(registry)
+
 	external.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.URL.Path == "/" && req.Method == "GET" {
 			w.Header().Add("Content-Type", "application/json")
@@ -475,10 +477,10 @@ func (o *Options) Run() error {
 	telemeter_http.HealthRoutes(external)
 
 	// v1 routes
-	external.Handle("/authorize", telemeter_http.NewInstrumentedHandler("authorize", auth))
+	external.Handle("/authorize", instrumentedHandler.Handle("authorize", auth))
 	external.Handle("/upload",
 		authorize.NewAuthorizeClientHandler(jwtAuthorizer,
-			telemeter_http.NewInstrumentedHandler("upload",
+			instrumentedHandler.Handle("upload",
 				http.HandlerFunc(server.Post),
 			),
 		),
@@ -486,7 +488,7 @@ func (o *Options) Run() error {
 
 	// v1 routes
 	external.Handle("/metris/v1/receive",
-		telemeter_http.NewInstrumentedHandler("receive",
+		instrumentedHandler.Handle("receive",
 			authorize.NewHandler(authorizeClient, authorizeURL, o.TenantKey,
 				http.HandlerFunc(receiver.Receive),
 			),
