@@ -9,7 +9,6 @@ local authorizePort = 8083;
 local externalPort = 8080;
 local internalPort = 8081;
 local clusterPort = 8082;
-local whitelistFileName = 'whitelist';
 local tokensFileName = 'tokens.json';
 
 {
@@ -77,6 +76,11 @@ local tokensFileName = 'tokens.json';
       local secretMount = containerVolumeMount.new(secretVolumeName, secretMountPath);
       local secretVolume = volume.fromSecret(secretVolumeName, secretName);
 
+      local whitelist = std.map(
+        function(rule) '--whitelist=%s' % std.strReplace(rule, 'ALERTS', 'alerts'),
+        $._config.telemeterServer.whitelist
+      );
+
       local telemeterServer =
         container.new('telemeter-server', $._config.imageRepos.telemeterServer + ':' + $._config.versions.telemeterServer) +
         container.withCommand([
@@ -88,8 +92,7 @@ local tokensFileName = 'tokens.json';
           '--listen-cluster=0.0.0.0:' + clusterPort,
           '--shared-key=%s/tls.key' % tlsMountPath,
           '--authorize=' + $._config.telemeterServer.authorizeURL,
-          '--whitelist-file=%s/%s' % [secretMountPath, whitelistFileName],
-        ]) +
+        ] + whitelist) +
         container.withPorts([
           containerPort.newNamed('external', externalPort),
           containerPort.newNamed('internal', internalPort),
@@ -137,10 +140,8 @@ local tokensFileName = 'tokens.json';
 
     secret:
       local secret = k.core.v1.secret;
-      local whitelist = std.strReplace(std.join('\n', $._config.telemeterServer.whitelist), 'ALERTS', 'alerts');
 
       secret.new(secretName, {
-        [whitelistFileName]: std.base64(whitelist),
         [tokensFileName]: std.base64(std.toString([{ token: 'benchmark' }])),
       }) +
       secret.mixin.metadata.withNamespace($._config.namespace) +
