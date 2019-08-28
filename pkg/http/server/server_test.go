@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/openshift/telemeter/pkg/store"
 	"github.com/openshift/telemeter/pkg/store/memstore"
 	"github.com/openshift/telemeter/pkg/validate"
@@ -30,8 +32,8 @@ func family(name string, timestamps ...int64) *clientmodel.MetricFamily {
 	return families
 }
 
-func storeWithData(data map[string][]*clientmodel.MetricFamily) store.Store {
-	s := memstore.New(10 * time.Minute)
+func storeWithData(reg *prometheus.Registry, data map[string][]*clientmodel.MetricFamily) store.Store {
+	s := memstore.New(reg, 10*time.Minute)
 	for k, v := range data {
 		err := s.WriteMetrics(context.TODO(), &store.PartitionedMetrics{
 			PartitionKey: k,
@@ -45,6 +47,8 @@ func storeWithData(data map[string][]*clientmodel.MetricFamily) store.Store {
 }
 
 func TestServer_Get(t *testing.T) {
+	registry := prometheus.NewRegistry()
+
 	type fields struct {
 		store     store.Store
 		validator validate.Validator
@@ -60,7 +64,7 @@ func TestServer_Get(t *testing.T) {
 		{
 			name: "drop expired samples",
 			fields: fields{
-				store: storeWithData(map[string][]*clientmodel.MetricFamily{
+				store: storeWithData(registry, map[string][]*clientmodel.MetricFamily{
 					"cluster-1": {
 						family("test_1", 1000000, 1002000, 1004000),
 						family("test_2", 1000000, 1002000, 1004000),

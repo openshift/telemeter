@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	clientmodel "github.com/prometheus/client_model/go"
@@ -70,6 +72,8 @@ func TestForward(t *testing.T) {
 	}
 	var telemeterServer *httptest.Server
 	{
+		registry := prometheus.NewRegistry()
+
 		ttl := 10 * time.Minute
 		labels := map[string]string{"cluster": "test"}
 		validator := validate.New("cluster", 0, 0)
@@ -77,10 +81,10 @@ func TestForward(t *testing.T) {
 		receiveURL, _ := url.Parse(receiveServer.URL)
 
 		var store store.Store
-		store = memstore.New(ttl)
+		store = memstore.New(registry, ttl)
 		// This configured the Telemeter Server to forward all metrics
 		// as TimeSeries to the mocked receiveServer above.
-		store = forward.New(receiveURL, store)
+		store = forward.New(registry, receiveURL, store)
 
 		s := server.New(store, validator, nil, ttl)
 		telemeterServer = httptest.NewServer(

@@ -12,16 +12,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/openshift/telemeter/pkg/metricfamily"
-	"github.com/openshift/telemeter/pkg/store"
-	"github.com/openshift/telemeter/pkg/store/memstore"
-	"github.com/openshift/telemeter/pkg/validate"
-
+	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 
 	"github.com/openshift/telemeter/pkg/authorize"
 	"github.com/openshift/telemeter/pkg/http/server"
+	"github.com/openshift/telemeter/pkg/metricfamily"
+	"github.com/openshift/telemeter/pkg/store"
+	"github.com/openshift/telemeter/pkg/store/memstore"
+	"github.com/openshift/telemeter/pkg/validate"
 )
 
 const (
@@ -37,15 +37,19 @@ openshift_build_info{app="openshift-web-console",gitCommit="d911956",gitVersion=
 )
 
 func TestPost(t *testing.T) {
+	registry := prometheus.NewRegistry()
+
 	validator := validate.New("cluster", 0, 0)
 	labels := map[string]string{"cluster": "test"}
-	testPost(t, validator, withLabels(sort(mustReadString(sampleMetrics)), labels), withLabels(sort(mustReadString(sampleMetrics)), labels))
+	testPost(t, registry, validator, withLabels(sort(mustReadString(sampleMetrics)), labels), withLabels(sort(mustReadString(sampleMetrics)), labels))
 }
 
 func TestPostError(t *testing.T) {
+	registry := prometheus.NewRegistry()
+
 	validator := validate.New("cluster", 4096, 0)
 	ttl := 10 * time.Minute
-	store := memstore.New(ttl)
+	store := memstore.New(registry, ttl)
 	server := server.New(store, validator, nil, ttl)
 	labels := map[string]string{"cluster": "test"}
 
@@ -78,11 +82,11 @@ func TestPostError(t *testing.T) {
 
 }
 
-func testPost(t *testing.T, validator validate.Validator, send, expect []*clientmodel.MetricFamily) {
+func testPost(t *testing.T, registry *prometheus.Registry, validator validate.Validator, send, expect []*clientmodel.MetricFamily) {
 	t.Helper()
 
 	ttl := 10 * time.Minute
-	memStore := memstore.New(ttl)
+	memStore := memstore.New(registry, ttl)
 	server := server.New(memStore, validator, nil, ttl)
 
 	s := httptest.NewServer(fakeAuthorizeHandler(http.HandlerFunc(server.Post), &authorize.Client{ID: "test", Labels: map[string]string{"cluster": "test"}}))
@@ -108,8 +112,10 @@ func testPost(t *testing.T, validator validate.Validator, send, expect []*client
 }
 
 func TestGet(t *testing.T) {
+	registry := prometheus.NewRegistry()
+
 	ttl := 10 * time.Minute
-	memStore := memstore.New(ttl)
+	memStore := memstore.New(registry, ttl)
 	validator := validate.New("cluster", 0, 0)
 	server := server.NewNonExpiring(memStore, validator, nil, ttl)
 	srv := httptest.NewServer(http.HandlerFunc(server.Get))

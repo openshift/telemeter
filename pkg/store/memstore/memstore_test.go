@@ -10,9 +10,10 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 
 	"github.com/openshift/telemeter/pkg/store"
-	dto "github.com/prometheus/client_model/go"
 )
 
 func TestCleanup(t *testing.T) {
@@ -105,7 +106,7 @@ func TestCleanup(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			s := New(20 * time.Minute)
+			s := New(prometheus.NewRegistry(), 20*time.Minute)
 
 			for _, d := range data {
 				if err := s.WriteMetrics(context.Background(), d); err != nil {
@@ -237,7 +238,7 @@ func TestReadWriteMetrics(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			s := New(time.Second)
+			s := New(prometheus.NewRegistry(), time.Second)
 
 			if err := s.WriteMetrics(context.Background(), tc.data); err != nil {
 				t.Error(err)
