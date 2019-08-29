@@ -9,7 +9,7 @@ local servingCertsCABundle = 'serving-certs-ca-bundle';
 local servingCertsCABundleFileName = 'service-ca.crt';
 local servingCertsCABundleMountPath = '/etc/%s' % servingCertsCABundle;
 local fromTokenFile = '/var/run/secrets/kubernetes.io/serviceaccount/token';
-local metricsPort = 8080;
+local insecurePort = 8080;
 local securePort = 8443;
 
 {
@@ -122,18 +122,18 @@ local securePort = 8443;
           '--from-token-file=' + fromTokenFile,
           '--to=$(TO)',
           '--to-token-file=%s/token' % secretMountPath,
-          '--listen=localhost:' + metricsPort,
+          '--listen=localhost:' + insecurePort,
           '--anonymize-salt-file=%s/salt' % secretMountPath,
           '--anonymize-labels=$(ANONYMIZE_LABELS)',
         ] + matchRules) +
-        container.withPorts(containerPort.newNamed('http', metricsPort)) +
+        container.withPorts(containerPort.newNamed('http', insecurePort)) +
         container.withVolumeMounts([sccabMount, secretMount]) +
         container.withEnv([anonymize, from, id, to, httpProxy, httpsProxy, noProxy]);
 
       local reload =
         container.new('reload', $._config.imageRepos.configmapReload + ':' + $._config.versions.configmapReload) +
         container.withArgs([
-          '--webhook-url=http://localhost:9000/-/reload',
+          '--webhook-url=http://localhost:%s/-/reload' % insecurePort,
           '--volume-dir=' + servingCertsCABundleMountPath,
         ]) +
         container.withVolumeMounts([sccabMount]);
@@ -142,7 +142,7 @@ local securePort = 8443;
         container.new('kube-rbac-proxy', $._config.imageRepos.kubeRbacProxy + ':' + $._config.versions.kubeRbacProxy) +
         container.withArgs([
           '--secure-listen-address=:' + securePort,
-          '--upstream=http://127.0.0.1:%s/' % metricsPort,
+          '--upstream=http://127.0.0.1:%s/' % insecurePort,
           '--tls-cert-file=%s/tls.crt' % tlsMountPath,
           '--tls-private-key-file=%s/tls.key' % tlsMountPath,
         ] + if std.objectHas($._config, 'tlsCipherSuites') then [
@@ -160,7 +160,7 @@ local securePort = 8443;
       deployment.mixin.spec.selector.withMatchLabels(podLabels) +
       deployment.mixin.spec.template.spec.withServiceAccountName('telemeter-client') +
       deployment.mixin.spec.template.spec.withPriorityClassName('system-cluster-critical') +
-      deployment.mixin.spec.template.spec.withNodeSelector({'beta.kubernetes.io/os': 'linux'}) +
+      deployment.mixin.spec.template.spec.withNodeSelector({ 'beta.kubernetes.io/os': 'linux' }) +
       deployment.mixin.spec.template.spec.withVolumes([sccabVolume, secretVolume, tlsVolume]),
 
     secret:
