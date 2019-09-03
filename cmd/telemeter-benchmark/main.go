@@ -123,6 +123,7 @@ func runCmd() error {
 		Interval:    opt.Interval,
 		MetricsFile: opt.MetricsFile,
 		Workers:     opt.Workers,
+		Registry:    registry,
 	}
 
 	b, err := benchmark.New(cfg)

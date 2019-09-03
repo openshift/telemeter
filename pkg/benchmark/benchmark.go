@@ -34,30 +34,14 @@ const (
 	LimitBytes        = 200 * 1024
 )
 
-var (
-	forwardErrors = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "forward_errors",
-		Help: "The number of times forwarding federated metrics has failed",
-	})
-	forwardedSamples = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "forwarded_samples",
-		Help: "The total number of forwarded samples for all time series",
-	})
-)
-
-func init() {
-	prometheus.MustRegister(
-		forwardErrors,
-		forwardedSamples,
-	)
-}
-
 type Benchmark struct {
-	cancel      context.CancelFunc
-	lock        sync.Mutex
-	reconfigure chan struct{}
-	running     bool
-	workers     []*worker
+	cancel           context.CancelFunc
+	lock             sync.Mutex
+	reconfigure      chan struct{}
+	running          bool
+	workers          []*worker
+	forwardErrors    prometheus.Counter
+	forwardedSamples prometheus.Counter
 }
 
 // Config defines the parameters that can be used to configure a worker.
@@ -71,6 +55,7 @@ type Config struct {
 	Interval    time.Duration
 	MetricsFile string
 	Workers     int
+	Registry    *prometheus.Registry
 }
 
 // worker represents a metrics forwarding agent. It collects metrics from a source URL and forwards them to a sink.
@@ -91,6 +76,15 @@ func New(cfg *Config) (*Benchmark, error) {
 	b := Benchmark{
 		reconfigure: make(chan struct{}),
 		workers:     make([]*worker, cfg.Workers),
+
+		forwardErrors: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "forward_errors",
+			Help: "The number of times forwarding federated metrics has failed",
+		}),
+		forwardedSamples: prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "forwarded_samples",
+			Help: "The total number of forwarded samples for all time series",
+		}),
 	}
 
 	interval := cfg.Interval
@@ -177,7 +171,7 @@ func New(cfg *Config) (*Benchmark, error) {
 			client.Transport = rt
 			transformer.With(metricfamily.NewLabel(nil, rt))
 		}
-		w.client = metricsclient.New(client, LimitBytes, w.interval, "federate_to")
+		w.client = metricsclient.New(client, cfg.Registry, LimitBytes, w.interval, "federate_to")
 		w.transformer = transformer
 		b.workers[i] = w
 	}
@@ -211,7 +205,7 @@ func (b *Benchmark) Run() {
 				log.Printf("Started worker %d of %d: %s", i+1, len(b.workers), w.id)
 				select {
 				case <-time.After(time.Duration(rand.Int63n(int64(w.interval)))):
-					w.run(ctx)
+					w.run(ctx, b.forwardErrors, b.forwardedSamples)
 				case <-ctx.Done():
 				}
 				wg.Done()
@@ -242,7 +236,7 @@ func (b *Benchmark) Stop() {
 	}
 }
 
-// Reconfigure reconfigures an existing Benchmark instnace.
+// Reconfigure reconfigures an existing Benchmark instance.
 func (b *Benchmark) Reconfigure(cfg *Config) error {
 	benchmark, err := New(cfg)
 	if err != nil {
@@ -260,7 +254,7 @@ func (b *Benchmark) Reconfigure(cfg *Config) error {
 	return nil
 }
 
-func (w *worker) run(ctx context.Context) {
+func (w *worker) run(ctx context.Context, forwardErrors prometheus.Counter, forwardedSamples prometheus.Counter) {
 	for {
 		m := w.generate()
 		wait := w.interval

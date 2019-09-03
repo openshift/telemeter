@@ -106,6 +106,8 @@ func New(cfg Config) (*Worker, error) {
 		w.interval = 4*time.Minute + 30*time.Second
 	}
 
+	registry := prometheus.NewRegistry()
+
 	// Configure the anonymization.
 	anonymizeSalt := cfg.AnonymizeSalt
 	if len(cfg.AnonymizeSalt) == 0 && len(cfg.AnonymizeSaltFile) > 0 {
@@ -164,7 +166,7 @@ func New(cfg Config) (*Worker, error) {
 	if len(cfg.FromToken) > 0 {
 		fromClient.Transport = telemeterhttp.NewBearerRoundTripper(cfg.FromToken, fromClient.Transport)
 	}
-	w.fromClient = metricsclient.New(fromClient, cfg.LimitBytes, w.interval, "federate_from")
+	w.fromClient = metricsclient.New(fromClient, registry, cfg.LimitBytes, w.interval, "federate_from")
 
 	// Create the `toClient`.
 	toTransport := metricsclient.DefaultTransport()
@@ -190,7 +192,7 @@ func New(cfg Config) (*Worker, error) {
 		toClient.Transport = rt
 		transformer.With(metricfamily.NewLabel(nil, rt))
 	}
-	w.toClient = metricsclient.New(toClient, cfg.LimitBytes, w.interval, "federate_to")
+	w.toClient = metricsclient.New(toClient, registry, cfg.LimitBytes, w.interval, "federate_to")
 	w.transformer = transformer
 
 	// Configure the matching rules.
