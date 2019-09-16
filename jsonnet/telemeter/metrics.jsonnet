@@ -83,6 +83,9 @@
   '{__name__="cluster:node_instance_type_count:sum"}',
   // cnv:vmi_status_running:count is the total number of VM instances running in the cluster.
   '{__name__="cnv:vmi_status_running:count"}',
+  // node_role_os_version_machine:cpu_capacity_cores:sum is the total number of CPU cores
+  // in the cluster labeled by master and/or infra node role, os, and architecture.
+  '{__name__="node_role_os_version_machine:cpu_capacity_cores:sum"}',
   // subscription_sync_total is the number of times an OLM operator
   // Subscription has been synced, labelled by name and installed csv
   '{__name__="subscription_sync_total"}',
