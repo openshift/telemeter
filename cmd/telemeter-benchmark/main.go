@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -12,11 +11,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/oklog/run"
 	"github.com/spf13/cobra"
 
 	"github.com/openshift/telemeter/pkg/benchmark"
 	telemeterhttp "github.com/openshift/telemeter/pkg/http"
+	"github.com/openshift/telemeter/pkg/logger"
 )
 
 type options struct {
@@ -33,6 +35,9 @@ type options struct {
 	Interval    time.Duration
 	MetricsFile string
 	Workers     int
+
+	LogLevel string
+	Logger   log.Logger
 }
 
 var opt options = options{
@@ -45,7 +50,8 @@ func main() {
 	cmd := &cobra.Command{
 		Short: "Benchmark Telemeter",
 
-		SilenceUsage: true,
+		SilenceErrors: true,
+		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runCmd()
 		},
@@ -62,7 +68,17 @@ func main() {
 	cmd.Flags().StringVar(&opt.Listen, "listen", opt.Listen, "A host:port to listen on for health and metrics.")
 	cmd.Flags().IntVar(&opt.Workers, "workers", opt.Workers, "The number of workers to run in parallel.")
 
+	cmd.Flags().StringVar(&opt.LogLevel, "log-level", opt.LogLevel, "Log filtering level. e.g info, debug, warn, error")
+
+	lgr := logger.Default()
+	lvl, err := cmd.Flags().GetString("log-level")
+	if err != nil {
+		level.Error(lgr).Log("msg", "could not parse log-level.")
+	}
+	opt.Logger = level.NewFilter(lgr, logger.LogLevelFromString(lvl))
+
 	if err := cmd.Execute(); err != nil {
+		level.Error(lgr).Log("err", err)
 		os.Exit(1)
 	}
 }
@@ -127,7 +143,7 @@ func runCmd() error {
 		return fmt.Errorf("failed to configure the Telemeter benchmarking tool: %v", err)
 	}
 
-	log.Printf("Starting telemeter-benchmark against %s (listen=%s)", opt.To, opt.Listen)
+	level.Info(opt.Logger).Log("msg", fmt.Sprintf("Starting telemeter-benchmark against %s (listen=%s)", opt.To, opt.Listen))
 
 	var g run.Group
 	{
@@ -153,11 +169,11 @@ func runCmd() error {
 				select {
 				case <-hup:
 					if err := b.Reconfigure(cfg); err != nil {
-						log.Printf("error: failed to reload config: %v", err)
+						level.Error(opt.Logger).Log("msg", fmt.Sprintf("failed to reload config: %v", err))
 						return err
 					}
 				case <-in:
-					log.Print("Caught interrupt; exiting gracefully...")
+					level.Warn(opt.Logger).Log("msg", "Caught interrupt; exiting gracefully...")
 					b.Stop()
 					return nil
 				case <-cancel:
@@ -185,7 +201,7 @@ func runCmd() error {
 		// Run the HTTP server.
 		g.Add(func() error {
 			if err := http.Serve(l, handlers); err != nil && err != http.ErrServerClosed {
-				log.Printf("error: server exited unexpectedly: %v", err)
+				level.Error(opt.Logger).Log("msg", fmt.Sprintf("server exited unexpectedly: %v", err))
 				return err
 			}
 			return nil

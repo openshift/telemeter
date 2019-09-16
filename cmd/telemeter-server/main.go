@@ -13,7 +13,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
-	"log"
 	mathrand "math/rand"
 	"net"
 	"net/http"
@@ -29,6 +28,9 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
+
 	"github.com/openshift/telemeter/pkg/authorize"
 	"github.com/openshift/telemeter/pkg/authorize/jwt"
 	"github.com/openshift/telemeter/pkg/authorize/stub"
@@ -36,6 +38,7 @@ import (
 	"github.com/openshift/telemeter/pkg/cluster"
 	telemeter_http "github.com/openshift/telemeter/pkg/http"
 	httpserver "github.com/openshift/telemeter/pkg/http/server"
+	"github.com/openshift/telemeter/pkg/logger"
 	"github.com/openshift/telemeter/pkg/metricfamily"
 	"github.com/openshift/telemeter/pkg/receive"
 	"github.com/openshift/telemeter/pkg/store"
@@ -49,24 +52,24 @@ const desc = `
 Receive federated metric push events
 
 This server acts as a federation gateway by receiving Prometheus metrics data from
-clients, performing local filtering and sanity checking, and then exposing it for 
+clients, performing local filtering and sanity checking, and then exposing it for
 scraping by a local Prometheus server. In order to satisfy the Prometheus federation
 contract, the servers form a cluster with a consistent hash ring and internally
 route requests to a consistent server so that Prometheus always sees the same metrics
 for a given remote client for a given member.
 
 A client that connects to the server must perform an authorization check, providing
-a Bearer token and a cluster identifier (as ?cluster=<id>) against the /authorize 
-endpoint. The authorize endpoint will forward that request to an upstream server that 
+a Bearer token and a cluster identifier (as ?cluster=<id>) against the /authorize
+endpoint. The authorize endpoint will forward that request to an upstream server that
 may approve or reject the request as well as add additional labels that will be added
 to all future metrics from that client. The server will generate a JWT token with a
 short lifetime and pass that back to the client, which is expected to use that token
 when pushing metrics to /upload.
 
-Clients are considered untrusted and so input data is validated, sorted, and 
+Clients are considered untrusted and so input data is validated, sorted, and
 normalized before processing continues.
 
-To form a cluster, a --shared-key, a --listen-cluster address, and an optional existing 
+To form a cluster, a --shared-key, a --listen-cluster address, and an optional existing
 cluster member to --join must be provided. The --name of this server is used to
 identify the server within the cluster - if it changes client data may be sent to
 another cluster member.
@@ -84,9 +87,10 @@ func main() {
 		TTL:                10 * time.Minute,
 	}
 	cmd := &cobra.Command{
-		Short:        "Aggregate federated metrics pushes",
-		Long:         desc,
-		SilenceUsage: true,
+		Short:         "Aggregate federated metrics pushes",
+		Long:          desc,
+		SilenceErrors: true,
+		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return opt.Run()
 		},
@@ -129,7 +133,18 @@ func main() {
 	cmd.Flags().StringVar(&opt.WhitelistFile, "whitelist-file", opt.WhitelistFile, "A file of allowed rules for incoming metrics. If one of these rules is not matched, the metric is dropped; one label key per line.")
 	cmd.Flags().StringArrayVar(&opt.ElideLabels, "elide-label", opt.ElideLabels, "A list of labels to be elided from incoming metrics.")
 
+	cmd.Flags().StringVar(&opt.LogLevel, "log-level", opt.LogLevel, "Log filtering level. e.g info, debug, warn, error")
+
+	lgr := logger.Default()
+	lvl, err := cmd.Flags().GetString("log-level")
+	if err != nil {
+		level.Error(lgr).Log("msg", "could not parse log-level.")
+	}
+	opt.Logger = level.NewFilter(lgr, logger.LogLevelFromString(lvl))
+	level.Info(lgr).Log("msg", "Telemeter server initialized.")
+
 	if err := cmd.Execute(); err != nil {
+		level.Error(lgr).Log("err", err)
 		os.Exit(1)
 	}
 }
@@ -171,6 +186,9 @@ type Options struct {
 	TTL        time.Duration
 	Ratelimit  time.Duration
 	ForwardURL string
+
+	LogLevel string
+	Logger   log.Logger
 
 	Verbose bool
 }
@@ -303,7 +321,7 @@ func (o *Options) Run() error {
 			return fmt.Errorf("--shared-key must be specified when specifying a cluster to join")
 		}
 
-		log.Printf("warning: Using a generated shared-key")
+		level.Warn(o.Logger).Log("msg", "Using a generated shared-key")
 
 		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		if err != nil {
@@ -402,7 +420,7 @@ func (o *Options) Run() error {
 			go func() {
 				for {
 					if err := c.Join(o.Members); err != nil {
-						log.Printf("error: Could not join any of %v: %v", o.Members, err)
+						level.Error(o.Logger).Log("msg", fmt.Sprintf("Could not join any of %v: %v", o.Members, err))
 						time.Sleep(5 * time.Second)
 						continue
 					}
@@ -445,7 +463,7 @@ func (o *Options) Run() error {
 		if req.URL.Path == "/" && req.Method == "GET" {
 			w.Header().Add("Content-Type", "application/json")
 			if _, err := w.Write(internalPathJSON); err != nil {
-				log.Printf("error writing internal paths: %v", err)
+				level.Error(o.Logger).Log("msg", fmt.Sprintf("could not write internal paths: %v", err))
 			}
 			return
 		}
@@ -459,7 +477,7 @@ func (o *Options) Run() error {
 		if req.URL.Path == "/" && req.Method == "GET" {
 			w.Header().Add("Content-Type", "application/json")
 			if _, err := w.Write(externalPathJSON); err != nil {
-				log.Printf("error writing external paths: %v", err)
+				level.Error(o.Logger).Log("msg", fmt.Sprintf("could not write external paths: %v", err))
 			}
 			return
 		}
@@ -486,7 +504,7 @@ func (o *Options) Run() error {
 		),
 	)
 
-	log.Printf("Starting telemeter-server %s on %s (internal=%s, cluster=%s)", o.Name, o.Listen, o.ListenInternal, o.ListenCluster)
+	level.Info(o.Logger).Log("msg", fmt.Sprintf("Starting telemeter-server %s on %s (internal=%s, cluster=%s)", o.Name, o.Listen, o.ListenInternal, o.ListenCluster))
 
 	internalListener, err := net.Listen("tcp", o.ListenInternal)
 	if err != nil {
@@ -506,12 +524,12 @@ func (o *Options) Run() error {
 			}
 			if useInternalTLS {
 				if err := s.ServeTLS(internalListener, o.InternalTLSCertificatePath, o.InternalTLSKeyPath); err != nil && err != http.ErrServerClosed {
-					log.Printf("error: internal HTTPS server exited: %v", err)
+					level.Error(o.Logger).Log("msg", fmt.Sprintf("internal HTTPS server exited: %v", err))
 					return err
 				}
 			} else {
 				if err := s.Serve(internalListener); err != nil && err != http.ErrServerClosed {
-					log.Printf("error: internal HTTP server exited: %v", err)
+					level.Error(o.Logger).Log("msg", fmt.Sprintf("internal HTTP server exited: %v", err))
 					return err
 				}
 			}
@@ -529,12 +547,12 @@ func (o *Options) Run() error {
 			}
 			if useTLS {
 				if err := s.ServeTLS(externalListener, o.TLSCertificatePath, o.TLSKeyPath); err != nil && err != http.ErrServerClosed {
-					log.Printf("error: external HTTPS server exited: %v", err)
+					level.Error(o.Logger).Log("msg", fmt.Sprintf("external HTTPS server exited: %v", err))
 					return err
 				}
 			} else {
 				if err := s.Serve(externalListener); err != nil && err != http.ErrServerClosed {
-					log.Printf("error: external HTTP server exited: %v", err)
+					level.Error(o.Logger).Log("msg", fmt.Sprintf("external HTTP server exited: %v", err))
 					return err
 				}
 			}
