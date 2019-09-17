@@ -5,11 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	stdlog "log"
 	"net/http"
 	"sync"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/hashicorp/go-msgpack/codec"
 	"github.com/hashicorp/memberlist"
 	"github.com/prometheus/client_golang/prometheus"
@@ -103,10 +105,12 @@ type DynamicCluster struct {
 	lock        sync.RWMutex
 	ring        *hashring.HashRing
 	problematic map[string]*nodeData
+
+	logger log.Logger
 }
 
 // NewDynamic returns a new DynamicCluster struct for the given name and underlying store.
-func NewDynamic(name string, store store.Store) *DynamicCluster {
+func NewDynamic(logger log.Logger, name string, store store.Store) *DynamicCluster {
 	return &DynamicCluster{
 		name:       name,
 		store:      store,
@@ -115,6 +119,8 @@ func NewDynamic(name string, store store.Store) *DynamicCluster {
 
 		queue:       make(chan []byte, 100),
 		problematic: make(map[string]*nodeData),
+
+		logger: logger,
 	}
 }
 
@@ -127,7 +133,7 @@ func (c *DynamicCluster) Start(ml memberlister, ctx context.Context) {
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
-				log.Fatalf("Unable to refresh the hash ring: %v", err)
+				stdlog.Fatalf("Unable to refresh the hash ring: %v", err)
 			}
 		}()
 		for {
@@ -141,7 +147,7 @@ func (c *DynamicCluster) Start(ml memberlister, ctx context.Context) {
 			select {
 			case data := <-c.queue:
 				if err := c.handleMessage(data); err != nil {
-					log.Printf("error: Unable to handle incoming message: %v", err)
+					level.Error(c.logger).Log("msg", fmt.Sprintf("error: Unable to handle incoming message: %v", err))
 				}
 			case <-ctx.Done():
 				return
@@ -160,12 +166,12 @@ func (c *DynamicCluster) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	info := c.debugInfo()
 	data, err := json.MarshalIndent(info, "", "  ")
 	if err != nil {
-		log.Printf("marshaling debug info failed: %v", err)
+		level.Error(c.logger).Log("msg", fmt.Sprintf("marshaling debug info failed: %v", err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if _, err := w.Write(data); err != nil {
-		log.Printf("writing debug info failed: %v", err)
+		level.Error(c.logger).Log("msg", fmt.Sprintf("writing debug info failed: %v", err))
 	}
 }
 
@@ -216,7 +222,7 @@ func (c *DynamicCluster) Join(seeds []string) error {
 func (c *DynamicCluster) NotifyJoin(node *memberlist.Node) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	log.Printf("[%s] node joined %s", c.name, node.Name)
+	level.Info(c.logger).Log("msg", fmt.Sprintf("[%s] node joined %s", c.name, node.Name))
 	c.ring.AddNode(node.Name)
 }
 
@@ -226,7 +232,7 @@ func (c *DynamicCluster) NotifyJoin(node *memberlist.Node) {
 func (c *DynamicCluster) NotifyLeave(node *memberlist.Node) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	log.Printf("[%s] node left %s", c.name, node.Name)
+	level.Info(c.logger).Log("msg", fmt.Sprintf("[%s] node left %s", c.name, node.Name))
 	c.ring.RemoveNode(node.Name)
 }
 
@@ -234,7 +240,7 @@ func (c *DynamicCluster) NotifyLeave(node *memberlist.Node) {
 //
 // See github.com/hashicorp/memberlist#EventDelegate.NotifyUpdate
 func (c *DynamicCluster) NotifyUpdate(node *memberlist.Node) {
-	log.Printf("[%s] node update %s", c.name, node.Name)
+	level.Info(c.logger).Log("msg", fmt.Sprintf("[%s] node update %s", c.name, node.Name))
 }
 
 // NodeMeta is the callback that is invoked when metadata is retrieved about this node.
@@ -257,7 +263,7 @@ func (c *DynamicCluster) NotifyMsg(data []byte) {
 	select {
 	case c.queue <- copied:
 	default:
-		log.Printf("error: Too many incoming requests queued, dropped data")
+		level.Error(c.logger).Log("msg", fmt.Sprintf("Too many incoming requests queued, dropped data"))
 	}
 }
 
@@ -350,27 +356,27 @@ func (c *DynamicCluster) problemDetected(name string, now time.Time) {
 
 func (c *DynamicCluster) findRemote(partitionKey string, now time.Time) (*memberlist.Node, bool) {
 	if c.ml.NumMembers() < 2 {
-		log.Printf("Only a single node, do nothing")
+		level.Info(c.logger).Log("msg", "Only a single node, do nothing")
 		metricForwardResult.WithLabelValues("singleton").Inc()
 		return nil, false
 	}
 
 	nodeName, ok := c.getNodeForKey(partitionKey)
 	if !ok {
-		log.Printf("No node found in ring for %s", partitionKey)
+		level.Info(c.logger).Log("msg", fmt.Sprintf("No node found in ring for %s", partitionKey))
 		metricForwardResult.WithLabelValues("no_key").Inc()
 		return nil, false
 	}
 
 	if c.hasProblems(nodeName, now) {
-		log.Printf("Node %s has failed recently, using local storage", nodeName)
+		level.Info(c.logger).Log("msg", fmt.Sprintf("Node %s has failed recently, using local storage", nodeName))
 		metricForwardResult.WithLabelValues("recently_failed").Inc()
 		return nil, false
 	}
 
 	node := c.memberByName(nodeName)
 	if node == nil {
-		log.Printf("No node found named %s", nodeName)
+		level.Info(c.logger).Log("msg", fmt.Sprintf("No node found named %s", nodeName))
 		metricForwardResult.WithLabelValues("no_member").Inc()
 		return nil, false
 	}
@@ -405,7 +411,7 @@ func (c *DynamicCluster) forwardMetrics(ctx context.Context, p *store.Partitione
 	metricForwardSamples.Add(float64(metricfamily.MetricsCount(p.Families)))
 
 	if err := c.ml.SendReliable(node, buf.Bytes()); err != nil {
-		log.Printf("error: Failed to forward metrics to %s: %v", node, err)
+		level.Error(c.logger).Log("msg", fmt.Sprintf("Failed to forward metrics to %s: %v", node, err))
 		c.problemDetected(node.Name, now)
 		metricForwardResult.WithLabelValues("send").Inc()
 		metricForwardLatency.WithLabelValues("send").Observe(time.Since(now).Seconds())
@@ -427,7 +433,7 @@ func (c *DynamicCluster) WriteMetrics(ctx context.Context, p *store.PartitionedM
 	ok, err := c.forwardMetrics(ctx, p)
 	if err != nil {
 		// fallthrough to local metrics
-		log.Printf("error: Unable to write to remote metrics, falling back to local: %v", err)
+		level.Error(c.logger).Log("msg", fmt.Sprintf("Unable to write to remote metrics, falling back to local: %v", err))
 		return c.store.WriteMetrics(ctx, p)
 	}
 	if ok {

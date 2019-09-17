@@ -408,7 +408,7 @@ func (o *Options) Run() error {
 	store = ratelimited.New(o.Ratelimit, store)
 
 	if len(o.ListenCluster) > 0 {
-		c := cluster.NewDynamic(o.Name, store)
+		c := cluster.NewDynamic(o.Logger, o.Name, store)
 		ml, err := cluster.NewMemberlist(o.Name, o.ListenCluster, secret, o.Verbose, c)
 		if err != nil {
 			return fmt.Errorf("unable to configure cluster: %v", err)
