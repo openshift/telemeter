@@ -13,6 +13,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
+	stdlog "log"
 	mathrand "math/rand"
 	"net"
 	"net/http"
@@ -140,7 +141,9 @@ func main() {
 	if err != nil {
 		level.Error(lgr).Log("msg", "could not parse log-level.")
 	}
-	opt.Logger = level.NewFilter(lgr, logger.LogLevelFromString(lvl))
+	lgr = level.NewFilter(lgr, logger.LogLevelFromString(lvl))
+	stdlog.SetOutput(log.NewStdlibAdapter(lgr))
+	opt.Logger = lgr
 	level.Info(lgr).Log("msg", "Telemeter server initialized.")
 
 	if err := cmd.Execute(); err != nil {
@@ -246,7 +249,7 @@ func (o *Options) Run() error {
 		}
 
 		if o.Verbose {
-			transport = telemeter_http.NewDebugRoundTripper(transport)
+			transport = telemeter_http.NewDebugRoundTripper(o.Logger, transport)
 		}
 
 		authorizeClient = &http.Client{
@@ -401,7 +404,7 @@ func (o *Options) Run() error {
 		if err != nil {
 			return fmt.Errorf("--forward-url must be a valid URL: %v", err)
 		}
-		store = forward.New(u, store)
+		store = forward.New(o.Logger, u, store)
 	}
 
 	// Create a rate-limited store with a memory-store as its backend.
@@ -409,7 +412,7 @@ func (o *Options) Run() error {
 
 	if len(o.ListenCluster) > 0 {
 		c := cluster.NewDynamic(o.Logger, o.Name, store)
-		ml, err := cluster.NewMemberlist(o.Name, o.ListenCluster, secret, o.Verbose, c)
+		ml, err := cluster.NewMemberlist(o.Logger, o.Name, o.ListenCluster, secret, o.Verbose, c)
 		if err != nil {
 			return fmt.Errorf("unable to configure cluster: %v", err)
 		}
@@ -450,8 +453,8 @@ func (o *Options) Run() error {
 	}
 	transforms.With(metricfamily.NewElide(o.ElideLabels...))
 
-	server := httpserver.New(store, validator, transforms, o.TTL)
-	receiver := receive.NewHandler(o.ForwardURL)
+	server := httpserver.New(o.Logger, store, validator, transforms, o.TTL)
+	receiver := receive.NewHandler(o.Logger, o.ForwardURL)
 
 	internalPathJSON, _ := json.MarshalIndent(Paths{Paths: internalPaths}, "", "  ")
 	externalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/authorize", "/upload", "/healthz", "/healthz/ready", "/metrics/v1/receive"}}, "", "  ")

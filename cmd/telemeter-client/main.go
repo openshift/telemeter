@@ -11,6 +11,7 @@ import (
 	"path"
 	"strings"
 	"syscall"
+	stdlog "log"
 	"time"
 
 	"github.com/oklog/run"
@@ -75,7 +76,9 @@ func main() {
 	if err != nil {
 		level.Error(lgr).Log("msg", "could not parse log-level")
 	}
-	opt.Logger = level.NewFilter(lgr, logger.LogLevelFromString(lvl))
+	lgr = level.NewFilter(lgr, logger.LogLevelFromString(lvl))
+	stdlog.SetOutput(log.NewStdlibAdapter(lgr))
+	opt.Logger = lgr
 	level.Info(lgr).Log("msg", "Telemeter client initialized.")
 
 	if err := cmd.Execute(); err != nil {

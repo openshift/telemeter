@@ -2,9 +2,12 @@ package receive
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 
 	"github.com/openshift/telemeter/pkg/authorize"
 )
@@ -20,15 +23,17 @@ type ClusterAuthorizer interface {
 type Handler struct {
 	ForwardURL string
 	client     *http.Client
+	logger     log.Logger
 }
 
 // NewHandler returns a new Handler with a http client
-func NewHandler(forwardURL string) *Handler {
+func NewHandler(logger log.Logger, forwardURL string) *Handler {
 	return &Handler{
 		ForwardURL: forwardURL,
 		client: &http.Client{
 			Timeout: forwardTimeout,
 		},
+		logger: logger,
 	}
 }
 
@@ -46,7 +51,7 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 
 	req, err := http.NewRequest(http.MethodPost, h.ForwardURL, r.Body)
 	if err != nil {
-		log.Printf("failed to create forward request: %v\n", err)
+		level.Error(h.logger).Log("msg", fmt.Sprintf("failed to create forward request: %v\n", err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -55,13 +60,13 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.client.Do(req)
 	if err != nil {
-		log.Printf("failed to foward request: %v\n", err)
+		level.Error(h.logger).Log("msg", fmt.Sprintf("failed to forward request: %v\n", err))
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
 
 	if resp.StatusCode/100 != 2 {
-		log.Printf("response status code is %s\n", resp.Status)
+		level.Error(h.logger).Log("msg", fmt.Sprintf("response status code is %s\n", resp.Status))
 		http.Error(w, "upstream response status is not 200 OK", http.StatusBadGateway)
 		return
 	}

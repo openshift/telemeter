@@ -159,7 +159,7 @@ func New(cfg Config) (*Worker, error) {
 	}
 	fromClient := &http.Client{Transport: fromTransport}
 	if cfg.Debug {
-		fromClient.Transport = telemeterhttp.NewDebugRoundTripper(fromClient.Transport)
+		fromClient.Transport = telemeterhttp.NewDebugRoundTripper(cfg.Logger, fromClient.Transport)
 	}
 	if len(cfg.FromToken) == 0 && len(cfg.FromTokenFile) > 0 {
 		data, err := ioutil.ReadFile(cfg.FromTokenFile)
@@ -171,14 +171,14 @@ func New(cfg Config) (*Worker, error) {
 	if len(cfg.FromToken) > 0 {
 		fromClient.Transport = telemeterhttp.NewBearerRoundTripper(cfg.FromToken, fromClient.Transport)
 	}
-	w.fromClient = metricsclient.New(fromClient, cfg.LimitBytes, w.interval, "federate_from")
+	w.fromClient = metricsclient.New(cfg.Logger, fromClient, cfg.LimitBytes, w.interval, "federate_from")
 
 	// Create the `toClient`.
 	toTransport := metricsclient.DefaultTransport()
 	toTransport.Proxy = http.ProxyFromEnvironment
 	toClient := &http.Client{Transport: toTransport}
 	if cfg.Debug {
-		toClient.Transport = telemeterhttp.NewDebugRoundTripper(toClient.Transport)
+		toClient.Transport = telemeterhttp.NewDebugRoundTripper(cfg.Logger, toClient.Transport)
 	}
 	if len(cfg.ToToken) == 0 && len(cfg.ToTokenFile) > 0 {
 		data, err := ioutil.ReadFile(cfg.ToTokenFile)
@@ -197,7 +197,7 @@ func New(cfg Config) (*Worker, error) {
 		toClient.Transport = rt
 		transformer.With(metricfamily.NewLabel(nil, rt))
 	}
-	w.toClient = metricsclient.New(toClient, cfg.LimitBytes, w.interval, "federate_to")
+	w.toClient = metricsclient.New(cfg.Logger, toClient, cfg.LimitBytes, w.interval, "federate_to")
 	w.transformer = transformer
 
 	// Configure the matching rules.

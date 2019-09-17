@@ -2,11 +2,13 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/golang/snappy"
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -23,25 +25,28 @@ type Server struct {
 	transformer  metricfamily.Transformer
 	validator    validate.Validator
 	nowFn        func() time.Time
+	logger       log.Logger
 }
 
-func New(store store.Store, validator validate.Validator, transformer metricfamily.Transformer, maxSampleAge time.Duration) *Server {
+func New(logger log.Logger, store store.Store, validator validate.Validator, transformer metricfamily.Transformer, maxSampleAge time.Duration) *Server {
 	return &Server{
 		maxSampleAge: maxSampleAge,
 		store:        store,
 		transformer:  transformer,
 		validator:    validator,
 		nowFn:        time.Now,
+		logger:       logger,
 	}
 }
 
-func NewNonExpiring(store store.Store, validator validate.Validator, transformer metricfamily.Transformer, maxSampleAge time.Duration) *Server {
+func NewNonExpiring(logger log.Logger, store store.Store, validator validate.Validator, transformer metricfamily.Transformer, maxSampleAge time.Duration) *Server {
 	return &Server{
 		maxSampleAge: maxSampleAge,
 		store:        store,
 		transformer:  transformer,
 		validator:    validator,
 		nowFn:        nil,
+		logger:       logger,
 	}
 }
 
@@ -64,7 +69,7 @@ func (s *Server) Get(w http.ResponseWriter, req *http.Request) {
 
 	ps, err := s.store.ReadMetrics(ctx, minTimeMs)
 	if err != nil {
-		log.Printf("error reading metrics: %v", err)
+		level.Error(s.logger).Log("msg", fmt.Sprintf("error reading metrics: %v", err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -78,7 +83,7 @@ func (s *Server) Get(w http.ResponseWriter, req *http.Request) {
 				continue
 			}
 			if err := encoder.Encode(family); err != nil {
-				log.Printf("error encoding metrics family: %v", err)
+				level.Error(s.logger).Log("msg", fmt.Sprintf("error encoding metrics family: %v", err))
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				continue
 			}
@@ -120,7 +125,7 @@ func (s *Server) Post(w http.ResponseWriter, req *http.Request) {
 	select {
 	case <-ctx.Done():
 		http.Error(w, "Timeout while storing metrics", http.StatusInternalServerError)
-		log.Printf("timeout processing incoming request")
+		level.Error(s.logger).Log("msg", "timeout processing incoming request")
 		return
 	case err := <-errCh:
 		switch err {

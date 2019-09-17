@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	stdlog "log"
 	"net"
 	"net/http"
 	"net/url"
@@ -75,7 +76,9 @@ func main() {
 	if err != nil {
 		level.Error(lgr).Log("msg", "could not parse log-level.")
 	}
-	opt.Logger = level.NewFilter(lgr, logger.LogLevelFromString(lvl))
+	lgr = level.NewFilter(lgr, logger.LogLevelFromString(lvl))
+	stdlog.SetOutput(log.NewStdlibAdapter(lgr))
+	opt.Logger = lgr
 
 	if err := cmd.Execute(); err != nil {
 		level.Error(lgr).Log("err", err)

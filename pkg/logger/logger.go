@@ -27,6 +27,7 @@ func LogLevelFromString(lvl string) level.Option {
 	case "error":
 		return level.AllowError()
 	default:
+		// TODO: panic("unexpected log level")
 		return level.AllowAll()
 	}
 }

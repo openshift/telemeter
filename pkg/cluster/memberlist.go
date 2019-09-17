@@ -3,10 +3,12 @@ package cluster
 import (
 	"fmt"
 	"io/ioutil"
+	stdlog "log"
 	"net"
 	"strconv"
 	"time"
 
+	"github.com/go-kit/kit/log"
 	"github.com/hashicorp/memberlist"
 )
 
@@ -15,7 +17,7 @@ type delegate interface {
 	memberlist.Delegate
 }
 
-func NewMemberlist(name, addr string, secret []byte, verbose bool, d delegate) (*memberlist.Memberlist, error) {
+func NewMemberlist(logger log.Logger, name, addr string, secret []byte, verbose bool, d delegate) (*memberlist.Memberlist, error) {
 	if len(secret) != 32 {
 		return nil, fmt.Errorf("invalid secret size, must be 32 bytes: %d", len(secret))
 	}
@@ -34,6 +36,7 @@ func NewMemberlist(name, addr string, secret []byte, verbose bool, d delegate) (
 	cfg.DelegateProtocolVersion = protocolVersion
 	cfg.DelegateProtocolMax = protocolVersion
 	cfg.DelegateProtocolMin = protocolVersion
+	cfg.Logger = stdlog.New(log.NewStdlibAdapter(logger), "", stdlog.Lshortfile)
 
 	cfg.TCPTimeout = 10 * time.Second
 	cfg.BindAddr = host
