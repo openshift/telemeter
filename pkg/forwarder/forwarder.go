@@ -7,12 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 
 	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
@@ -69,6 +71,8 @@ type Config struct {
 	Rules             []string
 	RulesFile         string
 	Transformer       metricfamily.Transformer
+
+	Logger log.Logger
 }
 
 // Worker represents a metrics forwarding agent. It collects metrics from a source URL and forwards them to a sink.
@@ -87,6 +91,8 @@ type Worker struct {
 	lastMetrics []*clientmodel.MetricFamily
 	lock        sync.Mutex
 	reconfigure chan struct{}
+
+	logger log.Logger
 }
 
 // New creates a new Worker based on the provided Config. If the Config contains invalid
@@ -100,6 +106,7 @@ func New(cfg Config) (*Worker, error) {
 		interval:    cfg.Interval,
 		reconfigure: make(chan struct{}),
 		to:          cfg.ToUpload,
+		logger:      cfg.Logger,
 	}
 
 	if w.interval == 0 {
@@ -119,7 +126,7 @@ func New(cfg Config) (*Worker, error) {
 		return nil, fmt.Errorf("anonymize-salt must be specified if anonymize-labels is set")
 	}
 	if len(cfg.AnonymizeLabels) == 0 {
-		log.Printf("warning: not anonymizing any labels")
+		level.Warn(cfg.Logger).Log("msg", "not anonymizing any labels")
 	}
 
 	// Configure a transformer.
@@ -146,7 +153,7 @@ func New(cfg Config) (*Worker, error) {
 			return nil, fmt.Errorf("failed to read from-ca-file: %v", err)
 		}
 		if !pool.AppendCertsFromPEM(data) {
-			log.Printf("warning: no certs found in from-ca-file")
+			level.Warn(cfg.Logger).Log("msg", "no certs found in from-ca-file")
 		}
 		fromTransport.TLSClientConfig.RootCAs = pool
 	}
@@ -257,7 +264,7 @@ func (w *Worker) Run(ctx context.Context) {
 
 		if err := w.forward(ctx); err != nil {
 			gaugeFederateErrors.Inc()
-			log.Printf("error: unable to forward results: %v", err)
+			level.Error(w.logger).Log("msg", fmt.Sprintf("unable to forward results: %v", err))
 			wait = time.Minute
 		}
 
@@ -307,7 +314,7 @@ func (w *Worker) forward(ctx context.Context) error {
 	w.lastMetrics = families
 
 	if len(families) == 0 {
-		log.Printf("warning: no metrics to send, doing nothing")
+		level.Warn(w.logger).Log("msg", "no metrics to send, doing nothing")
 		return nil
 	}
 

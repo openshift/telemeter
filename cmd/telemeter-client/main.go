@@ -241,6 +241,8 @@ func (o *Options) Run() error {
 		Rules:             o.Rules,
 		RulesFile:         o.RulesFile,
 		Transformer:       transformer,
+
+		Logger: o.Logger,
 	}
 
 	worker, err := forwarder.New(cfg)
