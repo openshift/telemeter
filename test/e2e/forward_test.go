@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/kit/log"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	clientmodel "github.com/prometheus/client_model/go"
@@ -80,9 +81,9 @@ func TestForward(t *testing.T) {
 		store = memstore.New(ttl)
 		// This configured the Telemeter Server to forward all metrics
 		// as TimeSeries to the mocked receiveServer above.
-		store = forward.New(receiveURL, store)
+		store = forward.New(log.NewNopLogger(), receiveURL, store)
 
-		s := server.New(store, validator, nil, ttl)
+		s := server.New(log.NewNopLogger(), store, validator, nil, ttl)
 		telemeterServer = httptest.NewServer(
 			fakeAuthorizeHandler(http.HandlerFunc(s.Post), &authorize.Client{ID: "test", Labels: labels}),
 		)
