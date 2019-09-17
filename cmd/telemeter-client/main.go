@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	stdlog "log"
 	"net"
 	"net/http"
 	"net/url"
@@ -11,7 +12,6 @@ import (
 	"path"
 	"strings"
 	"syscall"
-	stdlog "log"
 	"time"
 
 	"github.com/oklog/run"
