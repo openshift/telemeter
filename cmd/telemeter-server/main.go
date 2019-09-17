@@ -364,7 +364,7 @@ func (o *Options) Run() error {
 	jwtAuthorizer := jwt.NewClientAuthorizer(
 		issuer,
 		[]crypto.PublicKey{publicKey},
-		jwt.NewValidator([]string{audience}),
+		jwt.NewValidator(o.Logger, []string{audience}),
 	)
 	signer := jwt.NewSigner(issuer, privateKey)
 
@@ -383,10 +383,10 @@ func (o *Options) Run() error {
 	// configure the authenticator and incoming data validator
 	var clusterAuth authorize.ClusterAuthorizer = authorize.ClusterAuthorizerFunc(stub.Authorize)
 	if authorizeURL != nil {
-		clusterAuth = tollbooth.NewAuthorizer(authorizeClient, authorizeURL)
+		clusterAuth = tollbooth.NewAuthorizer(o.Logger, authorizeClient, authorizeURL)
 	}
 
-	auth := jwt.NewAuthorizeClusterHandler(o.PartitionKey, o.TokenExpireSeconds, signer, o.RequiredLabels, clusterAuth)
+	auth := jwt.NewAuthorizeClusterHandler(o.Logger, o.PartitionKey, o.TokenExpireSeconds, signer, o.RequiredLabels, clusterAuth)
 	validator := validate.New(o.PartitionKey, o.LimitBytes, 24*time.Hour, time.Now)
 
 	var store store.Store
@@ -498,7 +498,7 @@ func (o *Options) Run() error {
 	// v1 routes
 	external.Handle("/metrics/v1/receive",
 		telemeter_http.NewInstrumentedHandler("receive",
-			authorize.NewHandler(authorizeClient, authorizeURL, o.TenantKey,
+			authorize.NewHandler(o.Logger, authorizeClient, authorizeURL, o.TenantKey,
 				http.HandlerFunc(receiver.Receive),
 			),
 		),
