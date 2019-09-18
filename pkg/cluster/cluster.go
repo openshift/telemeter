@@ -120,7 +120,7 @@ func NewDynamic(logger log.Logger, name string, store store.Store) *DynamicClust
 		queue:       make(chan []byte, 100),
 		problematic: make(map[string]*nodeData),
 
-		logger: logger,
+		logger: log.With(logger, "component", "cluster"),
 	}
 }
 

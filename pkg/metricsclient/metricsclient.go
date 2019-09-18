@@ -53,7 +53,7 @@ func New(logger log.Logger, client *http.Client, maxBytes int64, timeout time.Du
 		maxBytes:    maxBytes,
 		timeout:     timeout,
 		metricsName: metricsName,
-		logger:      logger,
+		logger:      log.With(logger, "component", "metricsclient"),
 	}
 }
 

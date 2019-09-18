@@ -63,7 +63,7 @@ func New(logger log.Logger, url *url.URL, next store.Store) *Store {
 		next:   next,
 		url:    url,
 		client: &http.Client{},
-		logger: logger,
+		logger: log.With(logger, "component", "store/forward"),
 	}
 }
 

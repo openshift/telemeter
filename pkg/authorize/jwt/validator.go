@@ -30,7 +30,7 @@ type Validator interface {
 func NewValidator(logger log.Logger, audiences []string) Validator {
 	return &validator{
 		auds:   audiences,
-		logger: logger,
+		logger: log.With(logger, "component", "authorize/jwt"),
 	}
 }
 

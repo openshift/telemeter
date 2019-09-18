@@ -33,7 +33,7 @@ func NewHandler(logger log.Logger, forwardURL string) *Handler {
 		client: &http.Client{
 			Timeout: forwardTimeout,
 		},
-		logger: logger,
+		logger: log.With(logger, "component", "receive/handler"),
 	}
 }
 

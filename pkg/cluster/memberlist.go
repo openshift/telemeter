@@ -36,7 +36,7 @@ func NewMemberlist(logger log.Logger, name, addr string, secret []byte, verbose 
 	cfg.DelegateProtocolVersion = protocolVersion
 	cfg.DelegateProtocolMax = protocolVersion
 	cfg.DelegateProtocolMin = protocolVersion
-	cfg.Logger = stdlog.New(log.NewStdlibAdapter(logger), "", stdlog.Lshortfile)
+	cfg.Logger = stdlog.New(log.NewStdlibAdapter(log.With(logger, "component", "cluster/memberlist")), "", stdlog.Lshortfile)
 
 	cfg.TCPTimeout = 10 * time.Second
 	cfg.BindAddr = host

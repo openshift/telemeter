@@ -35,7 +35,7 @@ func New(logger log.Logger, store store.Store, validator validate.Validator, tra
 		transformer:  transformer,
 		validator:    validator,
 		nowFn:        time.Now,
-		logger:       logger,
+		logger:       log.With(logger, "component", "http/server"),
 	}
 }
 
@@ -46,7 +46,7 @@ func NewNonExpiring(logger log.Logger, store store.Store, validator validate.Val
 		transformer:  transformer,
 		validator:    validator,
 		nowFn:        nil,
-		logger:       logger,
+		logger:       log.With(logger, "component", "http/server"),
 	}
 }
 

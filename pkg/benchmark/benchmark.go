@@ -92,10 +92,11 @@ type worker struct {
 // New creates a new Benchmark based on the provided Config. If the Config contains invalid
 // values, then an error is returned.
 func New(cfg *Config) (*Benchmark, error) {
+	logger := log.With(cfg.Logger, "component", "benchmark")
 	b := Benchmark{
 		reconfigure: make(chan struct{}),
 		workers:     make([]*worker, cfg.Workers),
-		logger:      cfg.Logger,
+		logger:      logger,
 	}
 
 	interval := cfg.Interval
@@ -130,7 +131,7 @@ func New(cfg *Config) (*Benchmark, error) {
 			return nil, fmt.Errorf("failed to read to-ca-file: %v", err)
 		}
 		if !pool.AppendCertsFromPEM(data) {
-			level.Warn(cfg.Logger).Log("msg", "no certs found in to-ca-file")
+			level.Warn(logger).Log("msg", "no certs found in to-ca-file")
 		}
 	}
 
@@ -139,7 +140,7 @@ func New(cfg *Config) (*Benchmark, error) {
 			id:       uuid.Must(uuid.NewV4()).String(),
 			interval: interval,
 			to:       cfg.ToUpload,
-			logger:   cfg.Logger,
+			logger:   logger,
 		}
 
 		if _, err := f.Seek(0, 0); err != nil {
@@ -183,7 +184,7 @@ func New(cfg *Config) (*Benchmark, error) {
 			client.Transport = rt
 			transformer.With(metricfamily.NewLabel(nil, rt))
 		}
-		w.client = metricsclient.New(cfg.Logger, client, LimitBytes, w.interval, "federate_to")
+		w.client = metricsclient.New(logger, client, LimitBytes, w.interval, "federate_to")
 		w.transformer = transformer
 		b.workers[i] = w
 	}

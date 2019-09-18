@@ -63,6 +63,7 @@ func (e errorWithCode) HTTPStatusCode() int {
 const requestBodyLimit = 32 * 1024 // 32MiB
 
 func AgainstEndpoint(logger log.Logger, client *http.Client, endpoint *url.URL, token []byte, cluster string, validate func(*http.Response) error) ([]byte, error) {
+	logger = log.With(logger, "component", "authorize")
 	req, err := http.NewRequest("POST", endpoint.String(), bytes.NewReader(token))
 	if err != nil {
 		return nil, err
@@ -117,6 +118,7 @@ func AgainstEndpoint(logger log.Logger, client *http.Client, endpoint *url.URL, 
 }
 
 func NewHandler(logger log.Logger, client *http.Client, endpoint *url.URL, tenantKey string, next http.Handler) http.HandlerFunc {
+	logger = log.With(logger, "component", "authorize")
 	return func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		authParts := strings.Split(string(authHeader), " ")

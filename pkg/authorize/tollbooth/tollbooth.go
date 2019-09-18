@@ -34,7 +34,7 @@ func NewAuthorizer(logger log.Logger, c *http.Client, to *url.URL) *authorizer {
 	return &authorizer{
 		to:     to,
 		client: c,
-		logger: logger,
+		logger: log.With(logger, "component", "authorize/toolbooth"),
 	}
 }
 

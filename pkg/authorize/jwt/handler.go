@@ -36,7 +36,7 @@ func NewAuthorizeClusterHandler(logger log.Logger, partitionKey string, expireIn
 		signer:          signer,
 		labels:          labels,
 		clusterAuth:     ca,
-		logger:          logger,
+		logger:          log.With(logger, "component", "authorize/jwt"),
 	}
 }
 

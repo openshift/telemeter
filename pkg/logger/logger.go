@@ -10,14 +10,14 @@ import (
 func Default() log.Logger {
 	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
 	logger = log.WithPrefix(logger, "ts", log.DefaultTimestampUTC)
-	logger = log.WithPrefix(logger, "caller", log.DefaultCaller)
+	logger = log.WithPrefix(logger, "caller", log.Caller(5))
 
 	return logger
 }
 
 // LogLevelFromString determines log level to string, defaults to all,
-func LogLevelFromString(lvl string) level.Option {
-	switch lvl {
+func LogLevelFromString(l string) level.Option {
+	switch l {
 	case "debug":
 		return level.AllowDebug()
 	case "info":
@@ -27,7 +27,6 @@ func LogLevelFromString(lvl string) level.Option {
 	case "error":
 		return level.AllowError()
 	default:
-		// TODO: panic("unexpected log level")
 		return level.AllowAll()
 	}
 }
