@@ -9,7 +9,7 @@ PKGS=$(shell go list ./... | grep -v -E '/vendor/|/test')
 GOLANG_FILES:=$(shell find . -name \*.go -print)
 FIRST_GOPATH:=$(firstword $(subst :, ,$(shell go env GOPATH)))
 GOLANGCI_LINT_BIN=$(FIRST_GOPATH)/bin/golangci-lint
-GOLANGCI_LINT_VERSION=v1.16.0
+GOLANGCI_LINT_VERSION=v1.18.0
 EMBEDMD_BIN=$(FIRST_GOPATH)/bin/embedmd
 GOJSONTOYAML_BIN=$(FIRST_GOPATH)/bin/gojsontoyaml
 # We need jsonnet on CI; here we default to the user's installed jsonnet binary; if nothing is installed, then install go-jsonnet.
