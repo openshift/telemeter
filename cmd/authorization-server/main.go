@@ -37,10 +37,10 @@ func main() {
 		tokenSet[tokenEntries[i].Token] = struct{}{}
 	}
 
-	lgr := logger.Default()
-	level.Info(lgr).Log("msg", "Telemeter authorization-server initialized.")
+	l := logger.Default()
+	level.Info(l).Log("msg", "Telemeter authorization-server initialized.")
 
-	s := tollbooth.NewMock(lgr, tokenSet)
+	s := tollbooth.NewMock(l, tokenSet)
 
 	if err := http.ListenAndServe(os.Args[1], s); err != nil {
 		stdlog.Fatalf("server exited: %v", err)

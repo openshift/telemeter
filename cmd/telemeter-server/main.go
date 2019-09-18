@@ -136,18 +136,18 @@ func main() {
 
 	cmd.Flags().StringVar(&opt.LogLevel, "log-level", opt.LogLevel, "Log filtering level. e.g info, debug, warn, error")
 
-	lgr := logger.Default()
+	l := logger.Default()
 	lvl, err := cmd.Flags().GetString("log-level")
 	if err != nil {
-		level.Error(lgr).Log("msg", "could not parse log-level.")
+		level.Error(l).Log("msg", "could not parse log-level.")
 	}
-	lgr = level.NewFilter(lgr, logger.LogLevelFromString(lvl))
-	stdlog.SetOutput(log.NewStdlibAdapter(lgr))
-	opt.Logger = lgr
-	level.Info(lgr).Log("msg", "Telemeter server initialized.")
+	l = level.NewFilter(l, logger.LogLevelFromString(lvl))
+	stdlog.SetOutput(log.NewStdlibAdapter(l))
+	opt.Logger = l
+	level.Info(l).Log("msg", "Telemeter server initialized.")
 
 	if err := cmd.Execute(); err != nil {
-		level.Error(lgr).Log("err", err)
+		level.Error(l).Log("err", err)
 		os.Exit(1)
 	}
 }

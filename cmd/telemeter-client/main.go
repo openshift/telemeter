@@ -71,18 +71,18 @@ func main() {
 
 	cmd.Flags().StringVar(&opt.LogLevel, "log-level", opt.LogLevel, "Log filtering level. e.g info, debug, warn, error")
 
-	lgr := logger.Default()
+	l := logger.Default()
 	lvl, err := cmd.Flags().GetString("log-level")
 	if err != nil {
-		level.Error(lgr).Log("msg", "could not parse log-level")
+		level.Error(l).Log("msg", "could not parse log-level")
 	}
-	lgr = level.NewFilter(lgr, logger.LogLevelFromString(lvl))
-	stdlog.SetOutput(log.NewStdlibAdapter(lgr))
-	opt.Logger = lgr
-	level.Info(lgr).Log("msg", "Telemeter client initialized.")
+	l = level.NewFilter(l, logger.LogLevelFromString(lvl))
+	stdlog.SetOutput(log.NewStdlibAdapter(l))
+	opt.Logger = l
+	level.Info(l).Log("msg", "Telemeter client initialized.")
 
 	if err := cmd.Execute(); err != nil {
-		level.Error(lgr).Log("err", err)
+		level.Error(l).Log("err", err)
 		os.Exit(1)
 	}
 }
@@ -321,7 +321,7 @@ func (o *Options) Run() error {
 }
 
 // serveLastMetrics retrieves the last set of metrics served
-func serveLastMetrics(lgr log.Logger, worker *forwarder.Worker) http.Handler {
+func serveLastMetrics(l log.Logger, worker *forwarder.Worker) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.Method != "GET" {
 			w.WriteHeader(http.StatusMethodNotAllowed)
@@ -335,7 +335,7 @@ func serveLastMetrics(lgr log.Logger, worker *forwarder.Worker) http.Handler {
 				continue
 			}
 			if err := encoder.Encode(family); err != nil {
-				level.Error(lgr).Log("msg", fmt.Sprintf("unable to write metrics for family: %v", err))
+				level.Error(l).Log("msg", fmt.Sprintf("unable to write metrics for family: %v", err))
 				break
 			}
 		}
