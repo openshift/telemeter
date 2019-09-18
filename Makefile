@@ -118,7 +118,7 @@ benchmark.pdf: $(BENCHMARK_RESULTS)
 .PHONY: lint
 lint: $(GOLANGCI_LINT_BIN)
 	# Check .golangci.yml for configuration
-	$(GOLANGCI_LINT_BIN) run
+	$(GOLANGCI_LINT_BIN) run -c .golangci.yml
 
 .PHONY: format
 format: go-fmt shellcheck
