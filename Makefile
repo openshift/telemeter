@@ -117,9 +117,8 @@ benchmark.pdf: $(BENCHMARK_RESULTS)
 
 .PHONY: lint
 lint: $(GOLANGCI_LINT_BIN)
-	# megacheck fails to respect build flags, causing compilation failure during linting.
-	# instead, use the unused, gosimple, and staticcheck linters directly
-	$(GOLANGCI_LINT_BIN) run -D megacheck -E unused,gosimple,staticcheck
+	# Check .golangci.yml for configuration
+	$(GOLANGCI_LINT_BIN) run
 
 .PHONY: format
 format: go-fmt shellcheck
