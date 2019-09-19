@@ -51,6 +51,7 @@ func (v *validator) Validate(ctx context.Context, req *http.Request) (string, me
 	transforms.With(metricfamily.NewErrorOnUnsorted(true))
 	transforms.With(metricfamily.NewRequiredLabels(client.Labels))
 	transforms.With(metricfamily.TransformerFunc(metricfamily.DropEmptyFamilies))
+	transforms.With(metricfamily.OverrideTimestamps(time.Now))
 
 	if v.limitBytes > 0 {
 		req.Body = reader.NewLimitReadCloser(req.Body, v.limitBytes)
