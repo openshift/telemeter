@@ -12,17 +12,17 @@ import (
 const driftRange = 5 * time.Minute
 
 var (
-	overrideMetrics = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "telemeter_override_timestamps_total",
+	overwrittenMetrics = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "telemeter_overwritten_timestamps_total",
 		Help: "Number of timestamps that were in the past, present or future",
 	}, []string{"tense"})
 )
 
 func init() {
-	prometheus.MustRegister(overrideMetrics)
+	prometheus.MustRegister(overwrittenMetrics)
 }
 
-func OverrideTimestamps(now func() time.Time) TransformerFunc {
+func OverwriteTimestamps(now func() time.Time) TransformerFunc {
 	return func(family *client.MetricFamily) (bool, error) {
 		timestamp := now().Unix() * 1000
 		for i, m := range family.Metric {
@@ -38,11 +38,11 @@ func observeDrift(now func() time.Time, ms int64) {
 	timestamp := time.Unix(ms/1000, 0)
 
 	if timestamp.Before(now().Add(-driftRange)) {
-		overrideMetrics.WithLabelValues("past").Inc()
+		overwrittenMetrics.WithLabelValues("past").Inc()
 	} else if timestamp.After(now().Add(driftRange)) {
-		overrideMetrics.WithLabelValues("future").Inc()
+		overwrittenMetrics.WithLabelValues("future").Inc()
 	} else {
-		overrideMetrics.WithLabelValues("present").Inc()
+		overwrittenMetrics.WithLabelValues("present").Inc()
 	}
 
 }

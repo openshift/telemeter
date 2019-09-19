@@ -170,7 +170,7 @@ func convertToTimeseries(p *store.PartitionedMetrics, now time.Time) ([]prompb.T
 			s := prompb.Sample{
 				Timestamp: *m.TimestampMs,
 			}
-			// If the sample is in the future, override it.
+			// If the sample is in the future, overwrite it.
 			if *m.TimestampMs > timestamp {
 				s.Timestamp = timestamp
 				overwrittenTimestamps.Inc()
