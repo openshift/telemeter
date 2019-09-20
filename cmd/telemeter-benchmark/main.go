@@ -147,7 +147,7 @@ func runCmd() error {
 		return fmt.Errorf("failed to configure the Telemeter benchmarking tool: %v", err)
 	}
 
-	level.Info(opt.Logger).Log("msg", fmt.Sprintf("Starting telemeter-benchmark against %s (listen=%s)", opt.To, opt.Listen))
+	level.Info(opt.Logger).Log("msg", "starting telemeter-benchmark", "to", opt.To, "addr", opt.Listen))
 
 	var g run.Group
 	{
@@ -173,7 +173,7 @@ func runCmd() error {
 				select {
 				case <-hup:
 					if err := b.Reconfigure(cfg); err != nil {
-						level.Error(opt.Logger).Log("msg", fmt.Sprintf("failed to reload config: %v", err))
+						level.Error(opt.Logger).Log("msg", "failed to reload config", "err", err))
 						return err
 					}
 				case <-in:
