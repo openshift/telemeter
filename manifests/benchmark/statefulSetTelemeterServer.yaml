@@ -63,6 +63,7 @@ spec:
         - --whitelist={__name__="job:noobaa_total_object_count:sum"}
         - --whitelist={__name__="noobaa_accounts_num"}
         - --whitelist={__name__="noobaa_total_usage"}
+        - --whitelist={__name__="console_url"}
         env:
         - name: NAME
           valueFrom:
