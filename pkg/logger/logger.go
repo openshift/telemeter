@@ -10,7 +10,7 @@ import (
 func Default() log.Logger {
 	logger := log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
 	logger = log.WithPrefix(logger, "ts", log.DefaultTimestampUTC)
-	logger = log.WithPrefix(logger, "caller", log.Caller(5))
+	logger = log.WithPrefix(logger, "caller", log.Caller(6))
 
 	return logger
 }
