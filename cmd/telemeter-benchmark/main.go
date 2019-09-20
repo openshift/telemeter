@@ -177,7 +177,7 @@ func runCmd() error {
 						return err
 					}
 				case <-in:
-					level.Warn(opt.Logger).Log("msg", "Caught interrupt; exiting gracefully...")
+					level.Warn(opt.Logger).Log("msg", "caught interrupt; exiting gracefully...")
 					b.Stop()
 					return nil
 				case <-cancel:

@@ -38,7 +38,7 @@ func main() {
 	}
 
 	l := logger.Default()
-	level.Info(l).Log("msg", "Telemeter authorization-server initialized.")
+	level.Info(l).Log("msg", "telemeter authorization-server initialized")
 
 	s := tollbooth.NewMock(l, tokenSet)
 

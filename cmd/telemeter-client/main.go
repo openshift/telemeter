@@ -79,7 +79,7 @@ func main() {
 	l = level.NewFilter(l, logger.LogLevelFromString(lvl))
 	stdlog.SetOutput(log.NewStdlibAdapter(l))
 	opt.Logger = l
-	level.Info(l).Log("msg", "Telemeter client initialized.")
+	level.Info(l).Log("msg", "telemeter client initialized")
 
 	if err := cmd.Execute(); err != nil {
 		level.Error(l).Log("err", err)
