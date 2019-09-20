@@ -26,24 +26,29 @@ import (
 
 const (
 	sampleMetrics = `
-openshift_build_info{app="openshift-web-console",gitCommit="d911956",gitVersion="v3.10.0-alpha.0+d911956-1-dirty",instance="172.16.0.14:8443",job="kubernetes-service-endpoints",kubernetes_name="webconsole",kubernetes_namespace="openshift-web-console",major="3",minor="10+"} 1 1526160578685
-openshift_build_info{gitCommit="32ac7fa",gitVersion="v3.10.0-alpha.0+32ac7fa-390",instance="10.142.0.3:1936",job="openshift-router",major="3",minor="10+"} 1 1526160588751
-openshift_build_info{gitCommit="865022c",gitVersion="v3.10.0-alpha.0+865022c-1018",instance="10.142.0.3:8443",job="kubernetes-apiservers",major="3",minor="10+"} 1 1526160587593
-openshift_build_info{gitCommit="865022c",gitVersion="v3.10.0-alpha.0+865022c-1018",instance="10.142.0.3:8444",job="kubernetes-controllers",major="3",minor="10+"} 1 1526160600448
+openshift_build_info{app="openshift-web-console",gitCommit="d911956",gitVersion="v3.10.0-alpha.0+d911956-1-dirty",instance="172.16.0.14:8443",job="kubernetes-service-endpoints",kubernetes_name="webconsole",kubernetes_namespace="openshift-web-console",major="3",minor="10+"} 1 1568970000000
+openshift_build_info{gitCommit="32ac7fa",gitVersion="v3.10.0-alpha.0+32ac7fa-390",instance="10.142.0.3:1936",job="openshift-router",major="3",minor="10+"} 1 1568970000000
+openshift_build_info{gitCommit="865022c",gitVersion="v3.10.0-alpha.0+865022c-1018",instance="10.142.0.3:8443",job="kubernetes-apiservers",major="3",minor="10+"} 1 1568970000000
+openshift_build_info{gitCommit="865022c",gitVersion="v3.10.0-alpha.0+865022c-1018",instance="10.142.0.3:8444",job="kubernetes-controllers",major="3",minor="10+"} 1 1568970000000
 `
 	missingTimestamp = `
 openshift_build_info{app="openshift-web-console",gitCommit="d911956",gitVersion="v3.10.0-alpha.0+d911956-1-dirty",instance="172.16.0.14:8443",job="kubernetes-service-endpoints",kubernetes_name="webconsole",kubernetes_namespace="openshift-web-console",major="3",minor="10+"} 1
 `
 )
 
+var (
+	//1568969001000
+	now = func() time.Time { return time.Date(2019, 9, 20, 9, 0, 0, 0, time.UTC) }
+)
+
 func TestPost(t *testing.T) {
-	validator := validate.New("cluster", 0, 0)
+	validator := validate.New("cluster", 0, 0, now)
 	labels := map[string]string{"cluster": "test"}
 	testPost(t, validator, withLabels(sort(mustReadString(sampleMetrics)), labels), withLabels(sort(mustReadString(sampleMetrics)), labels))
 }
 
 func TestPostError(t *testing.T) {
-	validator := validate.New("cluster", 4096, 0)
+	validator := validate.New("cluster", 4096, 0, now)
 	ttl := 10 * time.Minute
 	store := memstore.New(ttl)
 	server := server.New(store, validator, nil, ttl)
@@ -60,7 +65,6 @@ func TestPostError(t *testing.T) {
 		expect string
 	}{
 		{name: "without cluster ID", send: sort(mustReadString(sampleMetrics)), expect: "a required label is missing from the metric"},
-		{name: "out of order", send: withLabels(mustReadString(sampleMetrics), labels), expect: "are not in increasing timestamp order"},
 		{name: "lack timestamp", send: withLabels(mustReadString(missingTimestamp), labels), expect: "do not have a timestamp"},
 		{name: "too large", send: []*clientmodel.MetricFamily{{Name: &longName}}, expect: "incoming sample data is too long"},
 	}
@@ -110,7 +114,7 @@ func testPost(t *testing.T, validator validate.Validator, send, expect []*client
 func TestGet(t *testing.T) {
 	ttl := 10 * time.Minute
 	memStore := memstore.New(ttl)
-	validator := validate.New("cluster", 0, 0)
+	validator := validate.New("cluster", 0, 0, now)
 	server := server.NewNonExpiring(memStore, validator, nil, ttl)
 	srv := httptest.NewServer(http.HandlerFunc(server.Get))
 	defer srv.Close()

@@ -62,6 +62,8 @@ func (s *Server) Get(w http.ResponseWriter, req *http.Request) {
 		filter.With(metricfamily.TransformerFunc(metricfamily.PackMetrics))
 	}
 
+	filter.With(metricfamily.TransformerFunc(metricfamily.DropTimestamp))
+
 	ps, err := s.store.ReadMetrics(ctx, minTimeMs)
 	if err != nil {
 		log.Printf("error reading metrics: %v", err)
