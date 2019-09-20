@@ -215,7 +215,7 @@ func (b *Benchmark) Run() {
 		for i, w := range b.workers {
 			wg.Add(1)
 			go func(i int, w *worker) {
-				level.Info(b.logger).Log("msg", fmt.Sprintf("Started worker %d of %d: %s", i+1, len(b.workers), w.id))
+				level.Info(b.logger).Log("msg", "started worker", "index", i+1, "total", len(b.workers), "worker", w.id)
 				select {
 				case <-time.After(time.Duration(rand.Int63n(int64(w.interval)))):
 					w.run(ctx)
@@ -233,7 +233,7 @@ func (b *Benchmark) Run() {
 		case <-done:
 			return
 		case <-b.reconfigure:
-			level.Info(b.logger).Log("msg", "Restarting workers...")
+			level.Info(b.logger).Log("msg", "restarting workers...")
 			continue
 		}
 	}
@@ -273,7 +273,7 @@ func (w *worker) run(ctx context.Context) {
 		wait := w.interval
 		if err := w.forward(ctx, m); err != nil {
 			forwardErrors.Inc()
-			level.Error(w.logger).Log("msg", fmt.Sprintf("error from worker %s: unable to forward results: %v", w.id, err))
+			level.Error(w.logger).Log("msg", "unable to forward results", "worker", w.id, "err", err)
 			wait = time.Minute
 		}
 		var n int
@@ -340,14 +340,14 @@ func randomize(metric *clientmodel.Metric) *clientmodel.Metric {
 
 func (w *worker) forward(ctx context.Context, metrics []*clientmodel.MetricFamily) error {
 	if w.to == nil {
-		level.Warn(w.logger).Log("msg", fmt.Sprintf("warning from worker %s: no destination configured; doing nothing", w.id))
+		level.Warn(w.logger).Log("msg", "no destination configured; doing nothing", "worker", w.id)
 		return nil
 	}
 	if err := metricfamily.Filter(metrics, w.transformer); err != nil {
 		return err
 	}
 	if len(metrics) == 0 {
-		level.Warn(w.logger).Log("msg", fmt.Sprintf("warning from worker %s: no metrics to send; doing nothing", w.id))
+		level.Warn(w.logger).Log("msg", "no metrics to send; doing nothing", "worker", w.id)
 		return nil
 	}
 

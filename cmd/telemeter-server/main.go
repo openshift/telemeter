@@ -423,7 +423,7 @@ func (o *Options) Run() error {
 			go func() {
 				for {
 					if err := c.Join(o.Members); err != nil {
-						level.Error(o.Logger).Log("msg", fmt.Sprintf("Could not join any of %v: %v", o.Members, err))
+						level.Error(o.Logger).Log("msg", "could not join any of members", "members", o.Members, "err", err)
 						time.Sleep(5 * time.Second)
 						continue
 					}
@@ -466,7 +466,7 @@ func (o *Options) Run() error {
 		if req.URL.Path == "/" && req.Method == "GET" {
 			w.Header().Add("Content-Type", "application/json")
 			if _, err := w.Write(internalPathJSON); err != nil {
-				level.Error(o.Logger).Log("msg", fmt.Sprintf("could not write internal paths: %v", err))
+				level.Error(o.Logger).Log("msg", "could not write internal paths", "err", err)
 			}
 			return
 		}
@@ -480,7 +480,7 @@ func (o *Options) Run() error {
 		if req.URL.Path == "/" && req.Method == "GET" {
 			w.Header().Add("Content-Type", "application/json")
 			if _, err := w.Write(externalPathJSON); err != nil {
-				level.Error(o.Logger).Log("msg", fmt.Sprintf("could not write external paths: %v", err))
+				level.Error(o.Logger).Log("msg", "could not write external paths", "err", err)
 			}
 			return
 		}
@@ -507,7 +507,7 @@ func (o *Options) Run() error {
 		),
 	)
 
-	level.Info(o.Logger).Log("msg", fmt.Sprintf("Starting telemeter-server %s on %s (internal=%s, cluster=%s)", o.Name, o.Listen, o.ListenInternal, o.ListenCluster))
+	level.Info(o.Logger).Log("msg", "starting telemeter-server", "name", o.Name, "listen", o.Listen, "interval", o.ListenInternal, "cluster", o.ListenCluster)
 
 	internalListener, err := net.Listen("tcp", o.ListenInternal)
 	if err != nil {
@@ -527,12 +527,12 @@ func (o *Options) Run() error {
 			}
 			if useInternalTLS {
 				if err := s.ServeTLS(internalListener, o.InternalTLSCertificatePath, o.InternalTLSKeyPath); err != nil && err != http.ErrServerClosed {
-					level.Error(o.Logger).Log("msg", fmt.Sprintf("internal HTTPS server exited: %v", err))
+					level.Error(o.Logger).Log("msg", "internal HTTPS server exited", "err", err)
 					return err
 				}
 			} else {
 				if err := s.Serve(internalListener); err != nil && err != http.ErrServerClosed {
-					level.Error(o.Logger).Log("msg", fmt.Sprintf("internal HTTP server exited: %v", err))
+					level.Error(o.Logger).Log("msg", "internal HTTP server exited", "err", err)
 					return err
 				}
 			}
@@ -550,12 +550,12 @@ func (o *Options) Run() error {
 			}
 			if useTLS {
 				if err := s.ServeTLS(externalListener, o.TLSCertificatePath, o.TLSKeyPath); err != nil && err != http.ErrServerClosed {
-					level.Error(o.Logger).Log("msg", fmt.Sprintf("external HTTPS server exited: %v", err))
+					level.Error(o.Logger).Log("msg", "external HTTPS server exited", "err", err)
 					return err
 				}
 			} else {
 				if err := s.Serve(externalListener); err != nil && err != http.ErrServerClosed {
-					level.Error(o.Logger).Log("msg", fmt.Sprintf("external HTTP server exited: %v", err))
+					level.Error(o.Logger).Log("msg", "external HTTP server exited", "err", err)
 					return err
 				}
 			}

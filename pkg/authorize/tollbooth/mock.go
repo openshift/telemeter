@@ -67,7 +67,7 @@ func (s *mock) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	accountID, err := fnv.Hash(regRequest.ClusterID)
 	if err != nil {
-		level.Warn(s.logger).Log("msg", fmt.Sprintf("hashing cluster ID failed: %v", err))
+		level.Warn(s.logger).Log("msg", "hashing cluster ID failed", "err", err)
 		write(w, http.StatusInternalServerError, &registrationError{Name: "", Reason: "hashing cluster ID failed"}, s.logger)
 		return
 	}
@@ -90,11 +90,11 @@ func write(w http.ResponseWriter, statusCode int, resp interface{}, logger log.L
 	w.WriteHeader(statusCode)
 	data, err := json.MarshalIndent(resp, "", "  ")
 	if err != nil {
-		level.Error(logger).Log("err", fmt.Sprintf("marshaling response failed: %v", err))
+		level.Error(logger).Log("err", "marshaling response failed", "err", err)
 		return
 	}
 	if _, err := w.Write(data); err != nil {
-		level.Error(logger).Log("err", fmt.Sprintf("writing response failed %v", err))
+		level.Error(logger).Log("err", "writing response failed", "err", err)
 		return
 	}
 }

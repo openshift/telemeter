@@ -265,7 +265,7 @@ func (w *Worker) Run(ctx context.Context) {
 
 		if err := w.forward(ctx); err != nil {
 			gaugeFederateErrors.Inc()
-			level.Error(w.logger).Log("msg", fmt.Sprintf("unable to forward results: %v", err))
+			level.Error(w.logger).Log("msg", "unable to forward results", "err", err)
 			wait = time.Minute
 		}
 

@@ -53,7 +53,7 @@ func (a *authorizer) AuthorizeCluster(token, cluster string) (string, error) {
 		contentType := res.Header.Get("Content-Type")
 		mediaType, _, err := mime.ParseMediaType(contentType)
 		if err != nil || mediaType != "application/json" {
-			level.Warn(a.logger).Log("msg", fmt.Sprintf("Upstream server %s responded with an unknown content type %q", a.to, contentType))
+			level.Warn(a.logger).Log("msg", "upstream server responded with an unknown content type", "to", a.to, "contenttype", contentType)
 			return fmt.Errorf("unrecognized token response content-type %q", contentType)
 		}
 		return nil
@@ -64,12 +64,12 @@ func (a *authorizer) AuthorizeCluster(token, cluster string) (string, error) {
 
 	response := &clusterRegistration{}
 	if err := json.Unmarshal(body, response); err != nil {
-		level.Warn(a.logger).Log("msg", fmt.Sprintf("Upstream server %s response could not be parsed", a.to))
+		level.Warn(a.logger).Log("msg", "upstream server response could not be parsed", "to", a.to)
 		return "", fmt.Errorf("unable to parse response body: %v", err)
 	}
 
 	if len(response.AccountID) == 0 {
-		level.Warn(a.logger).Log("msg", fmt.Sprintf("Upstream server %s responded with an empty user string", a.to))
+		level.Warn(a.logger).Log("msg", "upstream server responded with an empty user string", "to", a.to)
 		return "", fmt.Errorf("server responded with an empty user string")
 	}
 

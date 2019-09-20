@@ -2,7 +2,6 @@ package receive
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -51,7 +50,7 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 
 	req, err := http.NewRequest(http.MethodPost, h.ForwardURL, r.Body)
 	if err != nil {
-		level.Error(h.logger).Log("msg", fmt.Sprintf("failed to create forward request: %v\n", err))
+		level.Error(h.logger).Log("msg", "failed to create forward request", "err", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -60,14 +59,15 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.client.Do(req)
 	if err != nil {
-		level.Error(h.logger).Log("msg", fmt.Sprintf("failed to forward request: %v\n", err))
+		level.Error(h.logger).Log("msg", "failed to forward request", "err", err)
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
 
 	if resp.StatusCode/100 != 2 {
-		level.Error(h.logger).Log("msg", fmt.Sprintf("response status code is %s\n", resp.Status))
-		http.Error(w, "upstream response status is not 200 OK", http.StatusBadGateway)
+		msg := "upstream response status is not 200 OK"
+		level.Error(h.logger).Log("msg", msg, "statuscode", resp.Status)
+		http.Error(w, msg, http.StatusBadGateway)
 		return
 	}
 }

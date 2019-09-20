@@ -76,7 +76,7 @@ func (a *authorizeClusterHandler) ServeHTTP(w http.ResponseWriter, req *http.Req
 	if err != nil {
 		if scerr, ok := err.(authorize.ErrorWithCode); ok {
 			if scerr.HTTPStatusCode() >= http.StatusInternalServerError {
-				level.Error(a.logger).Log("msg", fmt.Sprintf("unable to authorize request: %v", scerr))
+				level.Error(a.logger).Log("msg", "unable to authorize request", "err", scerr)
 			}
 			if scerr.HTTPStatusCode() == http.StatusTooManyRequests {
 				w.Header().Set("Retry-After", "300")
@@ -87,7 +87,7 @@ func (a *authorizeClusterHandler) ServeHTTP(w http.ResponseWriter, req *http.Req
 
 		// always hide errors from the upstream service from the client
 		uid := rand.Int63()
-		level.Error(a.logger).Log("msg", fmt.Sprintf("unable to authorize request %d: %v", uid, err))
+		level.Error(a.logger).Log("msg", "unable to authorize request", "uid", uid, "err", err)
 		http.Error(w, fmt.Sprintf("Internal server error, requestid=%d", uid), http.StatusInternalServerError)
 		return
 	}
@@ -102,7 +102,7 @@ func (a *authorizeClusterHandler) ServeHTTP(w http.ResponseWriter, req *http.Req
 	// create a token that asserts the client and the labels
 	authToken, err := a.signer.GenerateToken(Claims(subject, labels, a.expireInSeconds, []string{"federate"}))
 	if err != nil {
-		level.Error(a.logger).Log("msg", fmt.Sprintf("unable to generate token: %v", err))
+		level.Error(a.logger).Log("msg", "unable to generate token", "err", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -116,12 +116,12 @@ func (a *authorizeClusterHandler) ServeHTTP(w http.ResponseWriter, req *http.Req
 	})
 
 	if err != nil {
-		level.Error(a.logger).Log("msg", fmt.Sprintf("unable to marshal token: %v", err))
+		level.Error(a.logger).Log("msg", "unable to marshal token", "err", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	if _, err := w.Write(data); err != nil {
-		level.Error(a.logger).Log("msg", fmt.Sprintf("writing auth token failed: %v", err))
+		level.Error(a.logger).Log("msg", "writing auth token failed", "err", err)
 	}
 }

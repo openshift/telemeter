@@ -82,7 +82,7 @@ func AgainstEndpoint(logger log.Logger, client *http.Client, endpoint *url.URL, 
 		// read the body to keep the upstream connection open
 		if res.Body != nil {
 			if _, err := io.Copy(ioutil.Discard, res.Body); err != nil {
-				level.Error(logger).Log("msg", fmt.Sprintf("error copying body: %v", err))
+				level.Error(logger).Log("msg", "error copying body", "err", err)
 			}
 			res.Body.Close()
 		}
@@ -112,7 +112,7 @@ func AgainstEndpoint(logger log.Logger, client *http.Client, endpoint *url.URL, 
 		return body, nil
 	default:
 		b, _ := ioutil.ReadAll(io.LimitReader(res.Body, 4*1024))
-		level.Warn(logger).Log("msg", fmt.Sprintf(fmt.Sprintf("Upstream server rejected request for cluster %q with body:\n%%s", cluster), string(b)))
+		level.Warn(logger).Log("msg", "upstream server rejected request", "cluster", cluster, "body", string(b))
 		return body, NewErrorWithCode(fmt.Errorf("upstream rejected request with code %d", res.StatusCode), http.StatusInternalServerError)
 	}
 }
@@ -136,13 +136,13 @@ func NewHandler(logger log.Logger, client *http.Client, endpoint *url.URL, tenan
 		if tenantKey != "" {
 			fields := make(map[string]string)
 			if err := json.Unmarshal(token, &fields); err != nil {
-				level.Warn(logger).Log("msg", fmt.Sprintf("failed to read token: %v", err))
+				level.Warn(logger).Log("msg", "failed to read token", "err", err)
 				return
 			}
 			tenant = fields[tenantKey]
 		}
 		if _, err := AgainstEndpoint(logger, client, endpoint, token, tenant, nil); err != nil {
-			level.Warn(logger).Log("msg", fmt.Sprintf("unauthorized request made: %v", err))
+			level.Warn(logger).Log("msg", "unauthorized request made:", "err", err)
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}

@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -69,7 +68,7 @@ func (s *Server) Get(w http.ResponseWriter, req *http.Request) {
 
 	ps, err := s.store.ReadMetrics(ctx, minTimeMs)
 	if err != nil {
-		level.Error(s.logger).Log("msg", fmt.Sprintf("error reading metrics: %v", err))
+		level.Error(s.logger).Log("msg", "error reading metrics", "err", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -83,7 +82,7 @@ func (s *Server) Get(w http.ResponseWriter, req *http.Request) {
 				continue
 			}
 			if err := encoder.Encode(family); err != nil {
-				level.Error(s.logger).Log("msg", fmt.Sprintf("error encoding metrics family: %v", err))
+				level.Error(s.logger).Log("msg", "error encoding metrics family", "err", err)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				continue
 			}

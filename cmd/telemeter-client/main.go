@@ -253,7 +253,7 @@ func (o *Options) Run() error {
 		return fmt.Errorf("failed to configure Telemeter client: %v", err)
 	}
 
-	level.Info(o.Logger).Log("msg", fmt.Sprintf("Starting telemeter-client reading from %s and sending to %s (listen=%s)", o.From, o.To, o.Listen))
+	level.Info(o.Logger).Log("msg", "starting telemeter-client", "from", o.From, "to", o.To, "listen", o.Listen)
 
 	var g run.Group
 	{
@@ -277,7 +277,7 @@ func (o *Options) Run() error {
 				select {
 				case <-hup:
 					if err := worker.Reconfigure(cfg); err != nil {
-						level.Error(o.Logger).Log("msg", fmt.Sprintf("failed to reload config: %v", err))
+						level.Error(o.Logger).Log("msg", "failed to reload config", "err", err)
 						return err
 					}
 				case <-cancel:
@@ -307,7 +307,7 @@ func (o *Options) Run() error {
 			// Run the HTTP server.
 			g.Add(func() error {
 				if err := http.Serve(l, handlers); err != nil && err != http.ErrServerClosed {
-					level.Error(o.Logger).Log("msg", fmt.Sprintf("server exited unexpectedly: %v", err))
+					level.Error(o.Logger).Log("msg", "server exited unexpectedly", "err", err)
 					return err
 				}
 				return nil
@@ -335,7 +335,7 @@ func serveLastMetrics(l log.Logger, worker *forwarder.Worker) http.Handler {
 				continue
 			}
 			if err := encoder.Encode(family); err != nil {
-				level.Error(l).Log("msg", fmt.Sprintf("unable to write metrics for family: %v", err))
+				level.Error(l).Log("msg", "unable to write metrics for family", "err", err)
 				break
 			}
 		}

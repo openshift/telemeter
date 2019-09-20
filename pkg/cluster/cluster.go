@@ -147,7 +147,7 @@ func (c *DynamicCluster) Start(ml memberlister, ctx context.Context) {
 			select {
 			case data := <-c.queue:
 				if err := c.handleMessage(data); err != nil {
-					level.Error(c.logger).Log("msg", fmt.Sprintf("error: Unable to handle incoming message: %v", err))
+					level.Error(c.logger).Log("msg", "unable to handle incoming message", "err", err)
 				}
 			case <-ctx.Done():
 				return
@@ -166,12 +166,12 @@ func (c *DynamicCluster) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	info := c.debugInfo()
 	data, err := json.MarshalIndent(info, "", "  ")
 	if err != nil {
-		level.Error(c.logger).Log("msg", fmt.Sprintf("marshaling debug info failed: %v", err))
+		level.Error(c.logger).Log("msg", "marshaling debug info failed", "err", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	if _, err := w.Write(data); err != nil {
-		level.Error(c.logger).Log("msg", fmt.Sprintf("writing debug info failed: %v", err))
+		level.Error(c.logger).Log("msg", "writing debug info failed", "err", err)
 	}
 }
 
@@ -222,7 +222,7 @@ func (c *DynamicCluster) Join(seeds []string) error {
 func (c *DynamicCluster) NotifyJoin(node *memberlist.Node) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	level.Info(c.logger).Log("msg", fmt.Sprintf("[%s] node joined %s", c.name, node.Name))
+	level.Info(c.logger).Log("msg", "node joined", "cluster", c.name, "node", node.Name)
 	c.ring.AddNode(node.Name)
 }
 
@@ -232,7 +232,7 @@ func (c *DynamicCluster) NotifyJoin(node *memberlist.Node) {
 func (c *DynamicCluster) NotifyLeave(node *memberlist.Node) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-	level.Info(c.logger).Log("msg", fmt.Sprintf("[%s] node left %s", c.name, node.Name))
+	level.Info(c.logger).Log("msg", "node left", "cluster", c.name, "node", node.Name)
 	c.ring.RemoveNode(node.Name)
 }
 
@@ -240,7 +240,7 @@ func (c *DynamicCluster) NotifyLeave(node *memberlist.Node) {
 //
 // See github.com/hashicorp/memberlist#EventDelegate.NotifyUpdate
 func (c *DynamicCluster) NotifyUpdate(node *memberlist.Node) {
-	level.Info(c.logger).Log("msg", fmt.Sprintf("[%s] node update %s", c.name, node.Name))
+	level.Info(c.logger).Log("msg", "node update", "cluster", c.name, "node", node.Name)
 }
 
 // NodeMeta is the callback that is invoked when metadata is retrieved about this node.
@@ -263,7 +263,7 @@ func (c *DynamicCluster) NotifyMsg(data []byte) {
 	select {
 	case c.queue <- copied:
 	default:
-		level.Error(c.logger).Log("msg", fmt.Sprintf("Too many incoming requests queued, dropped data"))
+		level.Error(c.logger).Log("msg", "too many incoming requests queued, dropped data")
 	}
 }
 
@@ -363,20 +363,20 @@ func (c *DynamicCluster) findRemote(partitionKey string, now time.Time) (*member
 
 	nodeName, ok := c.getNodeForKey(partitionKey)
 	if !ok {
-		level.Info(c.logger).Log("msg", fmt.Sprintf("No node found in ring for %s", partitionKey))
+		level.Info(c.logger).Log("msg", "no node found in ring", "partitionkey", partitionKey)
 		metricForwardResult.WithLabelValues("no_key").Inc()
 		return nil, false
 	}
 
 	if c.hasProblems(nodeName, now) {
-		level.Info(c.logger).Log("msg", fmt.Sprintf("Node %s has failed recently, using local storage", nodeName))
+		level.Info(c.logger).Log("msg", "node has failed recently, using local storage", "node", nodeName)
 		metricForwardResult.WithLabelValues("recently_failed").Inc()
 		return nil, false
 	}
 
 	node := c.memberByName(nodeName)
 	if node == nil {
-		level.Info(c.logger).Log("msg", fmt.Sprintf("No node found named %s", nodeName))
+		level.Info(c.logger).Log("msg", "no node found", "name", nodeName)
 		metricForwardResult.WithLabelValues("no_member").Inc()
 		return nil, false
 	}
@@ -411,7 +411,7 @@ func (c *DynamicCluster) forwardMetrics(ctx context.Context, p *store.Partitione
 	metricForwardSamples.Add(float64(metricfamily.MetricsCount(p.Families)))
 
 	if err := c.ml.SendReliable(node, buf.Bytes()); err != nil {
-		level.Error(c.logger).Log("msg", fmt.Sprintf("Failed to forward metrics to %s: %v", node, err))
+		level.Error(c.logger).Log("msg", "failed to forward metrics", "to", node, "err", err)
 		c.problemDetected(node.Name, now)
 		metricForwardResult.WithLabelValues("send").Inc()
 		metricForwardLatency.WithLabelValues("send").Observe(time.Since(now).Seconds())
@@ -433,7 +433,7 @@ func (c *DynamicCluster) WriteMetrics(ctx context.Context, p *store.PartitionedM
 	ok, err := c.forwardMetrics(ctx, p)
 	if err != nil {
 		// fallthrough to local metrics
-		level.Error(c.logger).Log("msg", fmt.Sprintf("Unable to write to remote metrics, falling back to local: %v", err))
+		level.Error(c.logger).Log("msg", "unable to write to remote metrics, falling back to local", "err", err)
 		return c.store.WriteMetrics(ctx, p)
 	}
 	if ok {

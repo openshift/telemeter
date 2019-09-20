@@ -2,7 +2,6 @@ package jwt
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -44,7 +43,7 @@ var _ = Validator(&validator{})
 func (v *validator) Validate(_ string, public *jwt.Claims, privateObj interface{}) (*authorize.Client, error) {
 	private, ok := privateObj.(*privateClaims)
 	if !ok {
-		level.Info(v.logger).Log("msg", fmt.Sprintf("jwt validator expected private claim of type *privateClaims but got: %T", privateObj))
+		level.Info(v.logger).Log("msg", "jwt validator expected private claim of type *privateClaims", "got", privateObj)
 		return nil, errors.New("token could not be validated")
 	}
 	err := public.Validate(jwt.Expected{
@@ -55,7 +54,7 @@ func (v *validator) Validate(_ string, public *jwt.Claims, privateObj interface{
 	case err == jwt.ErrExpired:
 		return nil, errors.New("token has expired")
 	default:
-		level.Info(v.logger).Log("msg", fmt.Sprintf("unexpected validation error: %T", err))
+		level.Info(v.logger).Log("msg", "unexpected validation", "err", err)
 		return nil, errors.New("token could not be validated")
 	}
 

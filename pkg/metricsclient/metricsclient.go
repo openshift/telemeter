@@ -129,7 +129,7 @@ func (c *Client) Send(ctx context.Context, req *http.Request, families []*client
 	return withCancel(ctx, c.client, req, func(resp *http.Response) error {
 		defer func() {
 			if _, err := io.Copy(ioutil.Discard, resp.Body); err != nil {
-				level.Error(c.logger).Log("msg", fmt.Sprintf("error copying body: %v", err))
+				level.Error(c.logger).Log("msg", "error copying body", "err", err)
 			}
 			resp.Body.Close()
 		}()

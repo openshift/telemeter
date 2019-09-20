@@ -123,11 +123,7 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 
 			meanDrift := timeseriesMeanDrift(timeseries, time.Now().Unix())
 			if math.Abs(meanDrift) > 10 {
-				level.Info(s.logger).Log("msg",
-					fmt.Sprintf("mean drift from now for clusters %s is: %.3fs",
-						p.PartitionKey,
-						meanDrift,
-					))
+				level.Info(s.logger).Log("msg", "mean drift from now for clusters", "partitionkey", p.PartitionKey, "drift", fmt.Sprintf("%.3fs", meanDrift))
 			}
 
 			if resp.StatusCode/100 != 2 {
@@ -144,7 +140,7 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 		}()
 		if err != nil {
 			forwardErrors.Inc()
-			level.Error(s.logger).Log("msg", fmt.Sprintf("forwarding error: %v", err))
+			level.Error(s.logger).Log("msg", "forwarding error", "err", err)
 		}
 	}()
 

@@ -147,7 +147,7 @@ func runCmd() error {
 		return fmt.Errorf("failed to configure the Telemeter benchmarking tool: %v", err)
 	}
 
-	level.Info(opt.Logger).Log("msg", "starting telemeter-benchmark", "to", opt.To, "addr", opt.Listen))
+	level.Info(opt.Logger).Log("msg", "starting telemeter-benchmark", "to", opt.To, "addr", opt.Listen)
 
 	var g run.Group
 	{
@@ -173,7 +173,7 @@ func runCmd() error {
 				select {
 				case <-hup:
 					if err := b.Reconfigure(cfg); err != nil {
-						level.Error(opt.Logger).Log("msg", "failed to reload config", "err", err))
+						level.Error(opt.Logger).Log("msg", "failed to reload config", "err", err)
 						return err
 					}
 				case <-in:
@@ -205,7 +205,7 @@ func runCmd() error {
 		// Run the HTTP server.
 		g.Add(func() error {
 			if err := http.Serve(l, handlers); err != nil && err != http.ErrServerClosed {
-				level.Error(opt.Logger).Log("msg", fmt.Sprintf("server exited unexpectedly: %v", err))
+				level.Error(opt.Logger).Log("msg", "server exited unexpectedly", "err", err)
 				return err
 			}
 			return nil
