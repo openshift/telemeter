@@ -117,4 +117,6 @@
   '{__name__="noobaa_accounts_num"}',
   // noobaa_total_usage gives the total usage of noobaa's storage in bytes.
   '{__name__="noobaa_total_usage"}',
+  // console_url is the url of the console running on the cluster.
+  '{__name__="console_url"}',
 ]
