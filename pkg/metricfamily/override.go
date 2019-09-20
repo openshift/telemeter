@@ -22,6 +22,11 @@ func init() {
 	prometheus.MustRegister(overwrittenMetrics)
 }
 
+// OverwriteTimestamps sets all timestamps to the current time.
+// We essentially already do this in Telemeter v1 by dropping all timestamps on Telemeter Servers
+// and then when federating Telemeter Prometheus sets its own current timestamp.
+// For v2 we want to be consistent when using remote-write and thus we overwrite the timestamps
+// on Telemeter Server already to forward the same timestamps to both systems.
 func OverwriteTimestamps(now func() time.Time) TransformerFunc {
 	return func(family *client.MetricFamily) (bool, error) {
 		timestamp := now().Unix() * 1000
