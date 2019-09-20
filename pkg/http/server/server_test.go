@@ -72,8 +72,8 @@ func TestServer_Get(t *testing.T) {
 				Method: "GET",
 			},
 			wantFamilies: []*clientmodel.MetricFamily{
-				family("test_1", -1, -1),
-				family("test_2", -1, -1),
+				family("test_1", 1002000, 1004000),
+				family("test_2", 1002000, 1004000),
 			},
 			wantCode: 200,
 		},

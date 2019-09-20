@@ -131,7 +131,8 @@ func TestGet(t *testing.T) {
 
 	for _, mf := range expected {
 		for _, m := range mf.Metric {
-			m.TimestampMs = nil
+			nowTS := now().Unix() * 1000
+			m.TimestampMs = &nowTS
 		}
 	}
 
