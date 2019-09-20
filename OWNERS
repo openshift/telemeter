@@ -12,8 +12,9 @@ reviewers:
 - maorfr
 - mmclanerh
 - pbergene
-- skryzhny 
+- skryzhny
 - metalmatze
+- lilic
 
 approvers:
 - brancz
@@ -31,3 +32,4 @@ approvers:
 - pbergene
 - skryzhny
 - metalmatze
+- lilic
