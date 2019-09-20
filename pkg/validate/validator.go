@@ -20,15 +20,17 @@ type validator struct {
 	partitionKey string
 	limitBytes   int64
 	maxAge       time.Duration
+	nowFunc      func() time.Time
 }
 
 // New handles Prometheus metrics from end clients that must be assumed to be hostile.
 // It implements metrics transforms that sanitize the incoming content.
-func New(partitionKey string, limitBytes int64, maxAge time.Duration) Validator {
+func New(partitionKey string, limitBytes int64, maxAge time.Duration, nowFunc func() time.Time) Validator {
 	return &validator{
 		partitionKey: partitionKey,
 		limitBytes:   limitBytes,
 		maxAge:       maxAge,
+		nowFunc:      nowFunc,
 	}
 }
 
@@ -51,6 +53,7 @@ func (v *validator) Validate(ctx context.Context, req *http.Request) (string, me
 	transforms.With(metricfamily.NewErrorOnUnsorted(true))
 	transforms.With(metricfamily.NewRequiredLabels(client.Labels))
 	transforms.With(metricfamily.TransformerFunc(metricfamily.DropEmptyFamilies))
+	transforms.With(metricfamily.OverwriteTimestamps(v.nowFunc))
 
 	if v.limitBytes > 0 {
 		req.Body = reader.NewLimitReadCloser(req.Body, v.limitBytes)

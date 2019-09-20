@@ -72,7 +72,7 @@ func TestForward(t *testing.T) {
 	{
 		ttl := 10 * time.Minute
 		labels := map[string]string{"cluster": "test"}
-		validator := validate.New("cluster", 0, 0)
+		validator := validate.New("cluster", 0, 0, time.Now)
 
 		receiveURL, _ := url.Parse(receiveServer.URL)
 
