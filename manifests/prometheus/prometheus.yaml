@@ -38,6 +38,13 @@ spec:
   listenLocal: true
   nodeSelector:
     beta.kubernetes.io/os: linux
+  remoteWrite:
+  - url: TODO
+    write_relabel_configs:
+      action: keep
+      regex: subscription_labels
+      source_labels:
+      - __name__
   replicas: 2
   resources:
     limits: {}

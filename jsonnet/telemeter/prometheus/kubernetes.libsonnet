@@ -230,6 +230,16 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
               pvc.mixin.spec.withStorageClassName('gp2-encrypted'),
           },
           listenLocal: true,
+          remoteWrite: [
+            {
+              url: "TODO",
+              write_relabel_configs: {
+                source_labels: ['__name__'],
+                        regex: 'subscription_labels',
+                        action: 'keep',
+              },
+            },
+          ],
           containers: [
             {
               name: 'prometheus-proxy',
