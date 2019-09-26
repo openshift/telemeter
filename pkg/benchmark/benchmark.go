@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"math"
 	"math/rand"
 	"net/http"
@@ -19,6 +18,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -58,6 +59,7 @@ type Benchmark struct {
 	reconfigure chan struct{}
 	running     bool
 	workers     []*worker
+	logger      log.Logger
 }
 
 // Config defines the parameters that can be used to configure a worker.
@@ -71,6 +73,7 @@ type Config struct {
 	Interval    time.Duration
 	MetricsFile string
 	Workers     int
+	Logger      log.Logger
 }
 
 // worker represents a metrics forwarding agent. It collects metrics from a source URL and forwards them to a sink.
@@ -83,14 +86,17 @@ type worker struct {
 	metrics     []*clientmodel.MetricFamily
 	to          *url.URL
 	transformer metricfamily.Transformer
+	logger      log.Logger
 }
 
 // New creates a new Benchmark based on the provided Config. If the Config contains invalid
 // values, then an error is returned.
 func New(cfg *Config) (*Benchmark, error) {
+	logger := log.With(cfg.Logger, "component", "benchmark")
 	b := Benchmark{
 		reconfigure: make(chan struct{}),
 		workers:     make([]*worker, cfg.Workers),
+		logger:      logger,
 	}
 
 	interval := cfg.Interval
@@ -125,7 +131,7 @@ func New(cfg *Config) (*Benchmark, error) {
 			return nil, fmt.Errorf("failed to read to-ca-file: %v", err)
 		}
 		if !pool.AppendCertsFromPEM(data) {
-			log.Printf("warning: no certs found in to-ca-file")
+			level.Warn(logger).Log("msg", "no certs found in to-ca-file")
 		}
 	}
 
@@ -134,6 +140,7 @@ func New(cfg *Config) (*Benchmark, error) {
 			id:       uuid.Must(uuid.NewV4()).String(),
 			interval: interval,
 			to:       cfg.ToUpload,
+			logger:   logger,
 		}
 
 		if _, err := f.Seek(0, 0); err != nil {
@@ -177,7 +184,7 @@ func New(cfg *Config) (*Benchmark, error) {
 			client.Transport = rt
 			transformer.With(metricfamily.NewLabel(nil, rt))
 		}
-		w.client = metricsclient.New(client, LimitBytes, w.interval, "federate_to")
+		w.client = metricsclient.New(logger, client, LimitBytes, w.interval, "federate_to")
 		w.transformer = transformer
 		b.workers[i] = w
 	}
@@ -208,7 +215,7 @@ func (b *Benchmark) Run() {
 		for i, w := range b.workers {
 			wg.Add(1)
 			go func(i int, w *worker) {
-				log.Printf("Started worker %d of %d: %s", i+1, len(b.workers), w.id)
+				level.Info(b.logger).Log("msg", "started worker", "index", i+1, "total", len(b.workers), "worker", w.id)
 				select {
 				case <-time.After(time.Duration(rand.Int63n(int64(w.interval)))):
 					w.run(ctx)
@@ -226,7 +233,7 @@ func (b *Benchmark) Run() {
 		case <-done:
 			return
 		case <-b.reconfigure:
-			log.Print("Restarting workers...")
+			level.Info(b.logger).Log("msg", "restarting workers...")
 			continue
 		}
 	}
@@ -266,7 +273,7 @@ func (w *worker) run(ctx context.Context) {
 		wait := w.interval
 		if err := w.forward(ctx, m); err != nil {
 			forwardErrors.Inc()
-			log.Printf("error from worker %s: unable to forward results: %v", w.id, err)
+			level.Error(w.logger).Log("msg", "unable to forward results", "worker", w.id, "err", err)
 			wait = time.Minute
 		}
 		var n int
@@ -333,14 +340,14 @@ func randomize(metric *clientmodel.Metric) *clientmodel.Metric {
 
 func (w *worker) forward(ctx context.Context, metrics []*clientmodel.MetricFamily) error {
 	if w.to == nil {
-		log.Printf("warning from worker %s: no destination configured; doing nothing", w.id)
+		level.Warn(w.logger).Log("msg", "no destination configured; doing nothing", "worker", w.id)
 		return nil
 	}
 	if err := metricfamily.Filter(metrics, w.transformer); err != nil {
 		return err
 	}
 	if len(metrics) == 0 {
-		log.Printf("warning from worker %s: no metrics to send; doing nothing", w.id)
+		level.Warn(w.logger).Log("msg", "no metrics to send; doing nothing", "worker", w.id)
 		return nil
 	}
 

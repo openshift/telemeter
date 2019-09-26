@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httputil"
 	"unicode/utf8"
+
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 )
 
 type bearerRoundTripper struct {
@@ -27,11 +29,12 @@ func (rt *bearerRoundTripper) RoundTrip(req *http.Request) (*http.Response, erro
 }
 
 type debugRoundTripper struct {
-	next http.RoundTripper
+	next   http.RoundTripper
+	logger log.Logger
 }
 
-func NewDebugRoundTripper(next http.RoundTripper) *debugRoundTripper {
-	return &debugRoundTripper{next}
+func NewDebugRoundTripper(logger log.Logger, next http.RoundTripper) *debugRoundTripper {
+	return &debugRoundTripper{next, log.With(logger, "component", "http/debugroundtripper")}
 }
 
 func (rt *debugRoundTripper) RoundTrip(req *http.Request) (res *http.Response, err error) {
@@ -40,20 +43,14 @@ func (rt *debugRoundTripper) RoundTrip(req *http.Request) (res *http.Response, e
 
 	res, err = rt.next.RoundTrip(req)
 	if err != nil {
-		log.Println(err)
+		level.Error(rt.logger).Log("err", err)
 		return
 	}
 
 	resd, _ := httputil.DumpResponse(res, false)
 	resBody := bodyToString(&res.Body)
 
-	log.Printf("request url %v\n%s%s\n------ response\n"+
-		"%s%s\n======\n",
-		req.URL,
-		string(reqd), reqBody,
-		string(resd), resBody,
-	)
-
+	level.Debug(rt.logger).Log("msg", "round trip", "url", req.URL, "requestdump", string(reqd), "requestbody", reqBody, "responsedump", string(resd), "responsebody", resBody)
 	return
 }
 

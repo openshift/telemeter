@@ -7,12 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 
 	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
@@ -69,6 +71,8 @@ type Config struct {
 	Rules             []string
 	RulesFile         string
 	Transformer       metricfamily.Transformer
+
+	Logger log.Logger
 }
 
 // Worker represents a metrics forwarding agent. It collects metrics from a source URL and forwards them to a sink.
@@ -87,6 +91,8 @@ type Worker struct {
 	lastMetrics []*clientmodel.MetricFamily
 	lock        sync.Mutex
 	reconfigure chan struct{}
+
+	logger log.Logger
 }
 
 // New creates a new Worker based on the provided Config. If the Config contains invalid
@@ -95,11 +101,13 @@ func New(cfg Config) (*Worker, error) {
 	if cfg.From == nil {
 		return nil, errors.New("a URL from which to scrape is required")
 	}
+	logger := log.With(cfg.Logger, "component", "forwarder")
 	w := Worker{
 		from:        cfg.From,
 		interval:    cfg.Interval,
 		reconfigure: make(chan struct{}),
 		to:          cfg.ToUpload,
+		logger:      log.With(cfg.Logger, "component", "forwarder/worker"),
 	}
 
 	if w.interval == 0 {
@@ -119,7 +127,7 @@ func New(cfg Config) (*Worker, error) {
 		return nil, fmt.Errorf("anonymize-salt must be specified if anonymize-labels is set")
 	}
 	if len(cfg.AnonymizeLabels) == 0 {
-		log.Printf("warning: not anonymizing any labels")
+		level.Warn(logger).Log("msg", "not anonymizing any labels")
 	}
 
 	// Configure a transformer.
@@ -146,13 +154,13 @@ func New(cfg Config) (*Worker, error) {
 			return nil, fmt.Errorf("failed to read from-ca-file: %v", err)
 		}
 		if !pool.AppendCertsFromPEM(data) {
-			log.Printf("warning: no certs found in from-ca-file")
+			level.Warn(logger).Log("msg", "no certs found in from-ca-file")
 		}
 		fromTransport.TLSClientConfig.RootCAs = pool
 	}
 	fromClient := &http.Client{Transport: fromTransport}
 	if cfg.Debug {
-		fromClient.Transport = telemeterhttp.NewDebugRoundTripper(fromClient.Transport)
+		fromClient.Transport = telemeterhttp.NewDebugRoundTripper(logger, fromClient.Transport)
 	}
 	if len(cfg.FromToken) == 0 && len(cfg.FromTokenFile) > 0 {
 		data, err := ioutil.ReadFile(cfg.FromTokenFile)
@@ -164,14 +172,14 @@ func New(cfg Config) (*Worker, error) {
 	if len(cfg.FromToken) > 0 {
 		fromClient.Transport = telemeterhttp.NewBearerRoundTripper(cfg.FromToken, fromClient.Transport)
 	}
-	w.fromClient = metricsclient.New(fromClient, cfg.LimitBytes, w.interval, "federate_from")
+	w.fromClient = metricsclient.New(logger, fromClient, cfg.LimitBytes, w.interval, "federate_from")
 
 	// Create the `toClient`.
 	toTransport := metricsclient.DefaultTransport()
 	toTransport.Proxy = http.ProxyFromEnvironment
 	toClient := &http.Client{Transport: toTransport}
 	if cfg.Debug {
-		toClient.Transport = telemeterhttp.NewDebugRoundTripper(toClient.Transport)
+		toClient.Transport = telemeterhttp.NewDebugRoundTripper(logger, toClient.Transport)
 	}
 	if len(cfg.ToToken) == 0 && len(cfg.ToTokenFile) > 0 {
 		data, err := ioutil.ReadFile(cfg.ToTokenFile)
@@ -190,7 +198,7 @@ func New(cfg Config) (*Worker, error) {
 		toClient.Transport = rt
 		transformer.With(metricfamily.NewLabel(nil, rt))
 	}
-	w.toClient = metricsclient.New(toClient, cfg.LimitBytes, w.interval, "federate_to")
+	w.toClient = metricsclient.New(logger, toClient, cfg.LimitBytes, w.interval, "federate_to")
 	w.transformer = transformer
 
 	// Configure the matching rules.
@@ -257,7 +265,7 @@ func (w *Worker) Run(ctx context.Context) {
 
 		if err := w.forward(ctx); err != nil {
 			gaugeFederateErrors.Inc()
-			log.Printf("error: unable to forward results: %v", err)
+			level.Error(w.logger).Log("msg", "unable to forward results", "err", err)
 			wait = time.Minute
 		}
 
@@ -307,7 +315,7 @@ func (w *Worker) forward(ctx context.Context) error {
 	w.lastMetrics = families
 
 	if len(families) == 0 {
-		log.Printf("warning: no metrics to send, doing nothing")
+		level.Warn(w.logger).Log("msg", "no metrics to send, doing nothing")
 		return nil
 	}
 

@@ -10,6 +10,8 @@ import (
 
 	"reflect"
 
+	"github.com/go-kit/kit/log"
+
 	"github.com/hashicorp/memberlist"
 	"github.com/openshift/telemeter/pkg/store"
 	"github.com/prometheus/client_golang/prometheus"
@@ -353,7 +355,7 @@ func TestWriteMetrics(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			dc := NewDynamic("local", tc.localStore)
+			dc := NewDynamic(log.NewNopLogger(), "local", tc.localStore)
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
 

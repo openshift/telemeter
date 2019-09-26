@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 )
 
 func NewAuthorizeClientHandler(authorizer ClientAuthorizer, next http.Handler) http.Handler {
@@ -60,7 +62,8 @@ func (e errorWithCode) HTTPStatusCode() int {
 
 const requestBodyLimit = 32 * 1024 // 32MiB
 
-func AgainstEndpoint(client *http.Client, endpoint *url.URL, token []byte, cluster string, validate func(*http.Response) error) ([]byte, error) {
+func AgainstEndpoint(logger log.Logger, client *http.Client, endpoint *url.URL, token []byte, cluster string, validate func(*http.Response) error) ([]byte, error) {
+	logger = log.With(logger, "component", "authorize")
 	req, err := http.NewRequest("POST", endpoint.String(), bytes.NewReader(token))
 	if err != nil {
 		return nil, err
@@ -79,7 +82,7 @@ func AgainstEndpoint(client *http.Client, endpoint *url.URL, token []byte, clust
 		// read the body to keep the upstream connection open
 		if res.Body != nil {
 			if _, err := io.Copy(ioutil.Discard, res.Body); err != nil {
-				log.Printf("error copying body: %v", err)
+				level.Error(logger).Log("msg", "error copying body", "err", err)
 			}
 			res.Body.Close()
 		}
@@ -108,17 +111,14 @@ func AgainstEndpoint(client *http.Client, endpoint *url.URL, token []byte, clust
 	case http.StatusOK, http.StatusCreated:
 		return body, nil
 	default:
-		tryLogBody(res.Body, 4*1024, fmt.Sprintf("warning: Upstream server rejected request for cluster %q with body:\n%%s", cluster))
+		b, _ := ioutil.ReadAll(io.LimitReader(res.Body, 4*1024))
+		level.Warn(logger).Log("msg", "upstream server rejected request", "cluster", cluster, "body", string(b))
 		return body, NewErrorWithCode(fmt.Errorf("upstream rejected request with code %d", res.StatusCode), http.StatusInternalServerError)
 	}
 }
 
-func tryLogBody(r io.Reader, limitBytes int64, format string) {
-	body, _ := ioutil.ReadAll(io.LimitReader(r, limitBytes))
-	log.Printf(format, string(body))
-}
-
-func NewHandler(client *http.Client, endpoint *url.URL, tenantKey string, next http.Handler) http.HandlerFunc {
+func NewHandler(logger log.Logger, client *http.Client, endpoint *url.URL, tenantKey string, next http.Handler) http.HandlerFunc {
+	logger = log.With(logger, "component", "authorize")
 	return func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		authParts := strings.Split(string(authHeader), " ")
@@ -136,13 +136,13 @@ func NewHandler(client *http.Client, endpoint *url.URL, tenantKey string, next h
 		if tenantKey != "" {
 			fields := make(map[string]string)
 			if err := json.Unmarshal(token, &fields); err != nil {
-				log.Printf("failed to read token: %v", err)
+				level.Warn(logger).Log("msg", "failed to read token", "err", err)
 				return
 			}
 			tenant = fields[tenantKey]
 		}
-		if _, err := AgainstEndpoint(client, endpoint, token, tenant, nil); err != nil {
-			log.Printf("unauthorized request made: %v", err)
+		if _, err := AgainstEndpoint(logger, client, endpoint, token, tenant, nil); err != nil {
+			level.Warn(logger).Log("msg", "unauthorized request made:", "err", err)
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}

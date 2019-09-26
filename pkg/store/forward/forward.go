@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log"
 	"math"
 	"net/http"
 	"net/url"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/prometheus/client_golang/prometheus"
@@ -54,13 +55,15 @@ type Store struct {
 	next   store.Store
 	url    *url.URL
 	client *http.Client
+	logger log.Logger
 }
 
-func New(url *url.URL, next store.Store) *Store {
+func New(logger log.Logger, url *url.URL, next store.Store) *Store {
 	return &Store{
 		next:   next,
 		url:    url,
 		client: &http.Client{},
+		logger: log.With(logger, "component", "store/forward"),
 	}
 }
 
@@ -82,7 +85,7 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 			}
 
 			if len(timeseries) == 0 {
-				log.Println("no time series to forward to receive endpoint")
+				level.Info(s.logger).Log("msg", "no time series to forward to receive endpoint")
 				return nil
 			}
 
@@ -120,10 +123,7 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 
 			meanDrift := timeseriesMeanDrift(timeseries, time.Now().Unix())
 			if math.Abs(meanDrift) > 10 {
-				log.Printf("mean drift from now for clusters %s is: %.3fs",
-					p.PartitionKey,
-					meanDrift,
-				)
+				level.Info(s.logger).Log("msg", "mean drift from now for clusters", "partitionkey", p.PartitionKey, "drift", fmt.Sprintf("%.3fs", meanDrift))
 			}
 
 			if resp.StatusCode/100 != 2 {
@@ -140,7 +140,7 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 		}()
 		if err != nil {
 			forwardErrors.Inc()
-			log.Printf("forwarding error: %v", err)
+			level.Error(s.logger).Log("msg", "forwarding error", "err", err)
 		}
 	}()
 

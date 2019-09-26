@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	stdlog "log"
 	"net"
 	"net/http"
 	"net/url"
@@ -18,8 +18,12 @@ import (
 	"github.com/prometheus/common/expfmt"
 	"github.com/spf13/cobra"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
+
 	"github.com/openshift/telemeter/pkg/forwarder"
 	telemeterhttp "github.com/openshift/telemeter/pkg/http"
+	"github.com/openshift/telemeter/pkg/logger"
 	"github.com/openshift/telemeter/pkg/metricfamily"
 )
 
@@ -31,9 +35,9 @@ func main() {
 		Interval:   4*time.Minute + 30*time.Second,
 	}
 	cmd := &cobra.Command{
-		Short: "Federate Prometheus via push",
-
-		SilenceUsage: true,
+		Short:         "Federate Prometheus via push",
+		SilenceErrors: true,
+		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return opt.Run()
 		},
@@ -65,7 +69,22 @@ func main() {
 
 	cmd.Flags().BoolVarP(&opt.Verbose, "verbose", "v", opt.Verbose, "Show verbose output.")
 
+	cmd.Flags().StringVar(&opt.LogLevel, "log-level", opt.LogLevel, "Log filtering level. e.g info, debug, warn, error")
+
+	l := log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
+	lvl, err := cmd.Flags().GetString("log-level")
+	if err != nil {
+		level.Error(l).Log("msg", "could not parse log-level.")
+	}
+	l = level.NewFilter(l, logger.LogLevelFromString(lvl))
+	l = log.WithPrefix(l, "ts", log.DefaultTimestampUTC)
+	l = log.WithPrefix(l, "caller", log.DefaultCaller)
+	stdlog.SetOutput(log.NewStdlibAdapter(l))
+	opt.Logger = l
+	level.Info(l).Log("msg", "telemeter client initialized")
+
 	if err := cmd.Execute(); err != nil {
+		level.Error(l).Log("err", err)
 		os.Exit(1)
 	}
 }
@@ -100,6 +119,9 @@ type Options struct {
 	Labels    map[string]string
 
 	Interval time.Duration
+
+	LogLevel string
+	Logger   log.Logger
 }
 
 func (o *Options) Run() error {
@@ -224,6 +246,8 @@ func (o *Options) Run() error {
 		Rules:             o.Rules,
 		RulesFile:         o.RulesFile,
 		Transformer:       transformer,
+
+		Logger: o.Logger,
 	}
 
 	worker, err := forwarder.New(cfg)
@@ -231,7 +255,7 @@ func (o *Options) Run() error {
 		return fmt.Errorf("failed to configure Telemeter client: %v", err)
 	}
 
-	log.Printf("Starting telemeter-client reading from %s and sending to %s (listen=%s)", o.From, o.To, o.Listen)
+	level.Info(o.Logger).Log("msg", "starting telemeter-client", "from", o.From, "to", o.To, "listen", o.Listen)
 
 	var g run.Group
 	{
@@ -255,7 +279,7 @@ func (o *Options) Run() error {
 				select {
 				case <-hup:
 					if err := worker.Reconfigure(cfg); err != nil {
-						log.Printf("error: failed to reload config: %v", err)
+						level.Error(o.Logger).Log("msg", "failed to reload config", "err", err)
 						return err
 					}
 				case <-cancel:
@@ -275,7 +299,7 @@ func (o *Options) Run() error {
 		telemeterhttp.ReloadRoutes(handlers, func() error {
 			return worker.Reconfigure(cfg)
 		})
-		handlers.Handle("/federate", serveLastMetrics(worker))
+		handlers.Handle("/federate", serveLastMetrics(o.Logger, worker))
 		l, err := net.Listen("tcp", o.Listen)
 		if err != nil {
 			return fmt.Errorf("failed to listen: %v", err)
@@ -285,7 +309,7 @@ func (o *Options) Run() error {
 			// Run the HTTP server.
 			g.Add(func() error {
 				if err := http.Serve(l, handlers); err != nil && err != http.ErrServerClosed {
-					log.Printf("error: server exited unexpectedly: %v", err)
+					level.Error(o.Logger).Log("msg", "server exited unexpectedly", "err", err)
 					return err
 				}
 				return nil
@@ -299,7 +323,7 @@ func (o *Options) Run() error {
 }
 
 // serveLastMetrics retrieves the last set of metrics served
-func serveLastMetrics(worker *forwarder.Worker) http.Handler {
+func serveLastMetrics(l log.Logger, worker *forwarder.Worker) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.Method != "GET" {
 			w.WriteHeader(http.StatusMethodNotAllowed)
@@ -313,7 +337,7 @@ func serveLastMetrics(worker *forwarder.Worker) http.Handler {
 				continue
 			}
 			if err := encoder.Encode(family); err != nil {
-				log.Printf("error: unable to write metrics for family: %v", err)
+				level.Error(l).Log("msg", "unable to write metrics for family", "err", err)
 				break
 			}
 		}

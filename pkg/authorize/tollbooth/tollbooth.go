@@ -3,10 +3,12 @@ package tollbooth
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"mime"
 	"net/http"
 	"net/url"
+
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 
 	"github.com/openshift/telemeter/pkg/authorize"
 )
@@ -25,12 +27,14 @@ type registrationError struct {
 type authorizer struct {
 	to     *url.URL
 	client *http.Client
+	logger log.Logger
 }
 
-func NewAuthorizer(c *http.Client, to *url.URL) *authorizer {
+func NewAuthorizer(logger log.Logger, c *http.Client, to *url.URL) *authorizer {
 	return &authorizer{
 		to:     to,
 		client: c,
+		logger: log.With(logger, "component", "authorize/toolbooth"),
 	}
 }
 
@@ -45,11 +49,11 @@ func (a *authorizer) AuthorizeCluster(token, cluster string) (string, error) {
 		return "", err
 	}
 
-	body, err := authorize.AgainstEndpoint(a.client, a.to, data, cluster, func(res *http.Response) error {
+	body, err := authorize.AgainstEndpoint(a.logger, a.client, a.to, data, cluster, func(res *http.Response) error {
 		contentType := res.Header.Get("Content-Type")
 		mediaType, _, err := mime.ParseMediaType(contentType)
 		if err != nil || mediaType != "application/json" {
-			log.Printf("warning: Upstream server %s responded with an unknown content type %q", a.to, contentType)
+			level.Warn(a.logger).Log("msg", "upstream server responded with an unknown content type", "to", a.to, "contenttype", contentType)
 			return fmt.Errorf("unrecognized token response content-type %q", contentType)
 		}
 		return nil
@@ -60,12 +64,12 @@ func (a *authorizer) AuthorizeCluster(token, cluster string) (string, error) {
 
 	response := &clusterRegistration{}
 	if err := json.Unmarshal(body, response); err != nil {
-		log.Printf("warning: Upstream server %s response could not be parsed", a.to)
+		level.Warn(a.logger).Log("msg", "upstream server response could not be parsed", "to", a.to)
 		return "", fmt.Errorf("unable to parse response body: %v", err)
 	}
 
 	if len(response.AccountID) == 0 {
-		log.Printf("warning: Upstream server %s responded with an empty user string", a.to)
+		level.Warn(a.logger).Log("msg", "upstream server responded with an empty user string", "to", a.to)
 		return "", fmt.Errorf("server responded with an empty user string")
 	}
 

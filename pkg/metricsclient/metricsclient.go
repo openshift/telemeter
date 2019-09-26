@@ -6,13 +6,14 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/golang/snappy"
 	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
@@ -43,14 +44,16 @@ type Client struct {
 	maxBytes    int64
 	timeout     time.Duration
 	metricsName string
+	logger      log.Logger
 }
 
-func New(client *http.Client, maxBytes int64, timeout time.Duration, metricsName string) *Client {
+func New(logger log.Logger, client *http.Client, maxBytes int64, timeout time.Duration, metricsName string) *Client {
 	return &Client{
 		client:      client,
 		maxBytes:    maxBytes,
 		timeout:     timeout,
 		metricsName: metricsName,
+		logger:      log.With(logger, "component", "metricsclient"),
 	}
 }
 
@@ -126,7 +129,7 @@ func (c *Client) Send(ctx context.Context, req *http.Request, families []*client
 	return withCancel(ctx, c.client, req, func(resp *http.Response) error {
 		defer func() {
 			if _, err := io.Copy(ioutil.Discard, resp.Body); err != nil {
-				log.Printf("error copying body: %v", err)
+				level.Error(c.logger).Log("msg", "error copying body", "err", err)
 			}
 			resp.Body.Close()
 		}()

@@ -1,0 +1,14 @@
+linters:
+  # disable-all: true
+  # enable-all: true
+  disable:
+    - megacheck
+  enable:
+    # megacheck fails to respect build flags, causing compilation failure during linting.
+    # instead, use the unused, gosimple, and staticcheck linters directly
+    - gosimple
+    - staticcheck
+    - unused
+linters-settings:
+  errcheck:
+    exclude: .errcheck_excludes.txt

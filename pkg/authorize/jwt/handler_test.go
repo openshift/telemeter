@@ -13,6 +13,8 @@ import (
 	"net/http/httptest"
 	"net/url"
 
+	"github.com/go-kit/kit/log"
+
 	"github.com/openshift/telemeter/pkg/authorize"
 )
 
@@ -191,7 +193,7 @@ func TestAuthorizeClusterHandler(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			h := NewAuthorizeClusterHandler(partitionKey, 2, tc.signer, labels, tc.clusterAuth)
+			h := NewAuthorizeClusterHandler(log.NewNopLogger(), partitionKey, 2, tc.signer, labels, tc.clusterAuth)
 			rec := httptest.NewRecorder()
 			h.ServeHTTP(rec, tc.req)
 			if err := tc.check(rec); err != nil {

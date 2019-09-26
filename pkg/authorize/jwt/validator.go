@@ -2,9 +2,12 @@ package jwt
 
 import (
 	"errors"
-	"log"
+
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 
 	"github.com/openshift/telemeter/pkg/authorize"
+
 	"gopkg.in/square/go-jose.v2/jwt"
 )
 
@@ -23,14 +26,16 @@ type Validator interface {
 	NewPrivateClaims() interface{}
 }
 
-func NewValidator(audiences []string) Validator {
+func NewValidator(logger log.Logger, audiences []string) Validator {
 	return &validator{
-		auds: audiences,
+		auds:   audiences,
+		logger: log.With(logger, "component", "authorize/jwt"),
 	}
 }
 
 type validator struct {
-	auds []string
+	auds   []string
+	logger log.Logger
 }
 
 var _ = Validator(&validator{})
@@ -38,7 +43,7 @@ var _ = Validator(&validator{})
 func (v *validator) Validate(_ string, public *jwt.Claims, privateObj interface{}) (*authorize.Client, error) {
 	private, ok := privateObj.(*privateClaims)
 	if !ok {
-		log.Printf("jwt validator expected private claim of type *privateClaims but got: %T", privateObj)
+		level.Info(v.logger).Log("msg", "jwt validator expected private claim of type *privateClaims", "got", privateObj)
 		return nil, errors.New("token could not be validated")
 	}
 	err := public.Validate(jwt.Expected{
@@ -49,7 +54,7 @@ func (v *validator) Validate(_ string, public *jwt.Claims, privateObj interface{
 	case err == jwt.ErrExpired:
 		return nil, errors.New("token has expired")
 	default:
-		log.Printf("unexpected validation error: %T", err)
+		level.Info(v.logger).Log("msg", "unexpected validation", "err", err)
 		return nil, errors.New("token could not be validated")
 	}
 

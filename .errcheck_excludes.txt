@@ -1,0 +1,2 @@
+(github.com/go-kit/kit/log.Logger).Log
+(github.com/openshift/telemeter/vendor/github.com/go-kit/kit/log.Logger).Log

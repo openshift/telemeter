@@ -13,7 +13,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
-	"log"
+	stdlog "log"
 	mathrand "math/rand"
 	"net"
 	"net/http"
@@ -29,6 +29,9 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
+
 	"github.com/openshift/telemeter/pkg/authorize"
 	"github.com/openshift/telemeter/pkg/authorize/jwt"
 	"github.com/openshift/telemeter/pkg/authorize/stub"
@@ -36,6 +39,7 @@ import (
 	"github.com/openshift/telemeter/pkg/cluster"
 	telemeter_http "github.com/openshift/telemeter/pkg/http"
 	httpserver "github.com/openshift/telemeter/pkg/http/server"
+	"github.com/openshift/telemeter/pkg/logger"
 	"github.com/openshift/telemeter/pkg/metricfamily"
 	"github.com/openshift/telemeter/pkg/receive"
 	"github.com/openshift/telemeter/pkg/store"
@@ -49,24 +53,24 @@ const desc = `
 Receive federated metric push events
 
 This server acts as a federation gateway by receiving Prometheus metrics data from
-clients, performing local filtering and sanity checking, and then exposing it for 
+clients, performing local filtering and sanity checking, and then exposing it for
 scraping by a local Prometheus server. In order to satisfy the Prometheus federation
 contract, the servers form a cluster with a consistent hash ring and internally
 route requests to a consistent server so that Prometheus always sees the same metrics
 for a given remote client for a given member.
 
 A client that connects to the server must perform an authorization check, providing
-a Bearer token and a cluster identifier (as ?cluster=<id>) against the /authorize 
-endpoint. The authorize endpoint will forward that request to an upstream server that 
+a Bearer token and a cluster identifier (as ?cluster=<id>) against the /authorize
+endpoint. The authorize endpoint will forward that request to an upstream server that
 may approve or reject the request as well as add additional labels that will be added
 to all future metrics from that client. The server will generate a JWT token with a
 short lifetime and pass that back to the client, which is expected to use that token
 when pushing metrics to /upload.
 
-Clients are considered untrusted and so input data is validated, sorted, and 
+Clients are considered untrusted and so input data is validated, sorted, and
 normalized before processing continues.
 
-To form a cluster, a --shared-key, a --listen-cluster address, and an optional existing 
+To form a cluster, a --shared-key, a --listen-cluster address, and an optional existing
 cluster member to --join must be provided. The --name of this server is used to
 identify the server within the cluster - if it changes client data may be sent to
 another cluster member.
@@ -84,9 +88,10 @@ func main() {
 		TTL:                10 * time.Minute,
 	}
 	cmd := &cobra.Command{
-		Short:        "Aggregate federated metrics pushes",
-		Long:         desc,
-		SilenceUsage: true,
+		Short:         "Aggregate federated metrics pushes",
+		Long:          desc,
+		SilenceErrors: true,
+		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return opt.Run()
 		},
@@ -129,7 +134,22 @@ func main() {
 	cmd.Flags().StringVar(&opt.WhitelistFile, "whitelist-file", opt.WhitelistFile, "A file of allowed rules for incoming metrics. If one of these rules is not matched, the metric is dropped; one label key per line.")
 	cmd.Flags().StringArrayVar(&opt.ElideLabels, "elide-label", opt.ElideLabels, "A list of labels to be elided from incoming metrics.")
 
+	cmd.Flags().StringVar(&opt.LogLevel, "log-level", opt.LogLevel, "Log filtering level. e.g info, debug, warn, error")
+
+	l := log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
+	lvl, err := cmd.Flags().GetString("log-level")
+	if err != nil {
+		level.Error(l).Log("msg", "could not parse log-level.")
+	}
+	l = level.NewFilter(l, logger.LogLevelFromString(lvl))
+	l = log.WithPrefix(l, "ts", log.DefaultTimestampUTC)
+	l = log.WithPrefix(l, "caller", log.DefaultCaller)
+	stdlog.SetOutput(log.NewStdlibAdapter(l))
+	opt.Logger = l
+	level.Info(l).Log("msg", "Telemeter server initialized.")
+
 	if err := cmd.Execute(); err != nil {
+		level.Error(l).Log("err", err)
 		os.Exit(1)
 	}
 }
@@ -171,6 +191,9 @@ type Options struct {
 	TTL        time.Duration
 	Ratelimit  time.Duration
 	ForwardURL string
+
+	LogLevel string
+	Logger   log.Logger
 
 	Verbose bool
 }
@@ -228,7 +251,7 @@ func (o *Options) Run() error {
 		}
 
 		if o.Verbose {
-			transport = telemeter_http.NewDebugRoundTripper(transport)
+			transport = telemeter_http.NewDebugRoundTripper(o.Logger, transport)
 		}
 
 		authorizeClient = &http.Client{
@@ -303,7 +326,7 @@ func (o *Options) Run() error {
 			return fmt.Errorf("--shared-key must be specified when specifying a cluster to join")
 		}
 
-		log.Printf("warning: Using a generated shared-key")
+		level.Warn(o.Logger).Log("msg", "Using a generated shared-key")
 
 		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		if err != nil {
@@ -346,7 +369,7 @@ func (o *Options) Run() error {
 	jwtAuthorizer := jwt.NewClientAuthorizer(
 		issuer,
 		[]crypto.PublicKey{publicKey},
-		jwt.NewValidator([]string{audience}),
+		jwt.NewValidator(o.Logger, []string{audience}),
 	)
 	signer := jwt.NewSigner(issuer, privateKey)
 
@@ -365,10 +388,10 @@ func (o *Options) Run() error {
 	// configure the authenticator and incoming data validator
 	var clusterAuth authorize.ClusterAuthorizer = authorize.ClusterAuthorizerFunc(stub.Authorize)
 	if authorizeURL != nil {
-		clusterAuth = tollbooth.NewAuthorizer(authorizeClient, authorizeURL)
+		clusterAuth = tollbooth.NewAuthorizer(o.Logger, authorizeClient, authorizeURL)
 	}
 
-	auth := jwt.NewAuthorizeClusterHandler(o.PartitionKey, o.TokenExpireSeconds, signer, o.RequiredLabels, clusterAuth)
+	auth := jwt.NewAuthorizeClusterHandler(o.Logger, o.PartitionKey, o.TokenExpireSeconds, signer, o.RequiredLabels, clusterAuth)
 	validator := validate.New(o.PartitionKey, o.LimitBytes, 24*time.Hour, time.Now)
 
 	var store store.Store
@@ -383,15 +406,15 @@ func (o *Options) Run() error {
 		if err != nil {
 			return fmt.Errorf("--forward-url must be a valid URL: %v", err)
 		}
-		store = forward.New(u, store)
+		store = forward.New(o.Logger, u, store)
 	}
 
 	// Create a rate-limited store with a memory-store as its backend.
 	store = ratelimited.New(o.Ratelimit, store)
 
 	if len(o.ListenCluster) > 0 {
-		c := cluster.NewDynamic(o.Name, store)
-		ml, err := cluster.NewMemberlist(o.Name, o.ListenCluster, secret, o.Verbose, c)
+		c := cluster.NewDynamic(o.Logger, o.Name, store)
+		ml, err := cluster.NewMemberlist(o.Logger, o.Name, o.ListenCluster, secret, o.Verbose, c)
 		if err != nil {
 			return fmt.Errorf("unable to configure cluster: %v", err)
 		}
@@ -402,7 +425,7 @@ func (o *Options) Run() error {
 			go func() {
 				for {
 					if err := c.Join(o.Members); err != nil {
-						log.Printf("error: Could not join any of %v: %v", o.Members, err)
+						level.Error(o.Logger).Log("msg", "could not join any of members", "members", o.Members, "err", err)
 						time.Sleep(5 * time.Second)
 						continue
 					}
@@ -432,8 +455,8 @@ func (o *Options) Run() error {
 	}
 	transforms.With(metricfamily.NewElide(o.ElideLabels...))
 
-	server := httpserver.New(store, validator, transforms, o.TTL)
-	receiver := receive.NewHandler(o.ForwardURL)
+	server := httpserver.New(o.Logger, store, validator, transforms, o.TTL)
+	receiver := receive.NewHandler(o.Logger, o.ForwardURL)
 
 	internalPathJSON, _ := json.MarshalIndent(Paths{Paths: internalPaths}, "", "  ")
 	externalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/authorize", "/upload", "/healthz", "/healthz/ready", "/metrics/v1/receive"}}, "", "  ")
@@ -445,7 +468,7 @@ func (o *Options) Run() error {
 		if req.URL.Path == "/" && req.Method == "GET" {
 			w.Header().Add("Content-Type", "application/json")
 			if _, err := w.Write(internalPathJSON); err != nil {
-				log.Printf("error writing internal paths: %v", err)
+				level.Error(o.Logger).Log("msg", "could not write internal paths", "err", err)
 			}
 			return
 		}
@@ -459,7 +482,7 @@ func (o *Options) Run() error {
 		if req.URL.Path == "/" && req.Method == "GET" {
 			w.Header().Add("Content-Type", "application/json")
 			if _, err := w.Write(externalPathJSON); err != nil {
-				log.Printf("error writing external paths: %v", err)
+				level.Error(o.Logger).Log("msg", "could not write external paths", "err", err)
 			}
 			return
 		}
@@ -480,13 +503,13 @@ func (o *Options) Run() error {
 	// v1 routes
 	external.Handle("/metrics/v1/receive",
 		telemeter_http.NewInstrumentedHandler("receive",
-			authorize.NewHandler(authorizeClient, authorizeURL, o.TenantKey,
+			authorize.NewHandler(o.Logger, authorizeClient, authorizeURL, o.TenantKey,
 				http.HandlerFunc(receiver.Receive),
 			),
 		),
 	)
 
-	log.Printf("Starting telemeter-server %s on %s (internal=%s, cluster=%s)", o.Name, o.Listen, o.ListenInternal, o.ListenCluster)
+	level.Info(o.Logger).Log("msg", "starting telemeter-server", "name", o.Name, "listen", o.Listen, "interval", o.ListenInternal, "cluster", o.ListenCluster)
 
 	internalListener, err := net.Listen("tcp", o.ListenInternal)
 	if err != nil {
@@ -506,12 +529,12 @@ func (o *Options) Run() error {
 			}
 			if useInternalTLS {
 				if err := s.ServeTLS(internalListener, o.InternalTLSCertificatePath, o.InternalTLSKeyPath); err != nil && err != http.ErrServerClosed {
-					log.Printf("error: internal HTTPS server exited: %v", err)
+					level.Error(o.Logger).Log("msg", "internal HTTPS server exited", "err", err)
 					return err
 				}
 			} else {
 				if err := s.Serve(internalListener); err != nil && err != http.ErrServerClosed {
-					log.Printf("error: internal HTTP server exited: %v", err)
+					level.Error(o.Logger).Log("msg", "internal HTTP server exited", "err", err)
 					return err
 				}
 			}
@@ -529,12 +552,12 @@ func (o *Options) Run() error {
 			}
 			if useTLS {
 				if err := s.ServeTLS(externalListener, o.TLSCertificatePath, o.TLSKeyPath); err != nil && err != http.ErrServerClosed {
-					log.Printf("error: external HTTPS server exited: %v", err)
+					level.Error(o.Logger).Log("msg", "external HTTPS server exited", "err", err)
 					return err
 				}
 			} else {
 				if err := s.Serve(externalListener); err != nil && err != http.ErrServerClosed {
-					log.Printf("error: external HTTP server exited: %v", err)
+					level.Error(o.Logger).Log("msg", "external HTTP server exited", "err", err)
 					return err
 				}
 			}
