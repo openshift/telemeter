@@ -1,7 +1,6 @@
 package tollbooth
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -46,7 +45,7 @@ func (a *authorizer) AuthorizeCluster(token, cluster string) (string, error) {
 		return "", err
 	}
 
-	body, err := authorize.AgainstEndpoint(a.client, a.to, bytes.NewReader(data), cluster, func(res *http.Response) error {
+	body, err := authorize.AgainstEndpoint(a.client, a.to, data, cluster, func(res *http.Response) error {
 		contentType := res.Header.Get("Content-Type")
 		mediaType, _, err := mime.ParseMediaType(contentType)
 		if err != nil || mediaType != "application/json" {
