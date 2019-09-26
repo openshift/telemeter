@@ -1,7 +1,9 @@
 package authorize
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -58,8 +60,8 @@ func (e errorWithCode) HTTPStatusCode() int {
 
 const requestBodyLimit = 32 * 1024 // 32MiB
 
-func AgainstEndpoint(client *http.Client, endpoint *url.URL, buf io.Reader, cluster string, validate func(*http.Response) error) ([]byte, error) {
-	req, err := http.NewRequest("POST", endpoint.String(), buf)
+func AgainstEndpoint(client *http.Client, endpoint *url.URL, token []byte, cluster string, validate func(*http.Response) error) ([]byte, error) {
+	req, err := http.NewRequest("POST", endpoint.String(), bytes.NewReader(token))
 	if err != nil {
 		return nil, err
 	}
@@ -125,16 +127,21 @@ func NewHandler(client *http.Client, endpoint *url.URL, tenantKey string, next h
 			return
 		}
 
+		token, err := base64.StdEncoding.DecodeString(authParts[1])
+		if err != nil {
+			http.Error(w, "bad authorization header", http.StatusBadRequest)
+			return
+		}
 		var tenant string
 		if tenantKey != "" {
-			token := make(map[string]string)
-			if err := json.Unmarshal([]byte(authParts[1]), &token); err != nil {
+			fields := make(map[string]string)
+			if err := json.Unmarshal(token, &fields); err != nil {
 				log.Printf("failed to read token: %v", err)
 				return
 			}
-			tenant = token[tenantKey]
+			tenant = fields[tenantKey]
 		}
-		if _, err := AgainstEndpoint(client, endpoint, strings.NewReader(authParts[1]), tenant, nil); err != nil {
+		if _, err := AgainstEndpoint(client, endpoint, token, tenant, nil); err != nil {
 			log.Printf("unauthorized request made: %v", err)
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
