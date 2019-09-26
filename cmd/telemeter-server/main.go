@@ -478,7 +478,7 @@ func (o *Options) Run() error {
 	)
 
 	// v1 routes
-	external.Handle("/metris/v1/receive",
+	external.Handle("/metrics/v1/receive",
 		telemeter_http.NewInstrumentedHandler("receive",
 			authorize.NewHandler(authorizeClient, authorizeURL, o.TenantKey,
 				http.HandlerFunc(receiver.Receive),
