@@ -78,7 +78,7 @@ func main() {
 	}
 	l = level.NewFilter(l, logger.LogLevelFromString(lvl))
 	l = log.WithPrefix(l, "ts", log.DefaultTimestampUTC)
-	l = log.WithPrefix(l, "caller", log.Caller(3))
+	l = log.WithPrefix(l, "caller", log.DefaultCaller)
 	stdlog.SetOutput(log.NewStdlibAdapter(l))
 	opt.Logger = l
 

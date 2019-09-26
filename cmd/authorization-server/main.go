@@ -39,7 +39,7 @@ func main() {
 
 	l := log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
 	l = log.WithPrefix(l, "ts", log.DefaultTimestampUTC)
-	l = log.WithPrefix(l, "caller", log.Caller(3))
+	l = log.WithPrefix(l, "caller", log.DefaultCaller)
 	level.Info(l).Log("msg", "telemeter authorization-server initialized")
 
 	s := tollbooth.NewMock(l, tokenSet)
