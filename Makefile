@@ -1,5 +1,6 @@
 .PHONY: all build image check test-generate test-integration test-benchmark vendor dependencies manifests
 
+SHELL=/bin/bash
 BIN=bin
 GOLANGCI_LINT_BIN=$(BIN)/golangci-lint
 EMBEDMD_BIN=$(GOPATH)/bin/embedmd
@@ -38,7 +39,7 @@ docs/telemeter_query: $(JSONNET_SRC)
 	echo "$$query" > $@
 
 test-generate:
-	make --always-make && git diff --exit-code
+	make manifests && git diff --exit-code
 
 lint: $(GOLANGCI_LINT_BIN)
 	# megacheck fails to respect build flags, causing compilation failure during linting.
