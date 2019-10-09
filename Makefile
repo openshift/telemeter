@@ -39,7 +39,7 @@ docs/telemeter_query: $(JSONNET_SRC)
 	echo "$$query" > $@
 
 test-generate:
-	make manifests && git diff --exit-code
+	make manifests --always-make && git diff --exit-code
 
 lint: $(GOLANGCI_LINT_BIN)
 	# megacheck fails to respect build flags, causing compilation failure during linting.
@@ -89,17 +89,16 @@ $(JSONNET_VENDOR): jsonnet/jsonnetfile.json $(JB_BIN)
 dependencies: $(JB_BIN) $(JSONNET_BIN) $(GOLANGCI_LINT_BIN)
 
 $(JB_BIN):
-	go get -u github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb
+	GO111MODULE=off go get -u github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb
 
 $(JSONNET_BIN):
-	go get -u -d github.com/google/go-jsonnet/cmd/jsonnet
-	cd $(GOPATH)/src/github.com/google/go-jsonnet && git checkout v0.12.1 && git submodule update && go install -a ./jsonnet
+	GO111MODULE=off go get -u -d github.com/google/go-jsonnet/cmd/jsonnet
 
 $(GOLANGCI_LINT_BIN):
 	curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $(BIN) v1.10.2
 
 $(EMBEDMD_BIN):
-	go get -u github.com/campoy/embedmd
+	GO111MODULE=off go get -u github.com/campoy/embedmd
 
 $(GOJSONTOYAML_BIN):
-	go get -u github.com/brancz/gojsontoyaml
+	GO111MODULE=off go get -u github.com/brancz/gojsontoyaml
