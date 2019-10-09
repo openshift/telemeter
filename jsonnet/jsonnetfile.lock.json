@@ -3,12 +3,11 @@
         {
             "name": "telemeter",
             "source": {
-                "git": {
-                    "remote": "../",
-                    "subdir": "jsonnet/telemeter"
+                "local": {
+                    "directory": "telemeter"
                 }
             },
-            "version": "4bedbe3c0860f770dcbe5ecfe5d9772d9541ca33"
+            "version": ""
         },
         {
             "name": "ksonnet",
