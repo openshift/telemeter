@@ -131,32 +131,6 @@ objects:
     namespace: ${NAMESPACE}
   type: Opaque
 - apiVersion: rbac.authorization.k8s.io/v1
-  kind: RoleBinding
-  metadata:
-    name: prometheus-telemeter-config
-    namespace: ${NAMESPACE}
-  roleRef:
-    apiGroup: rbac.authorization.k8s.io
-    kind: Role
-    name: prometheus-telemeter-config
-  subjects:
-  - kind: ServiceAccount
-    name: prometheus-telemeter
-    namespace: ${NAMESPACE}
-- apiVersion: rbac.authorization.k8s.io/v1
-  kind: RoleBinding
-  metadata:
-    name: prometheus-telemeter
-    namespace: ${NAMESPACE}
-  roleRef:
-    apiGroup: rbac.authorization.k8s.io
-    kind: Role
-    name: prometheus-telemeter
-  subjects:
-  - kind: ServiceAccount
-    name: prometheus-telemeter
-    namespace: ${NAMESPACE}
-- apiVersion: rbac.authorization.k8s.io/v1
   kind: Role
   metadata:
     name: prometheus-telemeter-config
@@ -184,6 +158,32 @@ objects:
     - get
     - list
     - watch
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: RoleBinding
+  metadata:
+    name: prometheus-telemeter-config
+    namespace: ${NAMESPACE}
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: Role
+    name: prometheus-telemeter-config
+  subjects:
+  - kind: ServiceAccount
+    name: prometheus-telemeter
+    namespace: ${NAMESPACE}
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: RoleBinding
+  metadata:
+    name: prometheus-telemeter
+    namespace: ${NAMESPACE}
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: Role
+    name: prometheus-telemeter
+  subjects:
+  - kind: ServiceAccount
+    name: prometheus-telemeter
+    namespace: ${NAMESPACE}
 - apiVersion: monitoring.coreos.com/v1
   kind: PrometheusRule
   metadata:
