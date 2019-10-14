@@ -3,12 +3,11 @@
         {
             "name": "telemeter",
             "source": {
-                "git": {
-                    "remote": "../",
-                    "subdir": "jsonnet/telemeter"
+                "local": {
+                    "directory": "telemeter"
                 }
             },
-            "version": "e580d1f71da91e809c0f52dc6272536cf08605a9"
+            "version": ""
         },
         {
             "name": "ksonnet",
@@ -18,7 +17,7 @@
                     "subdir": ""
                 }
             },
-            "version": "d03da231d6c8bd74437b74a1e9e8b966f13dffa2"
+            "version": "0d2f82676817bbf9e4acf6495b2090205f323b9f"
         },
         {
             "name": "prometheus-operator",
@@ -28,7 +27,7 @@
                     "subdir": "jsonnet/prometheus-operator"
                 }
             },
-            "version": "bd5feacc528f0bcb69fb9167dacb2700eb75d322"
+            "version": "18fbf558ab7f8809fd610a3dc50bf483508dc1bb"
         }
     ]
 }
