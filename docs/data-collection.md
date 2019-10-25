@@ -99,6 +99,9 @@ For the OpenShift 4 Developer Preview we will be sending back these exact attrib
   // cluster:node_instance_type_count:sum is the number of nodes
   // of each instance type and role.
   '{__name__="cluster:node_instance_type_count:sum"}',
+  // node_role_os_version_machine:cpu_capacity_cores:sum is the total number of CPU cores
+  // in the cluster labeled by master and/or infra node role, os, and architecture.
+  '{__name__="node_role_os_version_machine:cpu_capacity_cores:sum"}',
   // subscription_sync_total is the number of times an OLM operator
   // Subscription has been synced, labelled by name and installed csv
   '{__name__="subscription_sync_total"}',
