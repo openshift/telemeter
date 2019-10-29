@@ -92,8 +92,11 @@ For the OpenShift 4 Developer Preview we will be sending back these exact attrib
   // cnv:vmi_status_running:count is the total number of VM instances running in the cluster.
   '{__name__="cnv:vmi_status_running:count"}',
   // node_role_os_version_machine:cpu_capacity_cores:sum is the total number of CPU cores
-  // in the cluster labeled by master and/or infra node role, os, and architecture.
+  // in the cluster labeled by master and/or infra node role, os, architecture, and hyperthreading state.
   '{__name__="node_role_os_version_machine:cpu_capacity_cores:sum"}',
+  // node_role_os_version_machine:cpu_capacity_sockets:sum is the total number of CPU sockets
+  // in the cluster labeled by master and/or infra node role, os, architecture, and hyperthreading state.
+  '{__name__="node_role_os_version_machine:cpu_capacity_sockets:sum"}',
   // subscription_sync_total is the number of times an OLM operator
   // Subscription has been synced, labelled by name and installed csv
   '{__name__="subscription_sync_total"}',
