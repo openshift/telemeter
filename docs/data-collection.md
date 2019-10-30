@@ -100,6 +100,9 @@ For the OpenShift 4 Developer Preview we will be sending back these exact attrib
   // subscription_sync_total is the number of times an OLM operator
   // Subscription has been synced, labelled by name and installed csv
   '{__name__="subscription_sync_total"}',
+   // mcd_host_os_and_version is the OS of the node that the MCD is running on for ex: RHCOS, CentOS,
+   // unsupported.  If the OS is RHCOS, the RHCOS version is also returned
+  '{__name__="mcd_host_os_and_version"}',
   //
   // OCS metrics to be collected:
   // ceph_cluster_total_bytes gives the size of ceph cluster in bytes.
