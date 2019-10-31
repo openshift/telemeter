@@ -34,7 +34,6 @@ spec:
         - --whitelist={__name__="cluster_installer"}
         - --whitelist={__name__="cluster_infrastructure_provider"}
         - --whitelist={__name__="cluster_feature_set"}
-        - --whitelist={__name__="cluster_control_plane_architecture"}
         - --whitelist={__name__="node_uname_info"}
         - --whitelist={__name__="instance:etcd_object_counts:sum"}
         - --whitelist={__name__="alerts",alertstate="firing"}
