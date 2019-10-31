@@ -42,6 +42,9 @@ For the OpenShift 4 Developer Preview we will be sending back these exact attrib
   // cluster_feature_set reports the configured cluster feature set and
   // whether the feature set is considered supported or unsupported.
   '{__name__="cluster_feature_set"}',
+  // cluster_control_plane_architecture reports the instruction set
+  // architecture used by the control plane nodes.
+  '{__name__="cluster_control_plane_architecture"}',
   // node_uname_info reports information about OS gathered from the uname syscall
   '{__name__="node_uname_info"}',
   // instance:etcd_object_counts:sum identifies two key metrics:
