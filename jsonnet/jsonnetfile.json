@@ -1,13 +1,13 @@
 {
-    "dependencies": [
-        {
-            "name": "telemeter",
-            "source": {
-                "local": {
-                    "directory": "telemeter"
-                }
-            },
-            "version": ""
+  "dependencies": [
+    {
+      "name": "telemeter",
+      "source": {
+        "local": {
+          "directory": "telemeter"
         }
-    ]
+      },
+      "version": ""
+    }
+  ]
 }
