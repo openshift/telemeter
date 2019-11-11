@@ -97,7 +97,13 @@
   // subscription_sync_total is the number of times an OLM operator
   // Subscription has been synced, labelled by name and installed csv
   '{__name__="subscription_sync_total"}',
-  //
+  // csv_succeeded is unique to the namespace, name, version, and phase labels.
+  // The metrics is always present and can be equal to 0 or 1, where 0 represents that the
+  // csv is not in the succeeded state while 1 represents that the csv is in the succeeded state.
+  '{__name__="csv_succeeded"}',
+  // csv_abnormal represents the reason why a csv is not in the succeeded state and includes the
+  // namespace, name, version, phase, reason labels. When a csv is updated, the previous time series associated with the csv will be deleted.
+  '{__name__="csv_abnormal"}',
   // OCS metrics to be collected:
   // ceph_cluster_total_bytes gives the size of ceph cluster in bytes.
   '{__name__="ceph_cluster_total_bytes"}',
