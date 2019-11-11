@@ -105,6 +105,51 @@ For the OpenShift 4 Developer Preview we will be sending back these exact attrib
   // subscription_sync_total is the number of times an OLM operator
   // Subscription has been synced, labelled by name and installed csv
   '{__name__="subscription_sync_total"}',
+  // app_registry:community_operators:1xx_response is the number of requests that a Marketplace operator
+  // has made against the community-operators AppRegistry that returned a 1xx HTTP Status code.
+  '{__name__="app_registry:community_operators:1xx_response"}',
+  // app_registry:community_operators:2xx_response is the number of requests that a Marketplace operator
+  // has made against the community-operators AppRegistry that returned a 2xx HTTP Status code.
+  '{__name__="app_registry:community_operators:2xx_response"}',
+   // app_registry:community_operators:3xx_response is the number of requests that a Marketplace operator
+  // has made against the community-operators AppRegistry that returned a 3xx HTTP Status code.
+  '{__name__="app_registry:community_operators:3xx_response"}',
+   // app_registry:community_operators:4xx_response is the number of requests that a Marketplace operator
+  // has made against the community-operators AppRegistry that returned a 4xx HTTP Status code.
+  '{__name__="app_registry:community_operators:4xx_response"}',
+  // app_registry:community_operators:5xx_response is the number of requests that a Marketplace operator
+  // has made against the community-operators AppRegistry that returned a 5xx HTTP Status code.
+  '{__name__="app_registry:community_operators:5xx_response"}',
+  // app_registry:certified_operators:1xx_response is the number of requests that a Marketplace operator
+  // has made against the certified-operators AppRegistry that returned a 1xx HTTP Status code.
+  '{__name__="app_registry:certified_operators:1xx_response"}',
+  // app_registry:certified_operators:2xx_response is the number of requests that a Marketplace operator
+  // has made against the certified-operators AppRegistry that returned a 2xx HTTP Status code.
+  '{__name__="app_registry:certified_operators:2xx_response"}',
+   // app_registry:certified_operators:3xx_response is the number of requests that a Marketplace operator
+  // has made against the certified-operators AppRegistry that returned a 3xx HTTP Status code.
+  '{__name__="app_registry:certified_operators:3xx_response"}',
+   // app_registry:certified_operators:4xx_response is the number of requests that a Marketplace operator
+  // has made against the certified-operators AppRegistry that returned a 4xx HTTP Status code.
+  '{__name__="app_registry:certified_operators:4xx_response"}',
+  // app_registry:certified_operators:5xx_response is the number of requests that a Marketplace operator
+  // has made against the certified-operators AppRegistry that returned a 5xx HTTP Status code.
+  '{__name__="app_registry:redhat_operators:5xx_response"}',
+  // app_registry:redhat_operators:1xx_response is the number of requests that a Marketplace operator
+  // has made against the redhat-operators AppRegistry that returned a 1xx HTTP Status code.
+  '{__name__="app_registry:redhat_operators:1xx_response"}',
+  // app_registry:redhat_operators:2xx_response is the number of requests that a Marketplace operator
+  // has made against the redhat-operators AppRegistry that returned a 2xx HTTP Status code.
+  '{__name__="app_registry:redhat_operators:2xx_response"}',
+   // app_registry:redhat_operators:3xx_response is the number of requests that a Marketplace operator
+  // has made against the redhat-operators AppRegistry that returned a 3xx HTTP Status code.
+  '{__name__="app_registry:redhat_operators:3xx_response"}',
+   // app_registry:redhat_operators:4xx_response is the number of requests that a Marketplace operator
+  // has made against the redhat-operators AppRegistry that returned a 4xx HTTP Status code.
+  '{__name__="app_registry:redhat_operators:4xx_response"}',
+  // app_registry:redhat_operators:5xx_response is the number of requests that a Marketplace operator
+  // has made against the redhat-operators AppRegistry that returned a 5xx HTTP Status code.
+  '{__name__="app_registry:redhat_operators:5xx_response"}',
   //
   // OCS metrics to be collected:
   // ceph_cluster_total_bytes gives the size of ceph cluster in bytes.

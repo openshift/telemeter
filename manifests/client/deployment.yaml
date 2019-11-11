@@ -54,6 +54,21 @@ spec:
         - --match={__name__="node_role_os_version_machine:cpu_capacity_cores:sum"}
         - --match={__name__="node_role_os_version_machine:cpu_capacity_sockets:sum"}
         - --match={__name__="subscription_sync_total"}
+        - --match={__name__="app_registry:community_operators:1xx_response"}
+        - --match={__name__="app_registry:community_operators:2xx_response"}
+        - --match={__name__="app_registry:community_operators:3xx_response"}
+        - --match={__name__="app_registry:community_operators:4xx_response"}
+        - --match={__name__="app_registry:community_operators:5xx_response"}
+        - --match={__name__="app_registry:certified_operators:1xx_response"}
+        - --match={__name__="app_registry:certified_operators:2xx_response"}
+        - --match={__name__="app_registry:certified_operators:3xx_response"}
+        - --match={__name__="app_registry:certified_operators:4xx_response"}
+        - --match={__name__="app_registry:redhat_operators:5xx_response"}
+        - --match={__name__="app_registry:redhat_operators:1xx_response"}
+        - --match={__name__="app_registry:redhat_operators:2xx_response"}
+        - --match={__name__="app_registry:redhat_operators:3xx_response"}
+        - --match={__name__="app_registry:redhat_operators:4xx_response"}
+        - --match={__name__="app_registry:redhat_operators:5xx_response"}
         - --match={__name__="ceph_cluster_total_bytes"}
         - --match={__name__="ceph_cluster_total_used_raw_bytes"}
         - --match={__name__="ceph_health_status"}
