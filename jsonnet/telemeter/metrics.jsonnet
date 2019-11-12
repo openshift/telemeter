@@ -78,6 +78,11 @@
   // workload:memory_usage_bytes:sum is the current amount of memory
   // used by cluster workloads, excluding infrastructure.
   '{__name__="workload:memory_usage_bytes:sum"}',
+  // cluster:virt_platform_nodes:sum is the number of nodes reporting
+  // a particular virt_platform type (nodes may report multiple types).
+  // This metric helps identify issues specific to a virtualization
+  // type or bare metal.
+  '{__name__="cluster:virt_platform_nodes:sum"}',
   // cluster:node_instance_type_count:sum is the number of nodes
   // of each instance type and role.
   '{__name__="cluster:node_instance_type_count:sum"}',
