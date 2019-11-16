@@ -1,14 +1,13 @@
 {
     "dependencies": [
-        {
-            "name": "telemeter",
-            "source": {
-                "git": {
-                    "remote": "../",
-                    "subdir": "jsonnet/telemeter"
-                }
-            },
-            "version": "."
-        }
+      {
+        "name": "telemeter",
+        "source": {
+          "local": {
+            "directory": "telemeter"
+          }
+        },
+        "version": ""
+      }
     ]
-}
+  }
