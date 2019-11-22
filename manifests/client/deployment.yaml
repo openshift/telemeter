@@ -72,6 +72,7 @@ spec:
         - --match={__name__="console_url"}
         - --match={__name__="cluster:network_attachment_definition_instances:max"}
         - --match={__name__="cluster:network_attachment_definition_enabled_instance_up:max"}
+        - --match={__name__="insightsclient_request_send_total"}
         env:
         - name: ANONYMIZE_LABELS
           value: ""
