@@ -25,6 +25,7 @@ spec:
         - --listen-cluster=0.0.0.0:8082
         - --shared-key=/etc/pki/service/tls.key
         - --authorize=http://localhost:8083
+        - --whitelist={__name__=~"cluster:usage:.*"}
         - --whitelist={__name__="up"}
         - --whitelist={__name__="cluster_version"}
         - --whitelist={__name__="cluster_version_available_updates"}

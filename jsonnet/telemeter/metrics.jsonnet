@@ -1,4 +1,14 @@
 [
+  // cluster:usage recording rules summarize important usage information
+  // about the cluster that points to specific features or component usage
+  // that may help identify problems or specific workloads. For example,
+  // cluster:usage:openshift:build:rate24h would show the number of builds
+  // executed within a 24h period so as to determine whether the current
+  // cluster is using builds and may be susceptible to eviction due to high
+  // disk usage from build temporary directories.
+  // All metrics under this prefix must have low (1-5) cardinality and must
+  // be well-scoped and follow proper naming and scoping conventions.
+  '{__name__=~"cluster:usage:.*"}',
   // up contains information relevant to the health of the registered
   // cluster monitoring sources on a cluster. This metric allows telemetry
   // to identify when an update causes a service to begin to crash-loop or
