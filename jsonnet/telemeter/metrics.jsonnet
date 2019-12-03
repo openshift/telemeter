@@ -139,4 +139,6 @@
   // cluster:network_attachment_definition_enabled_instance_up  informs (1 or 0) if the cluster has 
   //at least max of one instance with  k8s.v1.cni.cncf.io/networks annotation, labelled by networks (any or sriov).
   '{__name__="cluster:network_attachment_definition_enabled_instance_up:max"}',
+  // insightsclient_request_send tracks the number of metrics sends.
+  '{__name__="insightsclient_request_send_total"}',
 ]
