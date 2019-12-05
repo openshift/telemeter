@@ -39,7 +39,7 @@ var expectedTimeSeries = []prompb.TimeSeries{
 			{Name: "job", Value: "test"},
 			{Name: "label", Value: "value0"},
 		},
-		Samples: []prompb.Sample{{Timestamp: 1562500000000, Value: 1}},
+		Samples: []prompb.Sample{{Value: 1}},
 	},
 	{
 		Labels: []prompb.Label{
@@ -48,7 +48,7 @@ var expectedTimeSeries = []prompb.TimeSeries{
 			{Name: "job", Value: "test"},
 			{Name: "label", Value: "value1"},
 		},
-		Samples: []prompb.Sample{{Timestamp: 1562600000000, Value: 1}},
+		Samples: []prompb.Sample{{Value: 1}},
 	},
 	{
 		Labels: []prompb.Label{
@@ -57,7 +57,7 @@ var expectedTimeSeries = []prompb.TimeSeries{
 			{Name: "job", Value: "test"},
 			{Name: "label", Value: "value2"},
 		},
-		Samples: []prompb.Sample{{Timestamp: 1562700000000, Value: 0}},
+		Samples: []prompb.Sample{{Value: 0}},
 	},
 }
 
@@ -181,9 +181,6 @@ func mockedReceiver(t *testing.T) http.HandlerFunc {
 			}
 			for j, s := range ts.Samples {
 				ws := wreq.Timeseries[i].Samples[j]
-				if s.Timestamp != ws.Timestamp {
-					t.Errorf("expected timestamp for sample %d, got %d", s.Timestamp, ws.Timestamp)
-				}
 				if s.Value != ws.Value {
 					t.Errorf("expected value for sample %2.f, got %2.f", s.Value, ws.Value)
 				}
