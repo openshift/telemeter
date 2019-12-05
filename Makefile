@@ -5,7 +5,7 @@ GO_PKG=github.com/openshift/telemeter
 REPO?=quay.io/openshift/telemeter
 TAG?=$(shell git rev-parse --short HEAD)
 
-PKGS=$(shell go list ./... | grep -v -E '/vendor/|/test')
+PKGS=$(shell go list ./... | grep -v -E '/vendor/|/test/(?!e2e)')
 GOLANG_FILES:=$(shell find . -name \*.go -print)
 FIRST_GOPATH:=$(firstword $(subst :, ,$(shell go env GOPATH)))
 GOLANGCI_LINT_BIN=$(FIRST_GOPATH)/bin/golangci-lint
