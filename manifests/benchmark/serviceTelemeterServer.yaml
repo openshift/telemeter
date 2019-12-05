@@ -16,8 +16,5 @@ spec:
   - name: internal
     port: 8081
     targetPort: internal
-  - name: cluster
-    port: 8082
-    targetPort: cluster
   selector:
     k8s-app: telemeter-server

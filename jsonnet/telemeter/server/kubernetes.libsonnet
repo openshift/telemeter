@@ -6,7 +6,6 @@ local tlsVolumeName = 'telemeter-server-tls';
 local tlsMountPath = '/etc/pki/service';
 local externalPort = 8443;
 local internalPort = 8081;
-local clusterPort = 8082;
 
 {
   _config+:: {
@@ -78,11 +77,8 @@ local clusterPort = 8082;
         container.new('telemeter-server', $._config.imageRepos.telemeterServer + ':' + $._config.versions.telemeterServer) +
         container.withCommand([
           '/usr/bin/telemeter-server',
-          '--join=telemeter-server',
-          '--name=$(NAME)',
           '--listen=0.0.0.0:8443',
           '--listen-internal=0.0.0.0:8081',
-          '--listen-cluster=0.0.0.0:8082',
           '--shared-key=%s/tls.key' % tlsMountPath,
           '--tls-key=%s/tls.key' % tlsMountPath,
           '--tls-crt=%s/tls.crt' % tlsMountPath,
@@ -96,12 +92,11 @@ local clusterPort = 8082;
         container.withPorts([
           containerPort.newNamed('external', externalPort),
           containerPort.newNamed('internal', internalPort),
-          containerPort.newNamed('cluster', clusterPort),
         ]) +
         container.mixin.resources.withLimitsMixin($._config.telemeterServer.resourceLimits) +
         container.mixin.resources.withRequestsMixin($._config.telemeterServer.resourceRequests) +
         container.withVolumeMounts([tlsMount]) +
-        container.withEnv([name, oidcIssuer, clientSecret, clientID]) + {
+        container.withEnv([oidcIssuer, clientSecret, clientID]) + {
           livenessProbe: {
             httpGet: {
               path: '/healthz',
@@ -150,9 +145,8 @@ local clusterPort = 8082;
 
       local servicePortExternal = servicePort.newNamed('external', externalPort, 'external');
       local servicePortInternal = servicePort.newNamed('internal', internalPort, 'internal');
-      local servicePortCluster = servicePort.newNamed('cluster', clusterPort, 'cluster');
 
-      service.new('telemeter-server', $.telemeterServer.statefulSet.spec.selector.matchLabels, [servicePortExternal, servicePortInternal, servicePortCluster]) +
+      service.new('telemeter-server', $.telemeterServer.statefulSet.spec.selector.matchLabels, [servicePortExternal, servicePortInternal]) +
       service.mixin.metadata.withNamespace($._config.namespace) +
       service.mixin.metadata.withLabels({ 'k8s-app': 'telemeter-server' }) +
       service.mixin.spec.withClusterIp('None') +

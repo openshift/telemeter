@@ -18,11 +18,8 @@ spec:
       containers:
       - command:
         - /usr/bin/telemeter-server
-        - --join=telemeter-server
-        - --name=$(NAME)
         - --listen=0.0.0.0:8080
         - --listen-internal=0.0.0.0:8081
-        - --listen-cluster=0.0.0.0:8082
         - --shared-key=/etc/pki/service/tls.key
         - --authorize=http://localhost:8083
         - --forward-url=http://benchmark-thanos-receive-default.telemeter-benchmark.svc:19291/api/v1/receive
@@ -93,8 +90,6 @@ spec:
           name: external
         - containerPort: 8081
           name: internal
-        - containerPort: 8082
-          name: cluster
         readinessProbe:
           httpGet:
             path: /healthz/ready
