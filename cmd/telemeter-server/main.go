@@ -7,19 +7,16 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha256"
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	stdlog "log"
-	mathrand "math/rand"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -39,7 +36,6 @@ import (
 	"github.com/openshift/telemeter/pkg/authorize/tollbooth"
 	"github.com/openshift/telemeter/pkg/cache"
 	"github.com/openshift/telemeter/pkg/cache/memcached"
-	"github.com/openshift/telemeter/pkg/cluster"
 	telemeter_http "github.com/openshift/telemeter/pkg/http"
 	httpserver "github.com/openshift/telemeter/pkg/http/server"
 	"github.com/openshift/telemeter/pkg/logger"
@@ -47,7 +43,6 @@ import (
 	"github.com/openshift/telemeter/pkg/receive"
 	"github.com/openshift/telemeter/pkg/store"
 	"github.com/openshift/telemeter/pkg/store/forward"
-	"github.com/openshift/telemeter/pkg/store/memstore"
 	"github.com/openshift/telemeter/pkg/store/ratelimited"
 	"github.com/openshift/telemeter/pkg/validate"
 )
@@ -55,28 +50,28 @@ import (
 const desc = `
 Receive federated metric push events
 
-This server acts as a federation gateway by receiving Prometheus metrics data from
-clients, performing local filtering and sanity checking, and then exposing it for
-scraping by a local Prometheus server. In order to satisfy the Prometheus federation
-contract, the servers form a cluster with a consistent hash ring and internally
-route requests to a consistent server so that Prometheus always sees the same metrics
-for a given remote client for a given member.
+This server acts as an auth proxy for ingesting Prometheus metrics.
+The original API implements its own protocol for receiving metrics.
+The new API receives metrics via the Prometheus remote write API.
+This server authenticates requests, performs local filtering and sanity
+checking and then forwards the requests via remote write to another endpoint.
 
 A client that connects to the server must perform an authorization check, providing
-a Bearer token and a cluster identifier (as ?cluster=<id>) against the /authorize
-endpoint. The authorize endpoint will forward that request to an upstream server that
+a token and a cluster identifier.
+The original API expects a bearer token in the Authorization header and a cluster ID
+as a query parameter when making a request against the /authorize endpoint.
+The authorize endpoint will forward that request to an upstream server that
 may approve or reject the request as well as add additional labels that will be added
 to all future metrics from that client. The server will generate a JWT token with a
 short lifetime and pass that back to the client, which is expected to use that token
 when pushing metrics to /upload.
 
+The new API expects a bearer token in the Authorization header when making requests
+against the /metrics/v1/receive endpoints. This token should consist of a
+base64-encoded JSON object containing "authorization_token" and "cluster_id" fields.
+
 Clients are considered untrusted and so input data is validated, sorted, and
 normalized before processing continues.
-
-To form a cluster, a --shared-key, a --listen-cluster address, and an optional existing
-cluster member to --join must be provided. The --name of this server is used to
-identify the server within the cluster - if it changes client data may be sent to
-another cluster member.
 `
 
 func main() {
@@ -88,7 +83,6 @@ func main() {
 		TokenExpireSeconds: 24 * 60 * 60,
 		PartitionKey:       "_id",
 		Ratelimit:          4*time.Minute + 30*time.Second,
-		TTL:                10 * time.Minute,
 		MemcachedExpire:    24 * 60 * 60,
 		MemcachedInterval:  10,
 	}
@@ -104,7 +98,6 @@ func main() {
 
 	cmd.Flags().StringVar(&opt.Listen, "listen", opt.Listen, "A host:port to listen on for upload traffic.")
 	cmd.Flags().StringVar(&opt.ListenInternal, "listen-internal", opt.ListenInternal, "A host:port to listen on for health and metrics.")
-	cmd.Flags().StringVar(&opt.ListenCluster, "listen-cluster", opt.ListenCluster, "A host:port for cluster gossip.")
 
 	cmd.Flags().StringVar(&opt.TLSKeyPath, "tls-key", opt.TLSKeyPath, "Path to a private key to serve TLS for external traffic.")
 	cmd.Flags().StringVar(&opt.TLSCertificatePath, "tls-crt", opt.TLSCertificatePath, "Path to a certificate to serve TLS for external traffic.")
@@ -115,10 +108,7 @@ func main() {
 	cmd.Flags().StringSliceVar(&opt.LabelFlag, "label", opt.LabelFlag, "Labels to add to each outgoing metric, in key=value form.")
 	cmd.Flags().StringVar(&opt.PartitionKey, "partition-label", opt.PartitionKey, "The label to separate incoming data on. This label will be required for callers to include.")
 
-	cmd.Flags().StringSliceVar(&opt.Members, "join", opt.Members, "One or more host:ports to contact to find other peers.")
-	cmd.Flags().StringVar(&opt.Name, "name", opt.Name, "The name to identify this node in the cluster. If not specified will be the hostname and a random suffix.")
-
-	cmd.Flags().StringVar(&opt.SharedKey, "shared-key", opt.SharedKey, "The path to a private key file that will be used to sign authentication requests and secure the cluster protocol.")
+	cmd.Flags().StringVar(&opt.SharedKey, "shared-key", opt.SharedKey, "The path to a private key file that will be used to sign authentication requests.")
 	cmd.Flags().Int64Var(&opt.TokenExpireSeconds, "token-expire-seconds", opt.TokenExpireSeconds, "The expiration of auth tokens in seconds.")
 
 	cmd.Flags().StringVar(&opt.AuthorizeEndpoint, "authorize", opt.AuthorizeEndpoint, "A URL against which to authorize client requests.")
@@ -132,7 +122,6 @@ func main() {
 	cmd.Flags().Int32Var(&opt.MemcachedInterval, "memcached-interval", opt.MemcachedInterval, "The interval at which to update the Memcached DNS, given in seconds; use 0 to disable.")
 
 	cmd.Flags().DurationVar(&opt.Ratelimit, "ratelimit", opt.Ratelimit, "The rate limit of metric uploads per cluster ID. Uploads happening more often than this limit will be rejected.")
-	cmd.Flags().DurationVar(&opt.TTL, "ttl", opt.TTL, "The TTL for metrics to be held in memory.")
 	cmd.Flags().StringVar(&opt.ForwardURL, "forward-url", opt.ForwardURL, "All written metrics will be written to this URL additionally")
 
 	cmd.Flags().BoolVarP(&opt.Verbose, "verbose", "v", opt.Verbose, "Show verbose output.")
@@ -166,7 +155,6 @@ func main() {
 type Options struct {
 	Listen         string
 	ListenInternal string
-	ListenCluster  string
 
 	TLSKeyPath         string
 	TLSCertificatePath string
@@ -174,9 +162,6 @@ type Options struct {
 	InternalTLSKeyPath         string
 	InternalTLSCertificatePath string
 
-	Members []string
-
-	Name               string
 	SharedKey          string
 	TokenExpireSeconds int64
 
@@ -200,7 +185,6 @@ type Options struct {
 	ElideLabels       []string
 	WhitelistFile     string
 
-	TTL        time.Duration
 	Ratelimit  time.Duration
 	ForwardURL string
 
@@ -235,14 +219,6 @@ func (o *Options) Run() error {
 			o.RequiredLabels = make(map[string]string)
 		}
 		o.RequiredLabels[values[0]] = values[1]
-	}
-
-	if len(o.Name) == 0 {
-		hostname, err := os.Hostname()
-		if err != nil {
-			return err
-		}
-		o.Name = fmt.Sprintf("%s-%s", hostname, strconv.FormatUint(uint64(mathrand.Int63()), 32))
 	}
 
 	// set up the upstream authorization
@@ -309,7 +285,6 @@ func (o *Options) Run() error {
 	var (
 		publicKey  crypto.PublicKey
 		privateKey crypto.PrivateKey
-		keyBytes   []byte
 	)
 
 	if len(o.SharedKey) > 0 {
@@ -325,29 +300,18 @@ func (o *Options) Run() error {
 
 		switch t := key.(type) {
 		case *ecdsa.PrivateKey:
-			keyBytes, _ = x509.MarshalECPrivateKey(t)
 			privateKey, publicKey = t, t.Public()
 		case *rsa.PrivateKey:
-			keyBytes = x509.MarshalPKCS1PrivateKey(t)
 			privateKey, publicKey = t, t.Public()
 		default:
 			return fmt.Errorf("unknown key type in --shared-key")
 		}
 	} else {
-		if len(o.Members) > 0 {
-			return fmt.Errorf("--shared-key must be specified when specifying a cluster to join")
-		}
-
 		level.Warn(o.Logger).Log("msg", "Using a generated shared-key")
 
 		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		if err != nil {
 			return fmt.Errorf("key generation failed: %v", err)
-		}
-
-		keyBytes, err = x509.MarshalECPrivateKey(key)
-		if err != nil {
-			return fmt.Errorf("unable to marshal private key")
 		}
 
 		privateKey, publicKey = key, key.Public()
@@ -376,7 +340,7 @@ func (o *Options) Run() error {
 	}
 
 	issuer := "telemeter.selfsigned"
-	audience := "federate"
+	audience := "telemeter-client"
 
 	jwtAuthorizer := jwt.NewClientAuthorizer(
 		issuer,
@@ -385,17 +349,8 @@ func (o *Options) Run() error {
 	)
 	signer := jwt.NewSigner(issuer, privateKey)
 
-	// create a secret for the JWT key
-	h := sha256.New()
-	if _, err := h.Write(keyBytes); err != nil {
-		return fmt.Errorf("JWT secret generation failed: %v", err)
-	}
-	secret := h.Sum(nil)[:32]
-
 	external := http.NewServeMux()
 	internal := http.NewServeMux()
-
-	internalPaths := []string{"/", "/federate", "/metrics", "/debug/pprof", "/healthz", "/healthz/ready"}
 
 	// configure the authenticator and incoming data validator
 	var clusterAuth authorize.ClusterAuthorizer = authorize.ClusterAuthorizerFunc(stub.Authorize)
@@ -407,58 +362,14 @@ func (o *Options) Run() error {
 	validator := validate.New(o.PartitionKey, o.LimitBytes, 24*time.Hour, time.Now)
 
 	var store store.Store
-
-	ms := memstore.New(o.TTL)
-	ms.StartCleaner(ctx, time.Minute)
-	store = ms
-
-	// If specified all written metrics will be written to the remote forward URL
-	if o.ForwardURL != "" {
-		u, err := url.Parse(o.ForwardURL)
-		if err != nil {
-			return fmt.Errorf("--forward-url must be a valid URL: %v", err)
-		}
-		store = forward.New(o.Logger, u, store)
+	u, err := url.Parse(o.ForwardURL)
+	if err != nil {
+		return fmt.Errorf("--forward-url must be a valid URL: %v", err)
 	}
+	store = forward.New(o.Logger, u, nil)
 
 	// Create a rate-limited store with a memory-store as its backend.
 	store = ratelimited.New(o.Ratelimit, store)
-
-	if len(o.ListenCluster) > 0 {
-		c := cluster.NewDynamic(o.Logger, o.Name, store)
-		ml, err := cluster.NewMemberlist(o.Logger, o.Name, o.ListenCluster, secret, o.Verbose, c)
-		if err != nil {
-			return fmt.Errorf("unable to configure cluster: %v", err)
-		}
-
-		c.Start(ml, context.Background())
-
-		if len(o.Members) > 0 {
-			go func() {
-				for {
-					if err := c.Join(o.Members); err != nil {
-						level.Error(o.Logger).Log("msg", "could not join any of members", "members", o.Members, "err", err)
-						time.Sleep(5 * time.Second)
-						continue
-					}
-					return
-				}
-			}()
-		}
-		internalPaths = append(internalPaths, "/debug/cluster")
-		internal.Handle("/debug/cluster", c)
-		store = c
-		// Wrap the cluster store within a rate-limited store.
-		// This guarantees an upper-bound on the total inter-node requests that
-		// hit the target node of `l*n`, where l is the rate limit and n is
-		// the cluster size. Without this, if a DOS attack with IDs that hash
-		// to node A's bucket enter the cluster on different node, node B,
-		// then node B will dutifully pass along the requests to the node A
-		// and can DOS the target and congest the internal network.
-		if o.Ratelimit != 0 {
-			store = ratelimited.New(o.Ratelimit, store)
-		}
-	}
 
 	transforms := metricfamily.MultiTransformer{}
 	transforms.With(whitelister)
@@ -467,14 +378,11 @@ func (o *Options) Run() error {
 	}
 	transforms.With(metricfamily.NewElide(o.ElideLabels...))
 
-	server := httpserver.New(o.Logger, store, validator, transforms, o.TTL)
+	server := httpserver.New(o.Logger, store, validator, transforms)
 	receiver := receive.NewHandler(o.Logger, o.ForwardURL, prometheus.DefaultRegisterer)
 
-	internalPathJSON, _ := json.MarshalIndent(Paths{Paths: internalPaths}, "", "  ")
+	internalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/metrics", "/debug/pprof", "/healthz", "/healthz/ready"}}, "", "  ")
 	externalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/authorize", "/upload", "/healthz", "/healthz/ready", "/metrics/v1/receive"}}, "", "  ")
-
-	// TODO: add internal authorization
-	telemeter_http.DebugRoutes(internal)
 
 	internal.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		if req.URL.Path == "/" && req.Method == "GET" {
@@ -486,7 +394,7 @@ func (o *Options) Run() error {
 		}
 		w.WriteHeader(http.StatusNotFound)
 	}))
-	internal.Handle("/federate", http.HandlerFunc(server.Get))
+	telemeter_http.DebugRoutes(internal)
 	telemeter_http.MetricRoutes(internal)
 	telemeter_http.HealthRoutes(internal)
 
@@ -529,7 +437,7 @@ func (o *Options) Run() error {
 		),
 	)
 
-	level.Info(o.Logger).Log("msg", "starting telemeter-server", "name", o.Name, "listen", o.Listen, "interval", o.ListenInternal, "cluster", o.ListenCluster)
+	level.Info(o.Logger).Log("msg", "starting telemeter-server", "listen", o.Listen, "internal", o.ListenInternal)
 
 	internalListener, err := net.Listen("tcp", o.ListenInternal)
 	if err != nil {

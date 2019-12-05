@@ -100,7 +100,7 @@ func (a *authorizeClusterHandler) ServeHTTP(w http.ResponseWriter, req *http.Req
 	}
 
 	// create a token that asserts the client and the labels
-	authToken, err := a.signer.GenerateToken(Claims(subject, labels, a.expireInSeconds, []string{"federate"}))
+	authToken, err := a.signer.GenerateToken(Claims(subject, labels, a.expireInSeconds, []string{"telemeter-client"}))
 	if err != nil {
 		level.Error(a.logger).Log("msg", "unable to generate token", "err", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

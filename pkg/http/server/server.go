@@ -19,74 +19,18 @@ import (
 )
 
 type Server struct {
-	maxSampleAge time.Duration
-	store        store.Store
-	transformer  metricfamily.Transformer
-	validator    validate.Validator
-	nowFn        func() time.Time
-	logger       log.Logger
+	store       store.Store
+	transformer metricfamily.Transformer
+	validator   validate.Validator
+	logger      log.Logger
 }
 
-func New(logger log.Logger, store store.Store, validator validate.Validator, transformer metricfamily.Transformer, maxSampleAge time.Duration) *Server {
+func New(logger log.Logger, store store.Store, validator validate.Validator, transformer metricfamily.Transformer) *Server {
 	return &Server{
-		maxSampleAge: maxSampleAge,
-		store:        store,
-		transformer:  transformer,
-		validator:    validator,
-		nowFn:        time.Now,
-		logger:       log.With(logger, "component", "http/server"),
-	}
-}
-
-func NewNonExpiring(logger log.Logger, store store.Store, validator validate.Validator, transformer metricfamily.Transformer, maxSampleAge time.Duration) *Server {
-	return &Server{
-		maxSampleAge: maxSampleAge,
-		store:        store,
-		transformer:  transformer,
-		validator:    validator,
-		nowFn:        nil,
-		logger:       log.With(logger, "component", "http/server"),
-	}
-}
-
-func (s *Server) Get(w http.ResponseWriter, req *http.Request) {
-	if req.Method != "GET" {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-	format := expfmt.Negotiate(req.Header)
-	encoder := expfmt.NewEncoder(w, format)
-	ctx := context.Background()
-
-	// samples older than 10 minutes must be ignored
-	var minTimeMs int64
-	var filter metricfamily.MultiTransformer
-	if s.nowFn != nil {
-		filter.With(metricfamily.NewDropExpiredSamples(s.nowFn().Add(-s.maxSampleAge)))
-		filter.With(metricfamily.TransformerFunc(metricfamily.PackMetrics))
-	}
-
-	ps, err := s.store.ReadMetrics(ctx, minTimeMs)
-	if err != nil {
-		level.Error(s.logger).Log("msg", "error reading metrics", "err", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	for _, p := range ps {
-		for _, family := range p.Families {
-			if family == nil {
-				continue
-			}
-			if ok, err := filter.Transform(family); err != nil || !ok {
-				continue
-			}
-			if err := encoder.Encode(family); err != nil {
-				level.Error(s.logger).Log("msg", "error encoding metrics family", "err", err)
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				continue
-			}
-		}
+		store:       store,
+		transformer: transformer,
+		validator:   validator,
+		logger:      log.With(logger, "component", "http/server"),
 	}
 }
 
