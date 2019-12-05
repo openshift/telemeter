@@ -12,8 +12,6 @@ require (
 	github.com/golang/protobuf v1.3.2
 	github.com/golang/snappy v0.0.1
 	github.com/google/go-jsonnet v0.14.0
-	github.com/hashicorp/go-msgpack v0.5.5
-	github.com/hashicorp/memberlist v0.1.5
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jsonnet-bundler/jsonnet-bundler v0.2.0
 	github.com/observatorium/up v0.0.0-20200109183502-89757a581729
@@ -25,7 +23,6 @@ require (
 	github.com/prometheus/common v0.7.0
 	github.com/prometheus/prometheus v1.8.2-0.20191126064551-80ba03c67da1 // Prometheus master v2.14.0
 	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b
-	github.com/serialx/hashring v0.0.0-20180504054112-49a4782e9908
 	github.com/spf13/cobra v0.0.3
 	github.com/thanos-io/thanos v0.9.0
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
