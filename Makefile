@@ -11,6 +11,10 @@ FIRST_GOPATH:=$(firstword $(subst :, ,$(shell go env GOPATH)))
 GOLANGCI_LINT_BIN=$(FIRST_GOPATH)/bin/golangci-lint
 GOLANGCI_LINT_VERSION=v1.18.0
 EMBEDMD_BIN=$(FIRST_GOPATH)/bin/embedmd
+THANOS_BIN=$(FIRST_GOPATH)/bin/thanos
+UP_BIN=$(FIRST_GOPATH)/bin/up
+MEMCACHED_BIN=_output/bin/memcached
+PROMETHEUS_BIN=_output/bin/prometheus
 GOJSONTOYAML_BIN=$(FIRST_GOPATH)/bin/gojsontoyaml
 # We need jsonnet on CI; here we default to the user's installed jsonnet binary; if nothing is installed, then install go-jsonnet.
 JSONNET_BIN=$(if $(shell which jsonnet 2>/dev/null),$(shell which jsonnet 2>/dev/null),$(FIRST_GOPATH)/bin/jsonnet)
@@ -146,8 +150,9 @@ test-unit:
 test-generate:
 	make --always-make && git diff --exit-code
 
-test-integration: build
-	./test/integration.sh
+test-integration: build $(THANOS_BIN) $(UP_BIN) $(MEMCACHED_BIN) $(PROMETHEUS_BIN)
+	PATH=$$PATH:$$(pwd)/_output/bin ./test/integration.sh
+	PATH=$$PATH:$$(pwd)/_output/bin ./test/integration-v2.sh
 
 test-benchmark: build
 	./test/benchmark.sh "" "" $(BENCHMARK_GOAL) "" $(BENCHMARK_GOAL)
@@ -169,6 +174,22 @@ test/timeseries.txt:
 ############
 
 dependencies: $(JB_BIN) $(GOLANGCI_LINT_BIN)
+
+$(THANOS_BIN):
+	GO111MODULE=off go get github.com/thanos-io/thanos
+
+$(UP_BIN):
+	GO111MODULE=off go get github.com/observatorium/up
+
+$(MEMCACHED_BIN):
+	mkdir -p _output/bin
+	@echo "Downloading Memcached"
+	curl -L https://www.archlinux.org/packages/extra/x86_64/memcached/download/ | tar --strip-components=2 -xJf - -C _output/bin usr/bin/memcached
+
+$(PROMETHEUS_BIN):
+	mkdir -p _output/bin
+	@echo "Downloading Prometheus"
+	curl -L "https://github.com/prometheus/prometheus/releases/download/v2.3.2/prometheus-2.3.2.$$(go env GOOS)-$$(go env GOARCH).tar.gz" | tar --strip-components=1 -xzf - -C _output/bin
 
 $(EMBEDMD_BIN):
 	GO111MODULE=off go get -u github.com/campoy/embedmd
