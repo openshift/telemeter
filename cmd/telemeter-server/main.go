@@ -25,6 +25,7 @@ import (
 
 	oidc "github.com/coreos/go-oidc"
 	"github.com/oklog/run"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
@@ -36,6 +37,8 @@ import (
 	"github.com/openshift/telemeter/pkg/authorize/jwt"
 	"github.com/openshift/telemeter/pkg/authorize/stub"
 	"github.com/openshift/telemeter/pkg/authorize/tollbooth"
+	"github.com/openshift/telemeter/pkg/cache"
+	"github.com/openshift/telemeter/pkg/cache/memcached"
 	"github.com/openshift/telemeter/pkg/cluster"
 	telemeter_http "github.com/openshift/telemeter/pkg/http"
 	httpserver "github.com/openshift/telemeter/pkg/http/server"
@@ -86,6 +89,7 @@ func main() {
 		PartitionKey:       "_id",
 		Ratelimit:          4*time.Minute + 30*time.Second,
 		TTL:                10 * time.Minute,
+		MemcachedExpire:    24 * 60 * 60,
 	}
 	cmd := &cobra.Command{
 		Short:         "Aggregate federated metrics pushes",
@@ -122,6 +126,8 @@ func main() {
 	cmd.Flags().StringVar(&opt.ClientSecret, "client-secret", opt.ClientSecret, "The OIDC client secret, see https://tools.ietf.org/html/rfc6749#section-2.3.")
 	cmd.Flags().StringVar(&opt.ClientID, "client-id", opt.ClientID, "The OIDC client ID, see https://tools.ietf.org/html/rfc6749#section-2.3.")
 	cmd.Flags().StringVar(&opt.TenantKey, "tenant-key", opt.TenantKey, "The JSON key in the bearer token whose value to use as the tenant ID.")
+	cmd.Flags().StringSliceVar(&opt.Memcacheds, "memcached", opt.Memcacheds, "One or more Memcached server addresses.")
+	cmd.Flags().Int32Var(&opt.MemcachedExpire, "memcached-expire", opt.MemcachedExpire, "Time after which keys stored in Memcached should expire, given in seconds.")
 
 	cmd.Flags().DurationVar(&opt.Ratelimit, "ratelimit", opt.Ratelimit, "The rate limit of metric uploads per cluster ID. Uploads happening more often than this limit will be rejected.")
 	cmd.Flags().DurationVar(&opt.TTL, "ttl", opt.TTL, "The TTL for metrics to be held in memory.")
@@ -174,10 +180,12 @@ type Options struct {
 
 	AuthorizeEndpoint string
 
-	OIDCIssuer   string
-	ClientID     string
-	ClientSecret string
-	TenantKey    string
+	OIDCIssuer      string
+	ClientID        string
+	ClientSecret    string
+	TenantKey       string
+	Memcacheds      []string
+	MemcachedExpire int32
 
 	PartitionKey      string
 	LabelFlag         []string
@@ -236,7 +244,7 @@ func (o *Options) Run() error {
 
 	// set up the upstream authorization
 	var authorizeURL *url.URL
-	var authorizeClient *http.Client
+	var authorizeClient http.Client
 	ctx := context.Background()
 	if len(o.AuthorizeEndpoint) > 0 {
 		u, err := url.Parse(o.AuthorizeEndpoint)
@@ -255,7 +263,7 @@ func (o *Options) Run() error {
 			transport = telemeter_http.NewDebugRoundTripper(o.Logger, transport)
 		}
 
-		authorizeClient = &http.Client{
+		authorizeClient = http.Client{
 			Timeout:   20 * time.Second,
 			Transport: telemeter_http.NewInstrumentedRoundTripper("authorize", transport),
 		}
@@ -389,7 +397,7 @@ func (o *Options) Run() error {
 	// configure the authenticator and incoming data validator
 	var clusterAuth authorize.ClusterAuthorizer = authorize.ClusterAuthorizerFunc(stub.Authorize)
 	if authorizeURL != nil {
-		clusterAuth = tollbooth.NewAuthorizer(o.Logger, authorizeClient, authorizeURL)
+		clusterAuth = tollbooth.NewAuthorizer(o.Logger, &authorizeClient, authorizeURL)
 	}
 
 	auth := jwt.NewAuthorizeClusterHandler(o.Logger, o.PartitionKey, o.TokenExpireSeconds, signer, o.RequiredLabels, clusterAuth)
@@ -501,10 +509,18 @@ func (o *Options) Run() error {
 		),
 	)
 
-	// v1 routes
+	// v2 routes
+	v2AuthorizeClient := authorizeClient
+
+	if len(o.Memcacheds) > 0 {
+		mc := memcached.New(o.MemcachedExpire, o.Memcacheds...)
+		l := log.With(o.Logger, "component", "cache")
+		v2AuthorizeClient.Transport = cache.NewRoundTripper(mc, tollbooth.ExtractToken, v2AuthorizeClient.Transport, l, prometheus.DefaultRegisterer)
+	}
+
 	external.Handle("/metrics/v1/receive",
 		telemeter_http.NewInstrumentedHandler("receive",
-			authorize.NewHandler(o.Logger, authorizeClient, authorizeURL, o.TenantKey,
+			authorize.NewHandler(o.Logger, &v2AuthorizeClient, authorizeURL, o.TenantKey,
 				http.HandlerFunc(receiver.Receive),
 			),
 		),
