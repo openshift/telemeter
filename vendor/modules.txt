@@ -4,6 +4,8 @@ github.com/alecthomas/units
 github.com/armon/go-metrics
 # github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973
 github.com/beorn7/perks/quantile
+# github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
+github.com/bradfitz/gomemcache/memcache
 # github.com/cespare/xxhash v1.1.0
 github.com/cespare/xxhash
 # github.com/coreos/go-oidc v2.0.0+incompatible
