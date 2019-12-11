@@ -45,6 +45,7 @@ func NewMemberlist(logger log.Logger, name, addr string, secret []byte, verbose 
 
 	if !verbose {
 		cfg.LogOutput = ioutil.Discard
+		cfg.Logger = nil
 	}
 
 	cfg.SecretKey = secret
