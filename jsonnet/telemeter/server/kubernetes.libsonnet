@@ -61,6 +61,19 @@ local clusterPort = 8082;
         $._config.telemeterServer.elideLabels
       );
 
+      local memcachedReplicas = std.range(1, $.memcached.replicas);
+      local memcached = [
+        '--memcached=%s-%d.%s.%s.svc.cluster.local:%d' % [
+          $.memcached.statefulSet.metadata.name,
+          i,
+          $.memcached.service.metadata.name,
+          $.memcached.service.metadata.namespace,
+          $.memcached.service.spec.ports[0].port,
+        ]
+        for i in memcachedReplicas
+      ];
+
+
       local telemeterServer =
         container.new('telemeter-server', $._config.imageRepos.telemeterServer + ':' + $._config.versions.telemeterServer) +
         container.withCommand([
@@ -79,7 +92,7 @@ local clusterPort = 8082;
           '--oidc-issuer=$(OIDC_ISSUER)',
           '--client-id=$(CLIENT_ID)',
           '--client-secret=$(CLIENT_SECRET)',
-        ] + whitelist + elide) +
+        ] + memcached + whitelist + elide) +
         container.withPorts([
           containerPort.newNamed('external', externalPort),
           containerPort.newNamed('internal', internalPort),
@@ -221,6 +234,52 @@ local clusterPort = 8082;
               },
             },
           ],
+        },
+      },
+  },
+
+  memcached+:: {
+    image:: 'docker.io/memcached:1.5.20-alpine',
+    replicas:: 3,
+
+    service:
+      local service = k.core.v1.service;
+      local ports = service.mixin.spec.portsType;
+
+      service.new(
+        'memcached',
+        $.memcached.statefulSet.metadata.labels,
+        [
+          ports.newNamed('memcached', 11211, 11211),
+        ]
+      ) +
+      service.mixin.metadata.withNamespace($._config.namespace) +
+      service.mixin.metadata.withLabels({ 'app.kubernetes.io/name': $.memcached.service.metadata.name }) +
+      service.mixin.spec.withClusterIp('None'),
+
+    statefulSet:
+      local sts = k.apps.v1beta2.statefulSet;
+      local volume = sts.mixin.spec.template.spec.volumesType;
+      local container = sts.mixin.spec.template.spec.containersType;
+      local containerEnv = container.envType;
+      local containerVolumeMount = container.volumeMountsType;
+
+      local c =
+        container.new($.memcached.statefulSet.metadata.name, $.memcached.image) +
+        container.withPorts([
+          { name: 'memcached', containerPort: $.memcached.service.spec.ports[0].port },
+        ]) +
+        container.mixin.resources.withRequests({ cpu: '100m', memory: '512Mi' }) +
+        container.mixin.resources.withLimits({ cpu: '1', memory: '1Gi' });
+
+      sts.new('memcached', $.memcached.replicas, c, [], $.memcached.statefulSet.metadata.labels) +
+      sts.mixin.metadata.withNamespace($._config.namespace) +
+      sts.mixin.metadata.withLabels({ 'app.kubernetes.io/name': $.memcached.statefulSet.metadata.name }) +
+      sts.mixin.spec.withServiceName($.memcached.service.metadata.name) +
+      sts.mixin.spec.selector.withMatchLabels($.memcached.statefulSet.metadata.labels) +
+      {
+        spec+: {
+          volumeClaimTemplates:: null,
         },
       },
   },

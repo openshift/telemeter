@@ -117,19 +117,24 @@ func AgainstEndpoint(logger log.Logger, client *http.Client, endpoint *url.URL, 
 	}
 }
 
+// NewHandler returns an http.HandlerFunc that is able to authorize requests against Tollbooth.
+// The handler function expects a bearer token in the Authorization header consisting of a
+// base64-encoded JSON object containing "authorization_token" and "cluster_id" fields.
 func NewHandler(logger log.Logger, client *http.Client, endpoint *url.URL, tenantKey string, next http.Handler) http.HandlerFunc {
 	logger = log.With(logger, "component", "authorize")
 	return func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		authParts := strings.Split(string(authHeader), " ")
 		if len(authParts) != 2 || strings.ToLower(authParts[0]) != "bearer" {
-			http.Error(w, "bad authorization header", http.StatusBadRequest)
+			level.Warn(logger).Log("msg", "bad authorization header")
+			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
 		token, err := base64.StdEncoding.DecodeString(authParts[1])
 		if err != nil {
-			http.Error(w, "bad authorization header", http.StatusBadRequest)
+			level.Warn(logger).Log("msg", "failed to extract token", "err", err)
+			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 		var tenant string
@@ -137,13 +142,14 @@ func NewHandler(logger log.Logger, client *http.Client, endpoint *url.URL, tenan
 			fields := make(map[string]string)
 			if err := json.Unmarshal(token, &fields); err != nil {
 				level.Warn(logger).Log("msg", "failed to read token", "err", err)
+				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
 			tenant = fields[tenantKey]
 		}
 		if _, err := AgainstEndpoint(logger, client, endpoint, token, tenant, nil); err != nil {
 			level.Warn(logger).Log("msg", "unauthorized request made:", "err", err)
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 

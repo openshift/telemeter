@@ -3,6 +3,7 @@ module github.com/openshift/telemeter
 go 1.12
 
 require (
+	github.com/bradfitz/gomemcache v0.0.0-20190913173617-a41fca850d0b
 	github.com/coreos/go-oidc v2.0.0+incompatible
 	github.com/go-kit/kit v0.8.0
 	github.com/go-logfmt/logfmt v0.4.0 // indirect
@@ -13,6 +14,7 @@ require (
 	github.com/hashicorp/memberlist v0.1.4
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/oklog/run v0.0.0-20180308005104-6934b124db28
+	github.com/pkg/errors v0.8.0
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
 	github.com/prometheus/client_golang v0.9.1
 	github.com/prometheus/client_model v0.0.0-20180712105110-5c3871d89910

@@ -19,18 +19,6 @@ else
   test="${TEST:-1}"
 fi
 
-# Download prometheus if necessary
-if ! which prometheus &>/dev/null; then
-  if [[ ! -f _output/prometheus/prometheus ]]; then
-    v=2.3.2
-    url="https://github.com/prometheus/prometheus/releases/download/v${v}/prometheus-${v}.$(go env GOOS)-$(go env GOARCH).tar.gz"
-    echo "Downloading prometheus from ${url}"
-    mkdir -p _output/prometheus
-    curl -w '' -L "${url}" 2>/dev/null | tar --strip-components=1 -xzf - -C _output/prometheus
-  fi
-  export PATH=$PATH:$(pwd)/_output/prometheus
-fi
-
 trap 'kill $(jobs -p); exit 0' EXIT
 
 ( ./authorization-server localhost:9001 ./test/tokens.json ) &

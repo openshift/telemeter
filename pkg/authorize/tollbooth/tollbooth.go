@@ -1,14 +1,17 @@
 package tollbooth
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"mime"
 	"net/http"
 	"net/url"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/pkg/errors"
 
 	"github.com/openshift/telemeter/pkg/authorize"
 )
@@ -74,4 +77,16 @@ func (a *authorizer) AuthorizeCluster(token, cluster string) (string, error) {
 	}
 
 	return response.AccountID, nil
+}
+
+// ExtractToken extracts the token from an auth request.
+// In the case of a request to Tollbooth, the token
+// is the entire contents of the request body.
+func ExtractToken(r *http.Request) (string, error) {
+	body, err := ioutil.ReadAll(r.Body)
+	if err := r.Body.Close(); err != nil {
+		return "", errors.Wrap(err, "failed to close body")
+	}
+	r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+	return string(body), err
 }
