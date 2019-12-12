@@ -2,17 +2,23 @@ package receive
 
 import (
 	"context"
+	"fmt"
+	"io/ioutil"
 	"net/http"
 	"time"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/gogo/protobuf/proto"
+	"github.com/golang/snappy"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/prometheus/prompb"
 
 	"github.com/openshift/telemeter/pkg/authorize"
 )
 
 const forwardTimeout = 5 * time.Second
+const requestLimit = 15 * 1024 // based on historic Prometheus data with 6KB at most
 
 // ClusterAuthorizer authorizes a cluster by its token and id, returning a subject or error
 type ClusterAuthorizer interface {
@@ -21,18 +27,20 @@ type ClusterAuthorizer interface {
 
 // Handler knows the forwardURL for all requests
 type Handler struct {
-	ForwardURL string
-	client     *http.Client
-	logger     log.Logger
+	ForwardURL   string
+	PartitionKey string
+	client       *http.Client
+	logger       log.Logger
 
 	// Metrics.
 	forwardRequestsTotal *prometheus.CounterVec
 }
 
 // NewHandler returns a new Handler with a http client
-func NewHandler(logger log.Logger, forwardURL string, reg prometheus.Registerer) *Handler {
+func NewHandler(logger log.Logger, forwardURL string, partitionKey string, reg prometheus.Registerer) *Handler {
 	h := &Handler{
-		ForwardURL: forwardURL,
+		ForwardURL:   forwardURL,
+		PartitionKey: partitionKey,
 		client: &http.Client{
 			Timeout: forwardTimeout,
 		},
@@ -59,7 +67,20 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	defer r.Body.Close()
+	// Limit the request body size to a sane default
+	r.Body = http.MaxBytesReader(w, r.Body, requestLimit)
+
+	err := validateLabels(r, h.PartitionKey)
+	if err != nil {
+		level.Error(h.logger).Log("msg", "failed to validate labels in request", "err", err)
+
+		if err == ErrRequiredLabelMissing {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), forwardTimeout)
 	defer cancel()
@@ -90,4 +111,34 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 	}
 	h.forwardRequestsTotal.WithLabelValues("success").Inc()
 	w.WriteHeader(resp.StatusCode)
+}
+
+var ErrRequiredLabelMissing = fmt.Errorf("a required label is missing from the metric")
+
+// TODO: Make this a middleware eventually
+func validateLabels(r *http.Request, partitionKey string) error {
+	compressed, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return err
+	}
+
+	reqBuf, err := snappy.Decode(nil, compressed)
+	if err != nil {
+		return err
+	}
+
+	var wreq prompb.WriteRequest
+	if err = proto.Unmarshal(reqBuf, &wreq); err != nil {
+		return err
+	}
+
+	for _, ts := range wreq.GetTimeseries() {
+		for _, l := range ts.Labels {
+			if l.Name == partitionKey {
+				return nil
+			}
+		}
+	}
+
+	return ErrRequiredLabelMissing
 }

@@ -379,7 +379,7 @@ func (o *Options) Run() error {
 	transforms.With(metricfamily.NewElide(o.ElideLabels...))
 
 	server := httpserver.New(o.Logger, store, validator, transforms)
-	receiver := receive.NewHandler(o.Logger, o.ForwardURL, prometheus.DefaultRegisterer)
+	receiver := receive.NewHandler(o.Logger, o.ForwardURL, o.PartitionKey, prometheus.DefaultRegisterer)
 
 	internalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/metrics", "/debug/pprof", "/healthz", "/healthz/ready"}}, "", "  ")
 	externalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/authorize", "/upload", "/healthz", "/healthz/ready", "/metrics/v1/receive"}}, "", "  ")
