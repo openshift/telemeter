@@ -15,20 +15,20 @@
       if object.kind == 'StatefulSet' then {
         spec+: {
           template+: {
-            spec+: {  
+            spec+: {
               containers: [
                 if c.name == containerName then
                   c {
-                      resources: {
-                        requests: {
-                          cpu: "${" + std.asciiUpper(varContainerName) + "_CPU_REQUEST}",
-                          memory: "${" + std.asciiUpper(varContainerName) + "_MEMORY_REQUEST}",
-                        },
-                        limits: {
-                          cpu: "${" + std.asciiUpper(varContainerName) + "_CPU_LIMIT}",
-                          memory: "${" + std.asciiUpper(varContainerName) + "_MEMORY_LIMIT}",
-                        },
-                      }
+                    resources: {
+                      requests: {
+                        cpu: '${' + std.asciiUpper(varContainerName) + '_CPU_REQUEST}',
+                        memory: '${' + std.asciiUpper(varContainerName) + '_MEMORY_REQUEST}',
+                      },
+                      limits: {
+                        cpu: '${' + std.asciiUpper(varContainerName) + '_CPU_LIMIT}',
+                        memory: '${' + std.asciiUpper(varContainerName) + '_MEMORY_LIMIT}',
+                      },
+                    },
                   }
                 else c
                 for c in super.containers
@@ -43,10 +43,10 @@
       for o in super.objects
     ],
     parameters+: [
-      { name: std.asciiUpper(varContainerName)+'_CPU_REQUEST', value: if std.objectHas(requests, 'cpu') then requests.cpu else "100m" },
-      { name: std.asciiUpper(varContainerName)+'_CPU_LIMIT', value: if std.objectHas(limits, 'cpu') then limits.cpu else "1" },
-      { name: std.asciiUpper(varContainerName)+'_MEMORY_REQUEST', value: if std.objectHas(requests, 'memory') then requests.memory else "500Mi" },
-      { name: std.asciiUpper(varContainerName)+'_MEMORY_LIMIT', value: if std.objectHas(limits, 'memory') then limits.memory else "1Gi" },
+      { name: std.asciiUpper(varContainerName) + '_CPU_REQUEST', value: if std.objectHas(requests, 'cpu') then requests.cpu else '100m' },
+      { name: std.asciiUpper(varContainerName) + '_CPU_LIMIT', value: if std.objectHas(limits, 'cpu') then limits.cpu else '1' },
+      { name: std.asciiUpper(varContainerName) + '_MEMORY_REQUEST', value: if std.objectHas(requests, 'memory') then requests.memory else '500Mi' },
+      { name: std.asciiUpper(varContainerName) + '_MEMORY_LIMIT', value: if std.objectHas(limits, 'memory') then limits.memory else '1Gi' },
     ],
   },
 
@@ -112,12 +112,12 @@
         spec+: {
           resources: {
             requests: {
-              cpu: "${PROMETHEUS_CPU_REQUEST}",
-              memory: "${PROMETHEUS_MEMORY_REQUEST}"
+              cpu: '${PROMETHEUS_CPU_REQUEST}',
+              memory: '${PROMETHEUS_MEMORY_REQUEST}',
             },
             limits: {
-              cpu: "${PROMETHEUS_CPU_LIMIT}",
-              memory: "${PROMETHEUS_MEMORY_LIMIT}"
+              cpu: '${PROMETHEUS_CPU_LIMIT}',
+              memory: '${PROMETHEUS_MEMORY_LIMIT}',
             },
           },
         },
@@ -128,10 +128,10 @@
       for o in super.objects
     ],
     parameters+: [
-      { name: 'PROMETHEUS_CPU_REQUEST', value: if std.objectHas(requests, 'cpu') then requests.cpu else "0" },
-      { name: 'PROMETHEUS_CPU_LIMIT', value: if std.objectHas(limits, 'cpu') then limits.cpu else "0" },
-      { name: 'PROMETHEUS_MEMORY_REQUEST', value: if std.objectHas(requests, 'memory') then requests.memory else "0" },
-      { name: 'PROMETHEUS_MEMORY_LIMIT', value: if std.objectHas(limits, 'memory') then limits.memory else "0" },
+      { name: 'PROMETHEUS_CPU_REQUEST', value: if std.objectHas(requests, 'cpu') then requests.cpu else '0' },
+      { name: 'PROMETHEUS_CPU_LIMIT', value: if std.objectHas(limits, 'cpu') then limits.cpu else '0' },
+      { name: 'PROMETHEUS_MEMORY_REQUEST', value: if std.objectHas(requests, 'memory') then requests.memory else '0' },
+      { name: 'PROMETHEUS_MEMORY_LIMIT', value: if std.objectHas(limits, 'memory') then limits.memory else '0' },
     ],
   },
 
@@ -234,8 +234,30 @@
          },
        }
        else {}),
+
+    local setMemcachedNamespace(object) =
+      if object.kind == 'StatefulSet' then {
+        spec+: {
+          template+: {
+            spec+: {
+              containers: [
+                c {
+                  command: [
+                    if std.startsWith(c, '--memcached=') then std.join('.', std.splitLimit(c, '.', 2)[:2] + ['${NAMESPACE}'] + [std.splitLimit(c, '.', 3)[3]]) else c
+                    for c in super.command
+                  ],
+                }
+                for c in super.containers
+                if std.objectHas(c, 'command')
+              ],
+            },
+          },
+        },
+      }
+      else {},
+
     objects: [
-      o + setNamespace(o) + setSubjectNamespace(o) + setPermissions(o) + setServiceMonitorServerNameNamespace(o) + setClusterRoleRuleNamespace(o) + namespaceNonNamespacedObjects(o)
+      o + setNamespace(o) + setSubjectNamespace(o) + setPermissions(o) + setServiceMonitorServerNameNamespace(o) + setClusterRoleRuleNamespace(o) + namespaceNonNamespacedObjects(o) + setMemcachedNamespace(o)
       for o in super.objects
     ],
     parameters+: [
