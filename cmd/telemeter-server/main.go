@@ -90,6 +90,7 @@ func main() {
 		Ratelimit:          4*time.Minute + 30*time.Second,
 		TTL:                10 * time.Minute,
 		MemcachedExpire:    24 * 60 * 60,
+		MemcachedInterval:  10,
 	}
 	cmd := &cobra.Command{
 		Short:         "Aggregate federated metrics pushes",
@@ -128,6 +129,7 @@ func main() {
 	cmd.Flags().StringVar(&opt.TenantKey, "tenant-key", opt.TenantKey, "The JSON key in the bearer token whose value to use as the tenant ID.")
 	cmd.Flags().StringSliceVar(&opt.Memcacheds, "memcached", opt.Memcacheds, "One or more Memcached server addresses.")
 	cmd.Flags().Int32Var(&opt.MemcachedExpire, "memcached-expire", opt.MemcachedExpire, "Time after which keys stored in Memcached should expire, given in seconds.")
+	cmd.Flags().Int32Var(&opt.MemcachedInterval, "memcached-interval", opt.MemcachedInterval, "The interval at which to update the Memcached DNS, given in seconds; use 0 to disable.")
 
 	cmd.Flags().DurationVar(&opt.Ratelimit, "ratelimit", opt.Ratelimit, "The rate limit of metric uploads per cluster ID. Uploads happening more often than this limit will be rejected.")
 	cmd.Flags().DurationVar(&opt.TTL, "ttl", opt.TTL, "The TTL for metrics to be held in memory.")
@@ -180,12 +182,13 @@ type Options struct {
 
 	AuthorizeEndpoint string
 
-	OIDCIssuer      string
-	ClientID        string
-	ClientSecret    string
-	TenantKey       string
-	Memcacheds      []string
-	MemcachedExpire int32
+	OIDCIssuer        string
+	ClientID          string
+	ClientSecret      string
+	TenantKey         string
+	Memcacheds        []string
+	MemcachedExpire   int32
+	MemcachedInterval int32
 
 	PartitionKey      string
 	LabelFlag         []string
@@ -513,7 +516,7 @@ func (o *Options) Run() error {
 	v2AuthorizeClient := authorizeClient
 
 	if len(o.Memcacheds) > 0 {
-		mc := memcached.New(o.MemcachedExpire, o.Memcacheds...)
+		mc := memcached.New(context.Background(), o.MemcachedInterval, o.MemcachedExpire, o.Memcacheds...)
 		l := log.With(o.Logger, "component", "cache")
 		v2AuthorizeClient.Transport = cache.NewRoundTripper(mc, tollbooth.ExtractToken, v2AuthorizeClient.Transport, l, prometheus.DefaultRegisterer)
 	}
