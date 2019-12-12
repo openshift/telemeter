@@ -76,73 +76,72 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 		return nil
 	}
 
-	go func() {
-		// Run in a func to catch all transient errors
-		err := func() error {
-			timeseries, err := convertToTimeseries(p, time.Now())
-			if err != nil {
-				return err
-			}
-
-			if len(timeseries) == 0 {
-				level.Info(s.logger).Log("msg", "no time series to forward to receive endpoint")
-				return nil
-			}
-
-			wreq := &prompb.WriteRequest{
-				Timeseries: timeseries,
-			}
-
-			data, err := proto.Marshal(wreq)
-			if err != nil {
-				return err
-			}
-
-			compressed := snappy.Encode(nil, data)
-
-			req, err := http.NewRequest(http.MethodPost, s.url.String(), bytes.NewBuffer(compressed))
-			if err != nil {
-				return err
-			}
-			req.Header.Add("THANOS-TENANT", p.PartitionKey)
-
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-
-			req = req.WithContext(ctx)
-
-			begin := time.Now()
-			resp, err := s.client.Do(req)
-			if err != nil {
-				return err
-			}
-
-			forwardDuration.
-				WithLabelValues(fmt.Sprintf("%d", resp.StatusCode)).
-				Observe(time.Since(begin).Seconds())
-
-			meanDrift := timeseriesMeanDrift(timeseries, time.Now().Unix())
-			if math.Abs(meanDrift) > 10 {
-				level.Info(s.logger).Log("msg", "mean drift from now for clusters", "partitionkey", p.PartitionKey, "drift", fmt.Sprintf("%.3fs", meanDrift))
-			}
-
-			if resp.StatusCode/100 != 2 {
-				return fmt.Errorf("response status code is %s", resp.Status)
-			}
-
-			s := 0
-			for _, ts := range wreq.Timeseries {
-				s = s + len(ts.Samples)
-			}
-			forwardSamples.Add(float64(s))
-
-			return nil
-		}()
+	err := func() error {
+		timeseries, err := convertToTimeseries(p, time.Now())
 		if err != nil {
-			forwardErrors.Inc()
-			level.Error(s.logger).Log("msg", "forwarding error", "err", err)
+			return err
 		}
+
+		if len(timeseries) == 0 {
+			level.Info(s.logger).Log("msg", "no time series to forward to receive endpoint")
+			return nil
+		}
+
+		wreq := &prompb.WriteRequest{
+			Timeseries: timeseries,
+		}
+
+		data, err := proto.Marshal(wreq)
+		if err != nil {
+			return err
+		}
+
+		compressed := snappy.Encode(nil, data)
+
+		req, err := http.NewRequest(http.MethodPost, s.url.String(), bytes.NewBuffer(compressed))
+		if err != nil {
+			return err
+		}
+		req.Header.Add("THANOS-TENANT", p.PartitionKey)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		req = req.WithContext(ctx)
+
+		begin := time.Now()
+		resp, err := s.client.Do(req)
+		if err != nil {
+			return err
+		}
+
+		forwardDuration.
+			WithLabelValues(fmt.Sprintf("%d", resp.StatusCode)).
+			Observe(time.Since(begin).Seconds())
+
+		meanDrift := timeseriesMeanDrift(timeseries, time.Now().Unix())
+		if math.Abs(meanDrift) > 10 {
+			level.Info(s.logger).Log("msg", "mean drift from now for clusters", "partitionkey", p.PartitionKey, "drift", fmt.Sprintf("%.3fs", meanDrift))
+		}
+
+		if resp.StatusCode/100 != 2 {
+			return fmt.Errorf("response status code is %s", resp.Status)
+		}
+
+		s := 0
+		for _, ts := range wreq.Timeseries {
+			s = s + len(ts.Samples)
+		}
+		forwardSamples.Add(float64(s))
+
+		return nil
 	}()
+	if err != nil {
+		forwardErrors.Inc()
+		level.Error(s.logger).Log("msg", "forwarding error", "err", err)
+
+		return err
+	}
 
 	return s.next.WriteMetrics(ctx, p)
 }
