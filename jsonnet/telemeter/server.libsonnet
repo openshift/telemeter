@@ -11,6 +11,11 @@ local list = import 'lib/list.libsonnet';
           + list.withResourceRequestsAndLimits('telemeter-server', $._config.telemeterServer.resourceRequests, $._config.telemeterServer.resourceLimits),
   },
   memcached+:: {
+    service+: {
+      metadata+: {
+        namespace: '${NAMESPACE}',
+      },
+    },
     list: list.asList('memcached', m, [
             {
               name: 'MEMCACHED_IMAGE',
