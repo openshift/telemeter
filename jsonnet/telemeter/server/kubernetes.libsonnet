@@ -61,7 +61,7 @@ local clusterPort = 8082;
         $._config.telemeterServer.elideLabels
       );
 
-      local memcachedReplicas = std.range(1, $.memcached.replicas);
+      local memcachedReplicas = std.range(0, $.memcached.replicas - 1);
       local memcached = [
         '--memcached=%s-%d.%s.%s.svc.cluster.local:%d' % [
           $.memcached.statefulSet.metadata.name,
