@@ -241,14 +241,13 @@
           template+: {
             spec+: {
               containers: [
-                c {
-                  command: [
-                    if std.startsWith(c, '--memcached=') then std.join('.', std.splitLimit(c, '.', 2)[:2] + ['${NAMESPACE}'] + [std.splitLimit(c, '.', 3)[3]]) else c
-                    for c in super.command
-                  ],
-                }
+                c + (if std.objectHas(c, 'command') then {
+                       command: [
+                         if std.startsWith(c, '--memcached=') then std.join('.', std.splitLimit(c, '.', 2)[:2] + ['${NAMESPACE}'] + [std.splitLimit(c, '.', 3)[3]]) else c
+                         for c in super.command
+                       ],
+                     } else {})
                 for c in super.containers
-                if std.objectHas(c, 'command')
               ],
             },
           },
