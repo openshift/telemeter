@@ -239,8 +239,27 @@ local clusterPort = 8082;
   },
 
   memcached+:: {
-    image:: 'docker.io/memcached:1.5.20-alpine',
+    images:: {
+      memcached: 'docker.io/memcached',
+      exporter: 'docker.io/prom/memcached-exporter',
+    },
+    tags:: {
+      memcached: '1.5.20-alpine',
+      exporter: 'v0.6.0',
+    },
     replicas:: 3,
+    maxItemSize:: '1m',
+    memoryLimitMB:: 1024,
+    overprovisionFactor:: 1.2,
+    connectionLimit:: 1024,
+    resourceLimits:: {
+      cpu: '3',
+      memory: std.ceil($.memcached.memoryLimitMB * $.memcached.overprovisionFactor * 1.5) + 'Mi',
+    },
+    resourceRequests:: {
+      cpu: '500m',
+      memory: std.ceil(($.memcached.memoryLimitMB * $.memcached.overprovisionFactor) + 100) + 'Mi',
+    },
 
     service:
       local service = k.core.v1.service;
@@ -250,7 +269,8 @@ local clusterPort = 8082;
         'memcached',
         $.memcached.statefulSet.metadata.labels,
         [
-          ports.newNamed('memcached', 11211, 11211),
+          ports.newNamed('client', 11211, 11211),
+          ports.newNamed('metrics', 9150, 9150),
         ]
       ) +
       service.mixin.metadata.withNamespace($._config.namespace) +
@@ -259,20 +279,30 @@ local clusterPort = 8082;
 
     statefulSet:
       local sts = k.apps.v1beta2.statefulSet;
-      local volume = sts.mixin.spec.template.spec.volumesType;
-      local container = sts.mixin.spec.template.spec.containersType;
-      local containerEnv = container.envType;
-      local containerVolumeMount = container.volumeMountsType;
+      local container = k.apps.v1beta2.statefulSet.mixin.spec.template.spec.containersType;
+      local containerPort = container.portsType;
 
       local c =
-        container.new($.memcached.statefulSet.metadata.name, $.memcached.image) +
-        container.withPorts([
-          { name: 'memcached', containerPort: $.memcached.service.spec.ports[0].port },
+        container.new('memcached', $.memcached.images.memcached) +
+        container.withPorts([containerPort.newNamed($.memcached.service.spec.ports[0].name, $.memcached.service.spec.ports[0].port)]) +
+        container.withArgs([
+          '-m %(memoryLimitMB)s' % self,
+          '-I %(maxItemSize)s' % self,
+          '-c %(connectionLimit)s' % self,
+          '-v',
         ]) +
-        container.mixin.resources.withRequests({ cpu: '100m', memory: '512Mi' }) +
-        container.mixin.resources.withLimits({ cpu: '1', memory: '1Gi' });
+        container.mixin.resources.withLimitsMixin($.memcached.resourceLimits) +
+        container.mixin.resources.withRequestsMixin($.memcached.resourceRequests);
 
-      sts.new('memcached', $.memcached.replicas, c, [], $.memcached.statefulSet.metadata.labels) +
+      local exporter =
+        container.new('exporter', $.memcached.images.exporter) +
+        container.withPorts([containerPort.newNamed($.memcached.service.spec.ports[1].name, $.memcached.service.spec.ports[1].port)]) +
+        container.withArgs([
+          '--memcached.address=localhost:%d' % $.memcached.service.spec.ports[0].port,
+          '--web.listen-address=0.0.0.0:%d' % $.memcached.service.spec.ports[1].port,
+        ]);
+
+      sts.new('memcached', $.memcached.replicas, [c, exporter], [], $.memcached.statefulSet.metadata.labels) +
       sts.mixin.metadata.withNamespace($._config.namespace) +
       sts.mixin.metadata.withLabels({ 'app.kubernetes.io/name': $.memcached.statefulSet.metadata.name }) +
       sts.mixin.spec.withServiceName($.memcached.service.metadata.name) +
@@ -280,6 +310,33 @@ local clusterPort = 8082;
       {
         spec+: {
           volumeClaimTemplates:: null,
+        },
+      },
+
+    serviceMonitor:
+      {
+        apiVersion: 'monitoring.coreos.com/v1',
+        kind: 'ServiceMonitor',
+        metadata: {
+          name: 'memcached',
+          namespace: $._config.namespace,
+          labels: {
+            'app.kubernetes.io/name': $.memcached.statefulSet.metadata.name,
+          },
+        },
+        spec: {
+          jobLabel: 'app.kubernetes.io/name',
+          selector: {
+            matchLabels: {
+              'app.kubernetes.io/name': $.memcached.statefulSet.metadata.name,
+            },
+          },
+          endpoints: [
+            {
+              interval: '30s',
+              port: $.memcached.service.spec.ports[1].name,
+            },
+          ],
         },
       },
   },
