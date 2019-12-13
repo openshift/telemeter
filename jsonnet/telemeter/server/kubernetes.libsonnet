@@ -283,7 +283,7 @@ local clusterPort = 8082;
       local containerPort = container.portsType;
 
       local c =
-        container.new('memcached', $.memcached.images.memcached) +
+        container.new('memcached', $.memcached.images.memcached + ':' + $.memcached.tags.memcached) +
         container.withPorts([containerPort.newNamed($.memcached.service.spec.ports[0].name, $.memcached.service.spec.ports[0].port)]) +
         container.withArgs([
           '-m %(memoryLimitMB)s' % self,
@@ -295,7 +295,7 @@ local clusterPort = 8082;
         container.mixin.resources.withRequestsMixin($.memcached.resourceRequests);
 
       local exporter =
-        container.new('exporter', $.memcached.images.exporter) +
+        container.new('exporter', $.memcached.images.exporter + ':' + $.memcached.tags.exporter) +
         container.withPorts([containerPort.newNamed($.memcached.service.spec.ports[1].name, $.memcached.service.spec.ports[1].port)]) +
         container.withArgs([
           '--memcached.address=localhost:%d' % $.memcached.service.spec.ports[0].port,
