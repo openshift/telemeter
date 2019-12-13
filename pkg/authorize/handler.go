@@ -111,8 +111,7 @@ func AgainstEndpoint(logger log.Logger, client *http.Client, endpoint *url.URL, 
 	case http.StatusOK, http.StatusCreated:
 		return body, nil
 	default:
-		b, _ := ioutil.ReadAll(io.LimitReader(res.Body, 4*1024))
-		level.Warn(logger).Log("msg", "upstream server rejected request", "cluster", cluster, "body", string(b))
+		level.Warn(logger).Log("msg", "upstream server rejected request", "cluster", cluster, "body", string(body))
 		return body, NewErrorWithCode(fmt.Errorf("upstream rejected request with code %d", res.StatusCode), http.StatusInternalServerError)
 	}
 }
