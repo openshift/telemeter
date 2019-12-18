@@ -151,10 +151,10 @@ For the OpenShift 4 Developer Preview we will be sending back these exact attrib
   '{__name__="noobaa_total_usage"}',
   // console_url is the url of the console running on the cluster.
   '{__name__="console_url"}',
-  // cluster:network_attachment_definition_instances:max" gives max no of instance 
+  // cluster:network_attachment_definition_instances:max" gives max no of instance
   //in the cluster that are annotated with k8s.v1.cni.cncf.io/networks, labelled by networks.
   '{__name__="cluster:network_attachment_definition_instances:max"}',
-  // cluster:network_attachment_definition_enabled_instance_up  informs (1 or 0) if the cluster has 
+  // cluster:network_attachment_definition_enabled_instance_up  informs (1 or 0) if the cluster has
   //at least max of one instance with  k8s.v1.cni.cncf.io/networks annotation, labelled by networks (any or sriov).
   '{__name__="cluster:network_attachment_definition_enabled_instance_up:max"}',
   // insightsclient_request_send tracks the number of metrics sends.
