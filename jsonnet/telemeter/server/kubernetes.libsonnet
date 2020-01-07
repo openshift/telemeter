@@ -13,7 +13,6 @@ local clusterPort = 8082;
     namespace: 'telemeter',
 
     telemeterServer+:: {
-      authorizeURL: 'https://api.openshift.com/api/accounts_mgmt/v1/cluster_registrations',
       replicas: 10,
       oidcIssuer: '',
       clientSecret: '',
@@ -46,6 +45,7 @@ local clusterPort = 8082;
       local tlsMount = containerVolumeMount.new(tlsVolumeName, tlsMountPath);
       local tlsVolume = volume.fromSecret(tlsVolumeName, tlsSecret);
       local name = containerEnv.fromFieldPath('NAME', 'metadata.name');
+      local authorizeURL = containerEnv.fromSecretRef('AUTHORIZE_URL', secretName, 'authorize_url');
       local oidcIssuer = containerEnv.fromSecretRef('OIDC_ISSUER', secretName, 'oidc_issuer');
       local clientSecret = containerEnv.fromSecretRef('CLIENT_SECRET', secretName, 'client_secret');
       local clientID = containerEnv.fromSecretRef('CLIENT_ID', secretName, 'client_id');
@@ -88,7 +88,7 @@ local clusterPort = 8082;
           '--tls-crt=%s/tls.crt' % tlsMountPath,
           '--internal-tls-key=%s/tls.key' % tlsMountPath,
           '--internal-tls-crt=%s/tls.crt' % tlsMountPath,
-          '--authorize=' + $._config.telemeterServer.authorizeURL,
+          '--authorize=$(AUTHORIZE_URL)',
           '--oidc-issuer=$(OIDC_ISSUER)',
           '--client-id=$(CLIENT_ID)',
           '--client-secret=$(CLIENT_SECRET)',
@@ -135,6 +135,7 @@ local clusterPort = 8082;
       local secret = k.core.v1.secret;
 
       secret.new(secretName, {
+        authorize_url: std.base64($._config.telemeterServer.authorizeUrl),
         oidc_issuer: std.base64($._config.telemeterServer.oidcIssuer),
         client_secret: std.base64($._config.telemeterServer.clientSecret),
         client_id: std.base64($._config.telemeterServer.clientID),
