@@ -1,4 +1,4 @@
-local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
+local k = import 'ksonnet/ksonnet.beta.4/k.libsonnet';
 local secretName = 'telemeter-server';
 local secretMountPath = '/etc/telemeter';
 local secretVolumeName = 'secret-telemeter-server';
@@ -62,9 +62,9 @@ local tokensFileName = 'tokens.json';
     },
 
     statefulSet:
-      local statefulSet = k.apps.v1beta2.statefulSet;
-      local container = k.apps.v1beta2.statefulSet.mixin.spec.template.spec.containersType;
-      local volume = k.apps.v1beta2.statefulSet.mixin.spec.template.spec.volumesType;
+      local statefulSet = k.apps.v1.statefulSet;
+      local container = k.apps.v1.statefulSet.mixin.spec.template.spec.containersType;
+      local volume = k.apps.v1.statefulSet.mixin.spec.template.spec.volumesType;
       local containerPort = container.portsType;
       local containerVolumeMount = container.volumeMountsType;
       local containerEnv = container.envType;
@@ -94,9 +94,9 @@ local tokensFileName = 'tokens.json';
           '--authorize=' + $._config.telemeterServer.authorizeURL,
         ] + whitelist) +
         container.withPorts([
-          containerPort.newNamed('external', externalPort),
-          containerPort.newNamed('internal', internalPort),
-          containerPort.newNamed('cluster', clusterPort),
+          containerPort.newNamed(externalPort, 'external'),
+          containerPort.newNamed(internalPort, 'internal'),
+          containerPort.newNamed(clusterPort, 'cluster'),
         ]) +
         container.withVolumeMounts([secretMount, tlsMount]) +
         container.withEnv([name]) + {
@@ -327,7 +327,7 @@ local tokensFileName = 'tokens.json';
     prometheus:
       local container = k.core.v1.pod.mixin.spec.containersType;
       local resourceRequirements = container.mixin.resourcesType;
-      local selector = k.apps.v1beta2.deployment.mixin.spec.selectorType;
+      local selector = k.apps.v1.deployment.mixin.spec.selectorType;
 
       local resources =
         resourceRequirements.new() +
