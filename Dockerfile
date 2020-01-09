@@ -1,4 +1,5 @@
-FROM openshift/origin-release:golang-1.12
+FROM openshift/origin-release:golang-1.13
+ENV GOFLAGS="-mod=vendor"
 COPY . /go/src/github.com/openshift/telemeter
 RUN cd /go/src/github.com/openshift/telemeter && \
     go build ./cmd/telemeter-client && \
