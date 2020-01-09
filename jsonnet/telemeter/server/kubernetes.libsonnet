@@ -135,7 +135,7 @@ local clusterPort = 8082;
       local secret = k.core.v1.secret;
 
       secret.new(secretName, {
-        authorize_url: std.base64($._config.telemeterServer.authorizeUrl),
+        authorize_url: '',
         oidc_issuer: std.base64($._config.telemeterServer.oidcIssuer),
         client_secret: std.base64($._config.telemeterServer.clientSecret),
         client_id: std.base64($._config.telemeterServer.clientID),
