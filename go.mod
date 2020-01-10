@@ -15,7 +15,7 @@ require (
 	github.com/hashicorp/memberlist v0.1.5
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jsonnet-bundler/jsonnet-bundler v0.2.0
-	github.com/observatorium/up v0.0.0-20191211124247-2187e5c6701d
+	github.com/observatorium/up v0.0.0-20200109183502-89757a581729
 	github.com/oklog/run v1.0.0
 	github.com/pkg/errors v0.8.1
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
