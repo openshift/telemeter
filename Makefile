@@ -8,18 +8,18 @@ TAG?=$(shell git rev-parse --short HEAD)
 PKGS=$(shell go list ./... | grep -v -E '/vendor/|/test/(?!e2e)')
 GOLANG_FILES:=$(shell find . -name \*.go -print)
 FIRST_GOPATH:=$(firstword $(subst :, ,$(shell go env GOPATH)))
-GOLANGCI_LINT_BIN=$(FIRST_GOPATH)/bin/golangci-lint
+BIN_DIR?=./_output/bin
+GOLANGCI_LINT_BIN=$(BIN_DIR)/golangci-lint
 GOLANGCI_LINT_VERSION=v1.18.0
-EMBEDMD_BIN=$(FIRST_GOPATH)/bin/embedmd
-THANOS_BIN=$(FIRST_GOPATH)/bin/thanos
-UP_VERSION=ff205472ef5a24c1b8c6769cd76aa4a5c988f306
-UP_BIN=$(FIRST_GOPATH)/bin/up
-MEMCACHED_BIN=_output/bin/memcached
-PROMETHEUS_BIN=_output/bin/prometheus
-GOJSONTOYAML_BIN=$(FIRST_GOPATH)/bin/gojsontoyaml
+EMBEDMD_BIN=$(BIN_DIR)/embedmd
+THANOS_BIN=$(BIN_DIR)/thanos
+UP_BIN=$(BIN_DIR)/up
+MEMCACHED_BIN=$(BIN_DIR)/memched
+PROMETHEUS_BIN=$(BIN_DIR)/prometheus
+GOJSONTOYAML_BIN=$(BIN_DIR)/gojsontoyaml
 # We need jsonnet on CI; here we default to the user's installed jsonnet binary; if nothing is installed, then install go-jsonnet.
-JSONNET_BIN=$(if $(shell which jsonnet 2>/dev/null),$(shell which jsonnet 2>/dev/null),$(FIRST_GOPATH)/bin/jsonnet)
-JB_BIN=$(FIRST_GOPATH)/bin/jb
+JSONNET_BIN=$(if $(shell which jsonnet 2>/dev/null),$(shell which jsonnet 2>/dev/null),$(BIN_DIR)/jsonnet)
+JB_BIN=$(BIN_DIR)/jb
 JSONNET_SRC=$(shell find ./jsonnet -type f)
 BENCHMARK_RESULTS=$(shell find ./benchmark -type f -name '*.json')
 BENCHMARK_GOAL?=5000
@@ -152,8 +152,8 @@ test-generate:
 	make --always-make && git diff --exit-code
 
 test-integration: build $(THANOS_BIN) $(UP_BIN) $(MEMCACHED_BIN) $(PROMETHEUS_BIN)
-	PATH=$$PATH:$$(pwd)/_output/bin ./test/integration.sh
-	PATH=$$PATH:$$(pwd)/_output/bin ./test/integration-v2.sh
+	PATH=$$PATH:$$(pwd)/$(BIN_DIR) ./test/integration.sh
+	PATH=$$PATH:$$(pwd)/$(BIN_DIR) ./test/integration-v2.sh
 
 test-benchmark: build
 	./test/benchmark.sh "" "" $(BENCHMARK_GOAL) "" $(BENCHMARK_GOAL)
@@ -174,40 +174,35 @@ test/timeseries.txt:
 # Binaries #
 ############
 
-dependencies: $(JB_BIN) $(GOLANGCI_LINT_BIN)
+dependencies: $(JB_BIN) $(GOLANGCI_LINT_BIN) $(THANOS_BIN) $(UP_BIN) $(MEMCACHED_BIN) $(PROMETHEUS_BIN) $(EMBEDMD_BIN) $(GOJSONTOYAML_BIN)
 
-$(THANOS_BIN):
-	GO111MODULE=off go get github.com/thanos-io/thanos
+$(BIN_DIR):
+	mkdir -p $@
 
-$(UP_BIN):
-	GO111MODULE=off go get -d github.com/observatorium/up
-	cd ${FIRST_GOPATH}/src/github.com/observatorium/up \
-		&& git checkout ${UP_VERSION} \
-		&& go install .
+$(THANOS_BIN): $(BIN_DIR)
+	GO111MODULE=on go build -mod=vendor -o $@ github.com/thanos-io/thanos/cmd/thanos
 
-$(MEMCACHED_BIN):
-	mkdir -p _output/bin
+$(UP_BIN): $(BIN_DIR)
+	GO111MODULE=on go build -mod=vendor -o $@ github.com/observatorium/up
+
+$(MEMCACHED_BIN): $(BIN_DIR)
 	@echo "Downloading Memcached"
-	curl -L https://www.archlinux.org/packages/extra/x86_64/memcached/download/ | tar --strip-components=2 -xJf - -C _output/bin usr/bin/memcached
+	curl -L https://www.archlinux.org/packages/extra/x86_64/memcached/download/ | tar --strip-components=2 -xJf - -C $(BIN_DIR) usr/bin/memcached
 
-$(PROMETHEUS_BIN):
-	mkdir -p _output/bin
+$(PROMETHEUS_BIN): $(BIN_DIR)
 	@echo "Downloading Prometheus"
-	curl -L "https://github.com/prometheus/prometheus/releases/download/v2.3.2/prometheus-2.3.2.$$(go env GOOS)-$$(go env GOARCH).tar.gz" | tar --strip-components=1 -xzf - -C _output/bin
+	curl -L "https://github.com/prometheus/prometheus/releases/download/v2.3.2/prometheus-2.3.2.$$(go env GOOS)-$$(go env GOARCH).tar.gz" | tar --strip-components=1 -xzf - -C $(BIN_DIR)
 
-$(EMBEDMD_BIN):
-	GO111MODULE=off go get -u github.com/campoy/embedmd
+$(EMBEDMD_BIN): $(BIN_DIR)
+	GO111MODULE=on go build -mod=vendor -o $@ github.com/campoy/embedmd
 
-$(GOBINDATA_BIN):
-	GO111MODULE=off go get -u github.com/jteeuwen/go-bindata/...
+$(JB_BIN): $(BIN_DIR)
+	GO111MODULE=on go build -mod=vendor -o $@ github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb
 
-$(JB_BIN):
-	GO111MODULE=off go get -u github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb
+$(GOJSONTOYAML_BIN): $(BIN_DIR)
+	GO111MODULE=on go build -mod=vendor -o $@ github.com/brancz/gojsontoyaml
 
-$(GOJSONTOYAML_BIN):
-	GO111MODULE=off go get -u github.com/brancz/gojsontoyaml
-
-$(GOLANGCI_LINT_BIN):
+$(GOLANGCI_LINT_BIN): $(BIN_DIR)
 	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/$(GOLANGCI_LINT_VERSION)/install.sh \
 		| sed -e '/install -d/d' \
-		| sh -s -- -b $(FIRST_GOPATH)/bin $(GOLANGCI_LINT_VERSION)
+		| sh -s -- -b $(BIN_DIR) $(GOLANGCI_LINT_VERSION)
