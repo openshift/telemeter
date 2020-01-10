@@ -12,6 +12,7 @@ GOLANGCI_LINT_BIN=$(FIRST_GOPATH)/bin/golangci-lint
 GOLANGCI_LINT_VERSION=v1.18.0
 EMBEDMD_BIN=$(FIRST_GOPATH)/bin/embedmd
 THANOS_BIN=$(FIRST_GOPATH)/bin/thanos
+UP_VERSION=ff205472ef5a24c1b8c6769cd76aa4a5c988f306
 UP_BIN=$(FIRST_GOPATH)/bin/up
 MEMCACHED_BIN=_output/bin/memcached
 PROMETHEUS_BIN=_output/bin/prometheus
@@ -179,7 +180,10 @@ $(THANOS_BIN):
 	GO111MODULE=off go get github.com/thanos-io/thanos
 
 $(UP_BIN):
-	GO111MODULE=off go get github.com/observatorium/up
+	GO111MODULE=off go get -d github.com/observatorium/up
+	cd ${FIRST_GOPATH}/src/github.com/observatorium/up \
+		&& git checkout ${UP_VERSION} \
+		&& go install .
 
 $(MEMCACHED_BIN):
 	mkdir -p _output/bin
