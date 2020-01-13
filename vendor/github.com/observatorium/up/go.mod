@@ -9,6 +9,7 @@ require (
 	github.com/oklog/run v1.0.0
 	github.com/pkg/errors v0.8.1
 	github.com/prometheus/client_golang v1.1.0
+	github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4
 	github.com/prometheus/common v0.6.0
 	github.com/prometheus/prometheus v0.0.0-20190819201610-48b2c9c8eae2
 )

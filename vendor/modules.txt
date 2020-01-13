@@ -289,7 +289,7 @@ github.com/mozillazg/go-cos
 github.com/mozillazg/go-httpheader
 # github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f
 github.com/mwitkow/go-conntrack
-# github.com/observatorium/up v0.0.0-20191211124247-2187e5c6701d
+# github.com/observatorium/up v0.0.0-20200109183502-89757a581729
 github.com/observatorium/up
 # github.com/oklog/run v1.0.0
 github.com/oklog/run
@@ -312,6 +312,7 @@ github.com/pmezard/go-difflib/difflib
 github.com/pquerna/cachecontrol
 github.com/pquerna/cachecontrol/cacheobject
 # github.com/prometheus/client_golang v1.2.1
+github.com/prometheus/client_golang/api
 github.com/prometheus/client_golang/prometheus
 github.com/prometheus/client_golang/prometheus/internal
 github.com/prometheus/client_golang/prometheus/promauto

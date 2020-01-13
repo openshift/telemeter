@@ -453,8 +453,6 @@ github.com/mwitkow/go-conntrack v0.0.0-20161129095857-cc309e4a2223/go.mod h1:qRW
 github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f h1:KUppIJq7/+SVif2QVs3tOP0zanoHgBEVAwHxUSIzRqU=
 github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
 github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f/go.mod h1:ZdcZmHo+o7JKHSa8/e818NopupXU1YMK5fe1lsApnBw=
-github.com/observatorium/up v0.0.0-20191211124247-2187e5c6701d h1:3TesJWOwsgYtbpk9gc/NyRGhcOUbWaFtA4I7iA6yDKw=
-github.com/observatorium/up v0.0.0-20191211124247-2187e5c6701d/go.mod h1:2S/xXiN2sSQFDGBA5Nk0l2ppt2Yf1Ukch0inzx14yig=
 github.com/observatorium/up v0.0.0-20200109183502-89757a581729 h1:1QXYFd80gTWcKClpx+bDfDRGO7lkBm0x+OiGxPI4Bxc=
 github.com/observatorium/up v0.0.0-20200109183502-89757a581729/go.mod h1:peD5Jv7R1C+3k7jqQr7AV2JZh1p4qy6N9jQKm6QjYoA=
 github.com/oklog/run v1.0.0 h1:Ru7dDtJNOyC66gQ5dQmaCa0qIsAUFY3sFpK1Xk8igrw=
