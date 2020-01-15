@@ -11,7 +11,7 @@ trap 'kill $(jobs -p); exit $result' EXIT
 
 ( ./authorization-server localhost:9001 ./test/tokens.json ) &
 
-( memcached ) &
+( memcached -u "$(whoami)") &
 
 ( 
 ./telemeter-server \
