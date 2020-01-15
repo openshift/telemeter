@@ -6,11 +6,12 @@
 
 set -euo pipefail
 
-trap 'kill $(jobs -p); exit 0' EXIT
+result=1
+trap 'kill $(jobs -p); exit $result' EXIT
 
 ( ./authorization-server localhost:9001 ./test/tokens.json ) &
 
-( memcached ) &
+( memcached -u "$(whoami)") &
 
 ( 
 ./telemeter-server \
@@ -21,15 +22,6 @@ trap 'kill $(jobs -p); exit 0' EXIT
     --forward-url=http://localhost:9005/api/v1/receive \
     --memcached=localhost:11211 \
     -v
-) &
-
-( 
-up \
-    --endpoint=http://127.0.0.1:9003/metrics/v1/receive \
-    --period=1s \
-    --name cluster_installer \
-    --labels '_id="test"' \
-    --token="$(echo '{"authorization_token":"a","cluster_id":"test"}' | base64)"
 ) &
 
 (
@@ -46,23 +38,26 @@ thanos query \
     --store=127.0.0.1:9006
 ) &
 
-sleep 1
+echo "waiting for dependencies to come up..."
+sleep 5
 
-retries=100
-while true; do 
-  if [[ "${retries}" -lt 0 ]]; then
-    echo "error: Did not successfully retrieve cluster metrics from the local Thanos query server" 1>&2
-    exit 1
-  fi
-  # verify we scrape metrics from the test cluster and give it _id test
-  if [[ "$( curl http://localhost:9008/api/v1/query --data-urlencode 'query=count({_id="test"})' -G 2>/dev/null | python3 -c 'import sys, json; print(json.load(sys.stdin)["data"]["result"][0]["value"][1])' 2>/dev/null )" -eq 0 ]]; then
-    retries=$((retries-1))
-    sleep 1
-    continue
-  fi
-  break
-done
-echo "tests: ok"
-exit 0
+if up \
+    --endpoint-write=http://127.0.0.1:9003/metrics/v1/receive \
+    --endpoint-read=http://127.0.0.1:9008/api/v1/query \
+    --period=500ms \
+    --initial-query-delay=250ms \
+    --threshold=1 \
+    --latency=10s \
+    --duration=10s \
+    --log.level=debug \
+    --name cluster_installer \
+    --labels '_id="test"' \
+    --token="$(echo '{"authorization_token":"a","cluster_id":"test"}' | base64)"; then
+    result=0
+    echo "tests: ok"
+    exit 0
+fi
 
-for i in `jobs -p`; do wait $i; done
+echo "tests: failed" 1>&2
+result=1
+exit 1

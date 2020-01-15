@@ -19,7 +19,8 @@ else
   test="${TEST:-1}"
 fi
 
-trap 'kill $(jobs -p); exit 0' EXIT
+result=1
+trap 'kill $(jobs -p); exit $result' EXIT
 
 ( ./authorization-server localhost:9001 ./test/tokens.json ) &
 
@@ -106,7 +107,10 @@ if [[ -n "${test-}" ]]; then
     break
   done
   echo "tests: ok"
+  result=0
   exit 0
 fi
 
-for i in `jobs -p`; do wait $i; done
+echo "tests: failed" 1>&2
+result=1
+exit 1

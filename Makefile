@@ -9,6 +9,7 @@ PKGS=$(shell go list ./... | grep -v -E '/vendor/|/test/(?!e2e)')
 GOLANG_FILES:=$(shell find . -name \*.go -print)
 FIRST_GOPATH:=$(firstword $(subst :, ,$(shell go env GOPATH)))
 BIN_DIR?=./_output/bin
+LIB_DIR?=./_output/lib
 GOLANGCI_LINT_BIN=$(BIN_DIR)/golangci-lint
 GOLANGCI_LINT_VERSION=v1.18.0
 EMBEDMD_BIN=$(BIN_DIR)/embedmd
@@ -153,7 +154,7 @@ test-generate:
 
 test-integration: build $(THANOS_BIN) $(UP_BIN) $(MEMCACHED_BIN) $(PROMETHEUS_BIN)
 	PATH=$$PATH:$$(pwd)/$(BIN_DIR) ./test/integration.sh
-	PATH=$$PATH:$$(pwd)/$(BIN_DIR) ./test/integration-v2.sh
+	PATH=$$PATH:$$(pwd)/$(BIN_DIR) LD_LIBRARY_PATH=$$LD_LIBRARY_PATH:$$(pwd)/$(LIB_DIR) ./test/integration-v2.sh
 
 test-benchmark: build
 	./test/benchmark.sh "" "" $(BENCHMARK_GOAL) "" $(BENCHMARK_GOAL)
@@ -179,14 +180,18 @@ dependencies: $(JB_BIN) $(GOLANGCI_LINT_BIN) $(THANOS_BIN) $(UP_BIN) $(MEMCACHED
 $(BIN_DIR):
 	mkdir -p $@
 
+$(LIB_DIR):
+	mkdir -p $@
+
 $(THANOS_BIN): $(BIN_DIR)
 	GO111MODULE=on go build -mod=vendor -o $@ github.com/thanos-io/thanos/cmd/thanos
 
 $(UP_BIN): $(BIN_DIR)
 	GO111MODULE=on go build -mod=vendor -o $@ github.com/observatorium/up
 
-$(MEMCACHED_BIN): $(BIN_DIR)
+$(MEMCACHED_BIN): $(BIN_DIR) $(LIB_DIR)
 	@echo "Downloading Memcached"
+	curl -L https://www.archlinux.org/packages/core/x86_64/libevent/download/ | tar --strip-components=2 -xJf - -C $(LIB_DIR) usr/lib
 	curl -L https://www.archlinux.org/packages/extra/x86_64/memcached/download/ | tar --strip-components=2 -xJf - -C $(BIN_DIR) usr/bin/memcached
 
 $(PROMETHEUS_BIN): $(BIN_DIR)
