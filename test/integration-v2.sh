@@ -6,7 +6,9 @@
 
 set -euo pipefail
 
-trap 'kill $(jobs -p); exit 0' EXIT
+trap 'kill $(jobs -p); exit 1' EXIT
+
+ss -tlpn
 
 ( ./authorization-server localhost:9001 ./test/tokens.json ) &
 
@@ -63,6 +65,6 @@ while true; do
   break
 done
 echo "tests: ok"
-exit 0
+exit 1
 
 for i in `jobs -p`; do wait $i; done
