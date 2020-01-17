@@ -23,6 +23,12 @@
                 sort_desc(max by (_id,code) (code:apiserver_request_count:rate:sum{code=~"(4|5)\\d\\d"}) > 0.5)
               |||,
             },
+            {
+              record: 'id_version:cluster_available',
+              expr: |||
+                bottomk by (_id) (1, max by (_id, version) (0 * cluster_version{type="failure"}) or max by (_id, version) (1 + 0 * cluster_version{type="current"}))
+              |||,
+            },
           ],
         },
       ],
