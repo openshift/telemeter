@@ -159,9 +159,9 @@ For the OpenShift 4 Developer Preview we will be sending back these exact attrib
   '{__name__="cluster:network_attachment_definition_enabled_instance_up:max"}',
   // insightsclient_request_send tracks the number of metrics sends.
   '{__name__="insightsclient_request_send_total"}',
-  // cam_app_workload_migration_total tracks number of app workload migrations
+  // cam_app_workload_migrations tracks number of app workload migrations
   // by current state. Tracked migration states are idle, running, completed, and failed.
-  '{__name__="cam_app_workload_migration_total"}',
+  '{__name__="cam_app_workload_migrations"}',
 ]
 ```
 
