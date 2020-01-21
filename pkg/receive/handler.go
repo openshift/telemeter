@@ -67,7 +67,8 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 	if resp.StatusCode/100 != 2 {
 		msg := "upstream response status is not 200 OK"
 		level.Error(h.logger).Log("msg", msg, "statuscode", resp.Status)
-		http.Error(w, msg, http.StatusBadGateway)
+		http.Error(w, msg, resp.StatusCode)
 		return
 	}
+	w.WriteHeader(resp.StatusCode)
 }
