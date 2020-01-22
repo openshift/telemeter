@@ -26,21 +26,21 @@ const (
 
 var (
 	forwardSamples = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "telemeter_forward_samples_total",
-		Help: "Total amount of samples successfully forwarded",
+		Name: "telemeter_v1_forward_samples_total",
+		Help: "Total amount of successfully forwarded samples from v1 requests.",
 	})
 	forwardRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "telemeter_forward_requests_total",
-		Help: "Total amount of requests forwarded",
+		Name: "telemeter_v1_forward_requests_total",
+		Help: "Total amount of forwarded v1 requests.",
 	}, []string{"result"})
 	forwardDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "telemeter_forward_request_duration_seconds",
-		Help:    "Tracks the duration of all forwarding requests",
+		Name:    "telemeter_v1_forward_request_duration_seconds",
+		Help:    "Tracks the duration of all requests forwarded v1.",
 		Buckets: []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5}, // max = timeout
 	}, []string{"status_code"})
 	overwrittenTimestamps = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "telemeter_forward_overwritten_timestamps_total",
-		Help: "Total number of timestamps that were overwritten",
+		Name: "telemeter_v1_forward_overwritten_timestamps_total",
+		Help: "Total number of timestamps from v1 requests that were overwritten.",
 	})
 )
 
