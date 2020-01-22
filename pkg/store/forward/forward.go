@@ -29,10 +29,10 @@ var (
 		Name: "telemeter_forward_samples_total",
 		Help: "Total amount of samples successfully forwarded",
 	})
-	forwardErrors = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: "telemeter_forward_request_errors_total",
-		Help: "Total amount of errors encountered while forwarding",
-	})
+	forwardRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "telemeter_forward_requests_total",
+		Help: "Total amount of requests forwarded",
+	}, []string{"result"})
 	forwardDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:    "telemeter_forward_request_duration_seconds",
 		Help:    "Tracks the duration of all forwarding requests",
@@ -46,7 +46,7 @@ var (
 
 func init() {
 	prometheus.MustRegister(forwardSamples)
-	prometheus.MustRegister(forwardErrors)
+	prometheus.MustRegister(forwardRequests)
 	prometheus.MustRegister(forwardDuration)
 	prometheus.MustRegister(overwrittenTimestamps)
 }
@@ -137,12 +137,13 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 		return nil
 	}()
 	if err != nil {
-		forwardErrors.Inc()
+		forwardRequests.WithLabelValues("error").Inc()
 		level.Error(s.logger).Log("msg", "forwarding error", "err", err)
 
 		return err
 	}
 
+	forwardRequests.WithLabelValues("success").Inc()
 	return s.next.WriteMetrics(ctx, p)
 }
 
