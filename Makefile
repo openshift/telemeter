@@ -87,7 +87,7 @@ generate-in-docker:
 	$(CONTAINER_CMD) $(MAKE) $(MFLAGS) generate
 
 $(JSONNET_VENDOR): jsonnet/jsonnetfile.json $(JB_BIN)
-	cd jsonnet && jb install
+	cd jsonnet && ../$(JB_BIN) install
 
 # Can't add test/timeseries.txt as a dependency, otherwise
 # running make --always-make will try to regenerate the timeseries
