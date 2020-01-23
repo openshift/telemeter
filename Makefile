@@ -18,8 +18,9 @@ UP_BIN=$(BIN_DIR)/up
 MEMCACHED_BIN=$(BIN_DIR)/memched
 PROMETHEUS_BIN=$(BIN_DIR)/prometheus
 GOJSONTOYAML_BIN=$(BIN_DIR)/gojsontoyaml
+JSONNET?=$(BIN_DIR)/jsonnet
 # We need jsonnet on CI; here we default to the user's installed jsonnet binary; if nothing is installed, then install go-jsonnet.
-JSONNET_BIN=$(if $(shell which jsonnet 2>/dev/null),$(shell which jsonnet 2>/dev/null),$(BIN_DIR)/jsonnet)
+JSONNET_BIN=$(if $(shell which jsonnet 2>/dev/null),$(shell which jsonnet 2>/dev/null),$(JSONNET))
 JB_BIN=$(BIN_DIR)/jb
 JSONNET_SRC=$(shell find ./jsonnet -type f)
 BENCHMARK_RESULTS=$(shell find ./benchmark -type f -name '*.json')
@@ -103,7 +104,7 @@ docs/telemeter_query: $(JSONNET_SRC)
 	done; \
 	echo "$$query" > $@
 
-manifests: $(JSONNET_SRC) $(JSONNET_VENDOR) $(GOJSONTOYAML_BIN)
+manifests: $(JSONNET_BIN) $(JSONNET_SRC) $(JSONNET_VENDOR) $(GOJSONTOYAML_BIN)
 	rm -rf manifests
 	mkdir -p manifests/{benchmark,client,server,prometheus}
 	$(JSONNET_BIN) jsonnet/benchmark.jsonnet -J jsonnet/vendor -m manifests/benchmark
@@ -200,6 +201,9 @@ $(PROMETHEUS_BIN): $(BIN_DIR)
 
 $(EMBEDMD_BIN): $(BIN_DIR)
 	GO111MODULE=on go build -mod=vendor -o $@ github.com/campoy/embedmd
+
+$(JSONNET): $(BIN_DIR)
+	GO111MODULE=on go build -mod=vendor -o $@ github.com/google/go-jsonnet/cmd/jsonnet
 
 $(JB_BIN): $(BIN_DIR)
 	GO111MODULE=on go build -mod=vendor -o $@ github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb
