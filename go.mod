@@ -11,6 +11,7 @@ require (
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/protobuf v1.3.2
 	github.com/golang/snappy v0.0.1
+	github.com/google/go-jsonnet v0.14.0
 	github.com/hashicorp/go-msgpack v0.5.5
 	github.com/hashicorp/memberlist v0.1.5
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect

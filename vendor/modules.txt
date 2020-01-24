@@ -160,6 +160,14 @@ github.com/google/go-cmp/cmp/internal/diff
 github.com/google/go-cmp/cmp/internal/flags
 github.com/google/go-cmp/cmp/internal/function
 github.com/google/go-cmp/cmp/internal/value
+# github.com/google/go-jsonnet v0.14.0
+github.com/google/go-jsonnet
+github.com/google/go-jsonnet/ast
+github.com/google/go-jsonnet/astgen
+github.com/google/go-jsonnet/cmd/jsonnet
+github.com/google/go-jsonnet/internal/errors
+github.com/google/go-jsonnet/internal/parser
+github.com/google/go-jsonnet/internal/program
 # github.com/google/go-querystring v1.0.0
 github.com/google/go-querystring/query
 # github.com/google/gofuzz v1.0.0
@@ -254,11 +262,11 @@ github.com/lightstep/lightstep-tracer-go
 github.com/lightstep/lightstep-tracer-go/lightstep/rand
 # github.com/lovoo/gcloud-opentracing v0.3.0
 github.com/lovoo/gcloud-opentracing
-# github.com/mattn/go-colorable v0.0.9
+# github.com/mattn/go-colorable v0.1.1
 github.com/mattn/go-colorable
 # github.com/mattn/go-ieproxy v0.0.0-20191113090002-7c0f6868bffe
 github.com/mattn/go-ieproxy
-# github.com/mattn/go-isatty v0.0.6
+# github.com/mattn/go-isatty v0.0.7
 github.com/mattn/go-isatty
 # github.com/mattn/go-runewidth v0.0.6
 github.com/mattn/go-runewidth
