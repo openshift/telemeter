@@ -202,7 +202,7 @@ $(PROMETHEUS_BIN): $(BIN_DIR)
 $(EMBEDMD_BIN): $(BIN_DIR)
 	GO111MODULE=on go build -mod=vendor -o $@ github.com/campoy/embedmd
 
-$(JSONNET): $(BIN_DIR)
+$(JSONNET_BIN): $(BIN_DIR)
 	GO111MODULE=on go build -mod=vendor -o $@ github.com/google/go-jsonnet/cmd/jsonnet
 
 $(JB_BIN): $(BIN_DIR)
