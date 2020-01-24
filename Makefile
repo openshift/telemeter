@@ -18,9 +18,9 @@ UP_BIN=$(BIN_DIR)/up
 MEMCACHED_BIN=$(BIN_DIR)/memched
 PROMETHEUS_BIN=$(BIN_DIR)/prometheus
 GOJSONTOYAML_BIN=$(BIN_DIR)/gojsontoyaml
-JSONNET?=$(BIN_DIR)/jsonnet
+JSONNET_BIN?=$(BIN_DIR)/jsonnet
 # We need jsonnet on CI; here we default to the user's installed jsonnet binary; if nothing is installed, then install go-jsonnet.
-JSONNET_BIN=$(if $(shell which jsonnet 2>/dev/null),$(shell which jsonnet 2>/dev/null),$(JSONNET))
+JSONNET_LOCAL_OR_INSTALLED=$(if $(shell which jsonnet 2>/dev/null),$(shell which jsonnet 2>/dev/null),$(JSONNET_BIN))
 JB_BIN=$(BIN_DIR)/jb
 JSONNET_SRC=$(shell find ./jsonnet -type f)
 BENCHMARK_RESULTS=$(shell find ./benchmark -type f -name '*.json')
@@ -104,12 +104,12 @@ docs/telemeter_query: $(JSONNET_SRC)
 	done; \
 	echo "$$query" > $@
 
-manifests: $(JSONNET_BIN) $(JSONNET_SRC) $(JSONNET_VENDOR) $(GOJSONTOYAML_BIN)
+manifests: $(JSONNET_LOCAL_OR_INSTALLED) $(JSONNET_SRC) $(JSONNET_VENDOR) $(GOJSONTOYAML_BIN)
 	rm -rf manifests
 	mkdir -p manifests/{benchmark,client,server,prometheus}
-	$(JSONNET_BIN) jsonnet/benchmark.jsonnet -J jsonnet/vendor -m manifests/benchmark
-	$(JSONNET_BIN) jsonnet/client.jsonnet -J jsonnet/vendor -m manifests/client
-	$(JSONNET_BIN) jsonnet/prometheus.jsonnet -J jsonnet/vendor -m manifests/prometheus
+	$(JSONNET_LOCAL_OR_INSTALLED) jsonnet/benchmark.jsonnet -J jsonnet/vendor -m manifests/benchmark
+	$(JSONNET_LOCAL_OR_INSTALLED) jsonnet/client.jsonnet -J jsonnet/vendor -m manifests/client
+	$(JSONNET_LOCAL_OR_INSTALLED) jsonnet/prometheus.jsonnet -J jsonnet/vendor -m manifests/prometheus
 	@for f in $$(find manifests -type f); do\
 	    cat $$f | $(GOJSONTOYAML_BIN) > $$f.yaml && rm $$f;\
 	done
