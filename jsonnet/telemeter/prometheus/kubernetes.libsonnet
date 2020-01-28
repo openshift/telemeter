@@ -44,6 +44,7 @@ local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
         // TODO: Remove observatorium-thanos-querier once we have a separate clusterRole
         'serviceaccounts.openshift.io/oauth-redirectreference.observatorium-thanos-querier': '{"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"observatorium-thanos-querier"}}',
         'serviceaccounts.openshift.io/oauth-redirectreference.observatorium-thanos-querier-cache': '{"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"observatorium-thanos-querier-cache"}}',
+        'serviceaccounts.openshift.io/oauth-redirectreference.observatorium-api': '{"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"observatorium-api"}}',
         'serviceaccounts.openshift.io/oauth-redirectreference.prometheus-k8s': '{"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"prometheus-telemeter"}}',
         'serviceaccounts.openshift.io/oauth-redirectreference.observatorium-jaeger': '{"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"observatorium-jaeger"}}',
       }),
