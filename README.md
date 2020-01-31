@@ -71,14 +71,4 @@ make test-integration
 Adding new metrics to send via telemeter
 -----------
 
-Clone repository locally and in the root of the directory make the following changes:
-
-1. Add the metric to the [jsonnet/telemeter/metrics.jsonnet](./jsonnet/telemeter/metrics.jsonnet) file.
-2. Commit the changes.
-3. In the root of the directory run the following make target to regenerate the files:
-```
-make generate-in-docker
-```
-4. Commit the generated files.
-
-*Note:* Further docs on the process on why and how to send these metrics are available [here](https://docs.google.com/document/d/1a6n5iBGM2QaIQRg9Lw4-Npj6QY9--Hpx3XYut-BrUSY/edit?usp=sharing).
+Docs on the process on why and how to send these metrics are available [here](https://docs.google.com/document/d/1a6n5iBGM2QaIQRg9Lw4-Npj6QY9--Hpx3XYut-BrUSY/edit?usp=sharing).
