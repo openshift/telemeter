@@ -4,7 +4,7 @@
       TelemeterClient: 'job="telemeter-client"',
     },
     telemeterClient+: {
-      matchRules+: (import 'metrics.jsonnet'),
+      matchRules+: [],
     },
   },
 }

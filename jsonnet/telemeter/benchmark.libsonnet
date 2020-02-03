@@ -6,7 +6,7 @@ local b = (import 'prometheus-operator/prometheus-operator.libsonnet') +
   _config+:: {
     namespace: 'telemeter-benchmark',
     telemeterServer+: {
-      whitelist+: (import 'metrics.jsonnet'),
+      whitelist+: [],
     },
   },
 };
