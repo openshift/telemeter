@@ -67,6 +67,8 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	defer r.Body.Close()
+
 	// Limit the request body size to a sane default
 	r.Body = http.MaxBytesReader(w, r.Body, requestLimit)
 
