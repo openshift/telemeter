@@ -1,6 +1,7 @@
 package receive
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -72,18 +73,6 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 	// Limit the request body size to a sane default
 	r.Body = http.MaxBytesReader(w, r.Body, requestLimit)
 
-	err := validateLabels(r, h.PartitionKey)
-	if err != nil {
-		level.Error(h.logger).Log("msg", "failed to validate labels in request", "err", err)
-
-		if err == ErrRequiredLabelMissing {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-		} else {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-		return
-	}
-
 	ctx, cancel := context.WithTimeout(r.Context(), forwardTimeout)
 	defer cancel()
 
@@ -117,30 +106,46 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 
 var ErrRequiredLabelMissing = fmt.Errorf("a required label is missing from the metric")
 
-// TODO: Make this a middleware eventually
-func validateLabels(r *http.Request, partitionKey string) error {
-	compressed, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		return err
-	}
+// ValidateLabels makes sure that the request's content contains the required partitionKey
+func (h *Handler) ValidateLabels(next http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		bodyBytes, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "failed to read body", http.StatusInternalServerError)
+			return
+		}
+		r.Body.Close()
 
-	reqBuf, err := snappy.Decode(nil, compressed)
-	if err != nil {
-		return err
-	}
+		r.Body = ioutil.NopCloser(bytes.NewBuffer(bodyBytes))
+		body, err := ioutil.ReadAll(r.Body)
 
-	var wreq prompb.WriteRequest
-	if err = proto.Unmarshal(reqBuf, &wreq); err != nil {
-		return err
-	}
+		content, err := snappy.Decode(nil, body)
+		if err != nil {
+			http.Error(w, "failed to decode request body", http.StatusBadRequest)
+			return
+		}
 
-	for _, ts := range wreq.GetTimeseries() {
-		for _, l := range ts.Labels {
-			if l.Name == partitionKey {
-				return nil
+		var wreq prompb.WriteRequest
+		if err := proto.Unmarshal(content, &wreq); err != nil {
+			http.Error(w, "failed to decode protobuf from body", http.StatusBadRequest)
+			return
+		}
+
+		found := false
+		for _, ts := range wreq.GetTimeseries() {
+			for _, l := range ts.GetLabels() {
+				if l.Name == h.PartitionKey {
+					found = true
+					break
+				}
 			}
 		}
-	}
 
-	return ErrRequiredLabelMissing
+		if found {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		http.Error(w, ErrRequiredLabelMissing.Error(), http.StatusBadRequest)
+	}
 }

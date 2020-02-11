@@ -432,7 +432,9 @@ func (o *Options) Run() error {
 	external.Handle("/metrics/v1/receive",
 		telemeter_http.NewInstrumentedHandler("receive",
 			authorize.NewHandler(o.Logger, &v2AuthorizeClient, authorizeURL, o.TenantKey,
-				http.HandlerFunc(receiver.Receive),
+				receiver.ValidateLabels(
+					http.HandlerFunc(receiver.Receive),
+				),
 			),
 		),
 	)
