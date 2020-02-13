@@ -154,4 +154,7 @@
   // cluster:network_attachment_definition_enabled_instance_up  informs (1 or 0) if the cluster has
   //at least max of one instance with  k8s.v1.cni.cncf.io/networks annotation, labelled by networks (any or sriov).
   '{__name__="cluster:network_attachment_definition_enabled_instance_up:max"}',
+  // cam_app_workload_migrations tracks number of app workload migrations
+  // by current state. Tracked migration states are idle, running, completed, and failed.
+  '{__name__="cam_app_workload_migrations"}',
 ]
