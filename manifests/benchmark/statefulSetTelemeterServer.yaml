@@ -66,6 +66,7 @@ spec:
         - --whitelist={__name__="noobaa_accounts_num"}
         - --whitelist={__name__="noobaa_total_usage"}
         - --whitelist={__name__="console_url"}
+        - --whitelist={__name__="cam_app_workload_migrations"}
         env:
         - name: NAME
           valueFrom:

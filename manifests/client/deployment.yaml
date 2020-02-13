@@ -68,6 +68,7 @@ spec:
         - --match={__name__="noobaa_accounts_num"}
         - --match={__name__="noobaa_total_usage"}
         - --match={__name__="console_url"}
+        - --match={__name__="cam_app_workload_migrations"}
         env:
         - name: ANONYMIZE_LABELS
           value: ""

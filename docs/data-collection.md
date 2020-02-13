@@ -135,6 +135,9 @@ For the OpenShift 4 Developer Preview we will be sending back these exact attrib
   '{__name__="noobaa_total_usage"}',
   // console_url is the url of the console running on the cluster.
   '{__name__="console_url"}',
+  // cam_app_workload_migrations tracks number of app workload migrations
+  // by current state. Tracked migration states are idle, running, completed, and failed.
+  '{__name__="cam_app_workload_migrations"}',
 ]
 ```
 
