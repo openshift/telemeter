@@ -26,7 +26,8 @@ spec:
         - --shared-key=/etc/pki/service/tls.key
         - --authorize=http://localhost:8083
         - --whitelist={__name__=~"cluster:usage:.*"}
-        - --whitelist={__name__="up"}
+        - --whitelist={__name__="count:up0"}
+        - --whitelist={__name__="count:up1"}
         - --whitelist={__name__="cluster_version"}
         - --whitelist={__name__="cluster_version_available_updates"}
         - --whitelist={__name__="cluster_operator_up"}
@@ -35,7 +36,6 @@ spec:
         - --whitelist={__name__="cluster_installer"}
         - --whitelist={__name__="cluster_infrastructure_provider"}
         - --whitelist={__name__="cluster_feature_set"}
-        - --whitelist={__name__="node_uname_info"}
         - --whitelist={__name__="instance:etcd_object_counts:sum"}
         - --whitelist={__name__="alerts",alertstate="firing"}
         - --whitelist={__name__="code:apiserver_request_count:rate:sum"}
