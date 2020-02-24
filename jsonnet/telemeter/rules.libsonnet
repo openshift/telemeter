@@ -38,7 +38,24 @@
             {
               record: 'subscription_labels:not_redhat_not_ibm',
               expr: |||
-                topk by (_id) (1, 0 *subscription_labels{email_domain!~"redhat.com|(^|.*\\.)ibm.com"})
+                topk by (_id) (1, subscription_labels{email_domain!~"redhat.com|(^|.*\\.)ibm.com"})
+              |||,
+            },
+            {
+              record: 'subscription_labels:not_redhat_not_ibm:short_version',
+              expr: |||
+                (
+                  ((time() - topk by (_id) (1,
+                    label_replace(
+                      label_replace(cluster_version{type="current"}, "version", "4.$1-0.$2", "version", "4\\.(\\d+\\.\\d+)-0.(ci|nightly|okd).*"),
+                      "version",
+                      "ci-pull-requests",
+                      "version",
+                      "0.0.1-.*"
+                    )
+                  )))
+                  + on (_id) group_left() (0 * subscription_labels:not_redhat_not_ibm) + 0
+                ))
               |||,
             },
           ],
