@@ -1,21 +1,19 @@
-// We have to import the entire Prometheus Operator dependency first
-// before selecting the fields we want so that the config overrides
-// the settings in the import.
-local b = (import 'prometheus-operator/prometheus-operator.libsonnet') +
-          (import 'benchmark/kubernetes.libsonnet') + {
+local config = {
   _config+:: {
     namespace: 'telemeter-benchmark',
-    telemeterServer+: {
-      whitelist+: [],
-    },
   },
 };
 
-{
+// We have to import the entire Prometheus Operator dependency first
+// before selecting the fields we want so that the config overrides
+// the settings in the import.
+local po = (import 'prometheus-operator/prometheus-operator.libsonnet') + config;
+
+(import 'benchmark/kubernetes.libsonnet') + config + {
   prometheusOperator+:: {
-    clusterRoleBinding: b.prometheusOperator.clusterRoleBinding { metadata+: { name: 'telemeter-benchmark' } },
-    serviceAccount: b.prometheusOperator.serviceAccount,
-    deployment: b.prometheusOperator.deployment {
+    clusterRoleBinding: po.prometheusOperator.clusterRoleBinding { metadata+: { name: 'telemeter-benchmark' } },
+    serviceAccount: po.prometheusOperator.serviceAccount,
+    deployment: po.prometheusOperator.deployment {
       spec+: {
         template+: {
           spec+: {
@@ -31,6 +29,4 @@ local b = (import 'prometheus-operator/prometheus-operator.libsonnet') +
       },
     },
   },
-  telemeterServer+:: b.telemeterServer,
-  prometheus+:: b.prometheus,
 }
