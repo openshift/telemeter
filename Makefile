@@ -10,6 +10,7 @@ GOLANG_FILES:=$(shell find . -name \*.go -print)
 FIRST_GOPATH:=$(firstword $(subst :, ,$(shell go env GOPATH)))
 BIN_DIR?=./_output/bin
 LIB_DIR?=./_output/lib
+METRICS_JSON=./_output/metrics.json
 GOLANGCI_LINT_BIN=$(BIN_DIR)/golangci-lint
 GOLANGCI_LINT_VERSION=v1.18.0
 EMBEDMD_BIN=$(BIN_DIR)/embedmd
@@ -104,10 +105,14 @@ docs/telemeter_query: $(JSONNET_SRC)
 	done; \
 	echo "$$query" > $@
 
-manifests: $(JSONNET_LOCAL_OR_INSTALLED) $(JSONNET_SRC) $(JSONNET_VENDOR) $(GOJSONTOYAML_BIN)
+$(METRICS_JSON):
+	curl -L https://raw.githubusercontent.com/openshift/cluster-monitoring-operator/844e7afabfcfa4162c716ea18cd8e2d010789de1/manifests/0000_50_cluster_monitoring_operator_04-config.yaml | \
+	    $(GOJSONTOYAML_BIN) --yamltojson | jq -r '.data."metrics.yaml"' | $(GOJSONTOYAML_BIN) --yamltojson | jq -r '.matches' > $@
+
+manifests: $(JSONNET_LOCAL_OR_INSTALLED) $(JSONNET_SRC) $(JSONNET_VENDOR) $(GOJSONTOYAML_BIN) $(METRICS_JSON)
 	rm -rf manifests
 	mkdir -p manifests/{benchmark,client,server,prometheus}
-	$(JSONNET_LOCAL_OR_INSTALLED) jsonnet/benchmark.jsonnet -J jsonnet/vendor -m manifests/benchmark
+	$(JSONNET_LOCAL_OR_INSTALLED) jsonnet/benchmark.jsonnet -J jsonnet/vendor -m manifests/benchmark --tla-code metrics="$$(cat $(METRICS_JSON))"
 	$(JSONNET_LOCAL_OR_INSTALLED) jsonnet/client.jsonnet -J jsonnet/vendor -m manifests/client
 	$(JSONNET_LOCAL_OR_INSTALLED) jsonnet/prometheus.jsonnet -J jsonnet/vendor -m manifests/prometheus
 	@for f in $$(find manifests -type f); do\
