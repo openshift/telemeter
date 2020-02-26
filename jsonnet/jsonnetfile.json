@@ -8,6 +8,26 @@
         }
       },
       "version": ""
+    },
+    {
+      "name": "thanos-receive-controller",
+      "source": {
+        "git": {
+          "remote": "https://github.com/observatorium/thanos-receive-controller",
+          "subdir": "jsonnet/lib"
+        }
+      },
+      "version": "master"
+    },
+    {
+      "name": "kube-thanos",
+      "source": {
+        "git": {
+          "remote": "https://github.com/thanos-io/kube-thanos",
+          "subdir": "jsonnet/kube-thanos"
+        }
+      },
+      "version": "master"
     }
   ]
 }

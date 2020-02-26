@@ -1,4 +1,5 @@
 local k = import 'ksonnet/ksonnet.beta.4/k.libsonnet';
+local t = (import 'kube-thanos/thanos.libsonnet');
 local secretName = 'telemeter-server';
 local secretMountPath = '/etc/telemeter';
 local secretVolumeName = 'secret-telemeter-server';
@@ -12,39 +13,22 @@ local clusterPort = 8082;
 local tokensFileName = 'tokens.json';
 
 {
-  _config+:: {
-    namespace: 'telemeter-benchmark',
+  local b = self,
 
+  config+:: {
     telemeterServer+:: {
       authorizeURL: 'http://localhost:' + authorizePort,
-      replicas: 10,
-      whitelist: [],
-    },
-
-    prometheus+:: {
-      name: 'benchmark',
-      replicas: 1,
-      rules: { groups: [] },
-    },
-
-    versions+:: {
-      prometheus: 'v2.7.1',
-      telemeterServer: 'v4.0',
-    },
-
-    imageRepos+:: {
-      prometheus: 'quay.io/prometheus/prometheus',
-      telemeterServer: 'quay.io/openshift/origin-telemeter',
     },
   },
 
   telemeterServer+:: {
+    local ts = self,
     route: {
       apiVersion: 'v1',
       kind: 'Route',
       metadata: {
         name: 'telemeter-server',
-        namespace: $._config.namespace,
+        namespace: b.config.namespace,
       },
       spec: {
         to: {
@@ -78,11 +62,11 @@ local tokensFileName = 'tokens.json';
 
       local whitelist = std.map(
         function(rule) '--whitelist=%s' % std.strReplace(rule, 'ALERTS', 'alerts'),
-        $._config.telemeterServer.whitelist
+        ts.config.whitelist
       );
 
       local telemeterServer =
-        container.new('telemeter-server', $._config.imageRepos.telemeterServer + ':' + $._config.versions.telemeterServer) +
+        container.new('telemeter-server', ts.config.image) +
         container.withCommand([
           '/usr/bin/telemeter-server',
           '--join=telemeter-server',
@@ -91,7 +75,8 @@ local tokensFileName = 'tokens.json';
           '--listen-internal=0.0.0.0:' + internalPort,
           '--listen-cluster=0.0.0.0:' + clusterPort,
           '--shared-key=%s/tls.key' % tlsMountPath,
-          '--authorize=' + $._config.telemeterServer.authorizeURL,
+          '--authorize=' + b.config.telemeterServer.authorizeURL,
+          '--forward-url=http://%s.%s.svc:19291/api/v1/receive' % [b.receivers[b.config.hashrings[0].hashring].config.name, b.config.namespace],
         ] + whitelist) +
         container.withPorts([
           containerPort.newNamed(externalPort, 'external'),
@@ -117,7 +102,7 @@ local tokensFileName = 'tokens.json';
         };
 
       local authorizationServer =
-        container.new('authorization-server', $._config.imageRepos.telemeterServer + ':' + $._config.versions.telemeterServer) +
+        container.new('authorization-server', ts.config.image) +
         container.withCommand([
           '/usr/bin/authorization-server',
           'localhost:' + authorizePort,
@@ -125,8 +110,8 @@ local tokensFileName = 'tokens.json';
         ]) +
         container.withVolumeMounts([secretMount]);
 
-      statefulSet.new('telemeter-server', $._config.telemeterServer.replicas, [telemeterServer, authorizationServer], [], podLabels) +
-      statefulSet.mixin.metadata.withNamespace($._config.namespace) +
+      statefulSet.new('telemeter-server', ts.config.replicas, [telemeterServer, authorizationServer], [], podLabels) +
+      statefulSet.mixin.metadata.withNamespace(b.config.namespace) +
       statefulSet.mixin.spec.selector.withMatchLabels(podLabels) +
       statefulSet.mixin.spec.withPodManagementPolicy('Parallel') +
       statefulSet.mixin.spec.withServiceName('telemeter-server') +
@@ -144,7 +129,7 @@ local tokensFileName = 'tokens.json';
       secret.new(secretName, {
         [tokensFileName]: std.base64(std.toString([{ token: 'benchmark' }])),
       }) +
-      secret.mixin.metadata.withNamespace($._config.namespace) +
+      secret.mixin.metadata.withNamespace(b.config.namespace) +
       secret.mixin.metadata.withLabels({ 'k8s-app': 'telemeter-server' }),
 
     service:
@@ -155,8 +140,8 @@ local tokensFileName = 'tokens.json';
       local servicePortInternal = servicePort.newNamed('internal', internalPort, 'internal');
       local servicePortCluster = servicePort.newNamed('cluster', clusterPort, 'cluster');
 
-      service.new('telemeter-server', $.telemeterServer.statefulSet.spec.selector.matchLabels, [servicePortExternal, servicePortInternal, servicePortCluster]) +
-      service.mixin.metadata.withNamespace($._config.namespace) +
+      service.new('telemeter-server', ts.statefulSet.spec.selector.matchLabels, [servicePortExternal, servicePortInternal, servicePortCluster]) +
+      service.mixin.metadata.withNamespace(b.config.namespace) +
       service.mixin.metadata.withLabels({ 'k8s-app': 'telemeter-server' }) +
       service.mixin.spec.withClusterIp('None') +
       service.mixin.metadata.withAnnotations({
@@ -167,211 +152,87 @@ local tokensFileName = 'tokens.json';
       local serviceAccount = k.core.v1.serviceAccount;
 
       serviceAccount.new('telemeter-server') +
-      serviceAccount.mixin.metadata.withNamespace($._config.namespace),
-
-    serviceMonitor:
-      {
-        apiVersion: 'monitoring.coreos.com/v1',
-        kind: 'ServiceMonitor',
-        metadata: {
-          name: 'telemeter-server',
-          namespace: $._config.namespace,
-          labels: {
-            'k8s-app': 'telemeter-server',
-            endpoint: 'metrics',
-          },
-        },
-        spec: {
-          jobLabel: 'k8s-app',
-          selector: {
-            matchLabels: {
-              'k8s-app': 'telemeter-server',
-            },
-          },
-          endpoints: [
-            {
-              interval: '30s',
-              port: 'internal',
-              scheme: 'http',
-            },
-          ],
-        },
-      },
-    serviceMonitorFederate:
-      {
-        apiVersion: 'monitoring.coreos.com/v1',
-        kind: 'ServiceMonitor',
-        metadata: {
-          name: 'telemeter-server-federate',
-          namespace: $._config.namespace,
-          labels: {
-            'k8s-app': 'telemeter-server',
-            endpoint: 'federate',
-          },
-        },
-        spec: {
-          jobLabel: 'k8s-app',
-          selector: {
-            matchLabels: {
-              'k8s-app': 'telemeter-server',
-            },
-          },
-          endpoints: [
-            {
-              honorLabels: true,
-              interval: '15s',
-              params: {
-                'match[]': ['{__name__=~".*"}'],
-              },
-              path: '/federate',
-              port: 'internal',
-              scheme: 'http',
-            },
-          ],
-        },
-      },
+      serviceAccount.mixin.metadata.withNamespace(b.config.namespace),
   },
 
-  prometheus+:: {
-    serviceAccount:
-      local serviceAccount = k.core.v1.serviceAccount;
+  thanosReceiveController:: (import 'thanos-receive-controller/thanos-receive-controller.libsonnet') + {
+    config+:: {
+      local cfg = self,
+      name: b.config.name + '-' + cfg.commonLabels['app.kubernetes.io/name'],
+      namespace: b.config.namespace,
+      replicas: 1,
+      commonLabels+:: b.config.commonLabels,
+    },
+  },
 
-      serviceAccount.new('prometheus-' + $._config.prometheus.name) +
-      serviceAccount.mixin.metadata.withNamespace($._config.namespace),
-
-    service:
-      local service = k.core.v1.service;
-      local servicePort = k.core.v1.service.mixin.spec.portsType;
-
-      local prometheusPort = servicePort.newNamed('web', 9090, 'web');
-
-      service.new('prometheus-' + $._config.prometheus.name, { app: 'prometheus', prometheus: $._config.prometheus.name }, prometheusPort) +
-      service.mixin.metadata.withNamespace($._config.namespace) +
-      service.mixin.metadata.withLabels({ prometheus: $._config.prometheus.name }) +
-      service.mixin.spec.withType('ClusterIP'),
-
-    rules:
-      {
-        apiVersion: 'monitoring.coreos.com/v1',
-        kind: 'PrometheusRule',
-        metadata: {
-          labels: {
-            prometheus: $._config.prometheus.name,
-            role: 'alert-rules',
+  receivers:: {
+    [hashring.hashring]:
+      t.receive +
+      t.receive.withRetention +
+      t.receive.withHashringConfigMap + {
+        config+:: {
+          local cfg = self,
+          name: b.config.name + '-' + cfg.commonLabels['app.kubernetes.io/name'] + '-' + hashring.hashring,
+          namespace: b.config.namespace,
+          replicas: 3,
+          replicationFactor: 3,
+          retention: '6h',
+          hashringConfigMapName: '%s-generated' % b.thanosReceiveController.configmap.metadata.name,
+          commonLabels+::
+            b.config.commonLabels {
+              'controller.receive.thanos.io/hashring': hashring.hashring,
+            },
+        },
+        statefulSet+: {
+          metadata+: {
+            labels+: {
+              'controller.receive.thanos.io': 'thanos-receive-controller',
+            },
           },
-          name: 'prometheus-' + $._config.prometheus.name + '-rules',
-          namespace: $._config.namespace,
-        },
-        spec: {
-          groups: $._config.prometheus.rules.groups,
-        },
-      },
-
-    roleSpecificNamespaces:
-      local role = k.rbac.v1.role;
-      local policyRule = role.rulesType;
-      local coreRule =
-        policyRule.new() +
-        policyRule.withApiGroups(['']) +
-        policyRule.withResources([
-          'services',
-          'endpoints',
-          'pods',
-        ]) +
-        policyRule.withVerbs(['get', 'list', 'watch']);
-
-      role.new() +
-      role.mixin.metadata.withName('prometheus-' + $._config.prometheus.name) +
-      role.mixin.metadata.withNamespace($._config.namespace) +
-      role.withRules(coreRule),
-
-    roleBindingSpecificNamespaces:
-      local roleBinding = k.rbac.v1.roleBinding;
-
-      roleBinding.new() +
-      roleBinding.mixin.metadata.withName('prometheus-' + $._config.prometheus.name) +
-      roleBinding.mixin.metadata.withNamespace($._config.namespace) +
-      roleBinding.mixin.roleRef.withApiGroup('rbac.authorization.k8s.io') +
-      roleBinding.mixin.roleRef.withName('prometheus-' + $._config.prometheus.name) +
-      roleBinding.mixin.roleRef.mixinInstance({ kind: 'Role' }) +
-      roleBinding.withSubjects([{ kind: 'ServiceAccount', name: 'prometheus-' + $._config.prometheus.name, namespace: $._config.namespace }]),
-
-    roleConfig:
-      local role = k.rbac.v1.role;
-      local policyRule = role.rulesType;
-
-      local configmapRule =
-        policyRule.new() +
-        policyRule.withApiGroups(['']) +
-        policyRule.withResources([
-          'configmaps',
-        ]) +
-        policyRule.withVerbs(['get']);
-
-      role.new() +
-      role.mixin.metadata.withName('prometheus-' + $._config.prometheus.name + '-config') +
-      role.mixin.metadata.withNamespace($._config.namespace) +
-      role.withRules(configmapRule),
-
-    roleBindingConfig:
-      local roleBinding = k.rbac.v1.roleBinding;
-
-      roleBinding.new() +
-      roleBinding.mixin.metadata.withName('prometheus-' + $._config.prometheus.name + '-config') +
-      roleBinding.mixin.metadata.withNamespace($._config.namespace) +
-      roleBinding.mixin.roleRef.withApiGroup('rbac.authorization.k8s.io') +
-      roleBinding.mixin.roleRef.withName('prometheus-' + $._config.prometheus.name + '-config') +
-      roleBinding.mixin.roleRef.mixinInstance({ kind: 'Role' }) +
-      roleBinding.withSubjects([{ kind: 'ServiceAccount', name: 'prometheus-' + $._config.prometheus.name, namespace: $._config.namespace }]),
-
-    prometheus:
-      local container = k.core.v1.pod.mixin.spec.containersType;
-      local resourceRequirements = container.mixin.resourcesType;
-      local selector = k.apps.v1.deployment.mixin.spec.selectorType;
-
-      local resources =
-        resourceRequirements.new() +
-        resourceRequirements.withRequests({ memory: '400Mi' });
-
-      {
-        apiVersion: 'monitoring.coreos.com/v1',
-        kind: 'Prometheus',
-        metadata: {
-          name: $._config.prometheus.name,
-          namespace: $._config.namespace,
-          labels: {
-            prometheus: $._config.prometheus.name,
+          spec+: {
+            template+: {
+              spec+: {
+                containers: [
+                  if c.name == 'thanos-receive' then c {
+                    args: std.filter(function(a) !std.startsWith(a, '--objstore'), super.args),
+                    env: std.filter(function(e) e.name != 'OBJSTORE_CONFIG', super.env),
+                  } else c
+                  for c in super.containers
+                ],
+              },
+            },
           },
         },
-        spec: {
-          replicas: $._config.prometheus.replicas,
-          version: $._config.versions.prometheus,
-          baseImage: $._config.imageRepos.prometheus,
-          securityContext: {},
-          serviceAccountName: 'prometheus-' + $._config.prometheus.name,
-          nodeSelector: { 'beta.kubernetes.io/os': 'linux' },
-          resources: resources,
-          ruleSelector: selector.withMatchLabels({
-            role: 'alert-rules',
-            prometheus: $._config.prometheus.name,
-          }),
-          serviceMonitorSelector: selector.withMatchLabels({
-            'k8s-app': 'telemeter-server',
-          }),
-        },
-      },
+      }
+    for hashring in b.config.hashrings
+  },
 
+  query:: t.query {
+    config+:: {
+      local cfg = self,
+      name: b.config.name + '-' + cfg.commonLabels['app.kubernetes.io/name'],
+      namespace: b.config.namespace,
+      commonLabels+:: b.config.commonLabels,
+      replicas: 1,
+      stores: [
+        'dnssrv+_grpc._tcp.%s.%s.svc.cluster.local' % [service.metadata.name, service.metadata.namespace]
+        for service in
+          [b.receivers[hashring].service for hashring in std.objectFields(b.receivers)]
+      ],
+      replicaLabels: ['prometheus_replica', 'ruler_replica', 'replica'],
+    },
     route: {
       apiVersion: 'v1',
       kind: 'Route',
       metadata: {
-        name: 'prometheus-' + $._config.prometheus.name,
-        namespace: $._config.namespace,
+        name: b.query.config.name,
+        namespace: b.config.namespace,
+        labels: b.query.config.commonLabels,
       },
       spec: {
         to: {
           kind: 'Service',
-          name: 'prometheus-' + $._config.prometheus.name,
+          name: b.query.config.name,
         },
         port: {
           targetPort: 'web',

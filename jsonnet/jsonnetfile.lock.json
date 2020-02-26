@@ -12,6 +12,17 @@
       "sum": "h28BXZ7+vczxYJ2sCt8JuR9+yznRtU/iA6DCpQUrtEg="
     },
     {
+      "name": "kube-thanos",
+      "source": {
+        "git": {
+          "remote": "https://github.com/thanos-io/kube-thanos",
+          "subdir": "jsonnet/kube-thanos"
+        }
+      },
+      "version": "5e7af669ee35af6c8beaa37e7a30d865368d75d8",
+      "sum": "kyza6itqcvQHoKeJqsFjFQuMpj8RZsudC5/2vVxw5R0="
+    },
+    {
       "name": "prometheus-operator",
       "source": {
         "git": {
@@ -30,6 +41,17 @@
         }
       },
       "version": ""
+    },
+    {
+      "name": "thanos-receive-controller",
+      "source": {
+        "git": {
+          "remote": "https://github.com/observatorium/thanos-receive-controller",
+          "subdir": "jsonnet/lib"
+        }
+      },
+      "version": "11e63ca1d3b9834e66ee85107df002bde29a4a59",
+      "sum": "iUbwzPZ/0QrozWTfoXlmRhd1CMAnkcCaWtATTlSnoMk="
     }
   ]
 }

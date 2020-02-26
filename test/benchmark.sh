@@ -20,7 +20,7 @@ benchmark() {
         printf "benchmarking with %d clients sending %d time series\n" "$current" "$TSN"
         create
         client "$current" http://"$(route telemeter-server)" &
-        if ! check "$current" https://"$(route prometheus-benchmark)"; then
+        if ! check "$current" https://"$(route benchmark-thanos-query)"; then
             break
         fi
         jobs -p | xargs -r kill
@@ -44,8 +44,8 @@ create() {
     oc delete -f ./manifests/benchmark/ --ignore-not-found=true > /dev/null && oc delete namespace telemeter-benchmark --ignore-not-found=true > /dev/null
     printf "creating telemeter-server...\n"
     oc create namespace telemeter-benchmark > /dev/null
-    # Create everything but the Prometheus resource.
-    find ./manifests/benchmark/ ! -name 'prometheus*' -type f -print0 | xargs -0l -I{} oc apply -f {} > /dev/null
+    # Create everything but the Thanos resources.
+    find ./manifests/benchmark/ ! -name '*Thanos*' -type f -print0 | xargs -0l -I{} oc apply -f {} > /dev/null
     oc scale statefulset telemeter-server --namespace telemeter-benchmark --replicas "$SERVERS"
     local retries=20
     until [ "$(oc get pods -n telemeter-benchmark | grep telemeter-server- | grep Running -c)" -eq "$SERVERS" ]; do
@@ -57,18 +57,18 @@ create() {
         printf "waiting for telemeter-server to be ready; checking again in 10s...\n"
         sleep 10
     done
-    printf "creating prometheus...\n"
+    printf "creating Thanos...\n"
     # Create everything but the Telemeter server resources as we want
     # to avoid undoing the scaling event.
     find ./manifests/benchmark/ ! -name '*TelemeterServer.yaml' -type f -print0 | xargs -0l -I{} oc apply -f {} > /dev/null
     local retries=20
-    until [ "$(oc get pods -n telemeter-benchmark | grep prometheus-benchmark | grep Running -c)" -eq 1 ]; do
+    until [ "$(oc get pods -n telemeter-benchmark -l 'app.kubernetes.io/part-of=telemeter-benchmark' | grep Running -c)" -eq 1 ]; do
         retries=$((retries-1))
         if [ $retries -eq 0 ]; then
-            printf "timed out waiting for prometheus to be up\n"
+            printf "timed out waiting for Thanos to be up\n"
             return 1
         fi
-        printf "waiting for prometheus to be ready; checking again in 10s...\n"
+        printf "waiting for Thanos to be ready; checking again in 10s...\n"
         sleep 10
     done
     printf "successfully created all resources\n"
