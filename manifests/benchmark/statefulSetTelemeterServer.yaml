@@ -25,6 +25,7 @@ spec:
         - --listen-cluster=0.0.0.0:8082
         - --shared-key=/etc/pki/service/tls.key
         - --authorize=http://localhost:8083
+        - --forward-url=http://benchmark-thanos-receive-default.telemeter-benchmark.svc:19291/api/v1/receive
         - --whitelist={__name__=~"cluster:usage:.*"}
         - --whitelist={__name__="count:up0"}
         - --whitelist={__name__="count:up1"}

@@ -1,0 +1,19 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/component: kubernetes-controller
+    app.kubernetes.io/instance: benchmark-thanos-receive-controller
+    app.kubernetes.io/name: thanos-receive-controller
+    app.kubernetes.io/part-of: telemeter-benchmark
+    app.kubernetes.io/version: master-2020-02-06-b66e0c8
+  name: benchmark-thanos-receive-controller
+  namespace: telemeter-benchmark
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: benchmark-thanos-receive-controller
+subjects:
+- kind: ServiceAccount
+  name: benchmark-thanos-receive-controller
+  namespace: telemeter-benchmark
