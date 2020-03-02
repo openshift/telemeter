@@ -162,7 +162,11 @@ test-integration: build $(THANOS_BIN) $(UP_BIN) $(MEMCACHED_BIN) $(PROMETHEUS_BI
 	PATH=$$PATH:$$(pwd)/$(BIN_DIR) ./test/integration.sh
 	PATH=$$PATH:$$(pwd)/$(BIN_DIR) LD_LIBRARY_PATH=$$LD_LIBRARY_PATH:$$(pwd)/$(LIB_DIR) ./test/integration-v2.sh
 
-test-benchmark: build
+test-benchmark: build $(GOJSONTOYAML_BIN)
+	# Allow the image to be overridden when running in CI.
+	if [ -n "$$IMAGE_FORMAT" ]; then \
+	    f=$$(mktemp) && cat ./manifests/benchmark/statefulSetTelemeterServer.yaml | $(GOJSONTOYAML_BIN) --yamltojson | jq '.spec.template.spec.containers[].image="'"$${IMAGE_FORMAT//\$$\{component\}/telemeter}"'"' | $(GOJSONTOYAML_BIN) > $$f && mv $$f ./manifests/benchmark/statefulSetTelemeterServer.yaml; \
+	fi
 	./test/benchmark.sh "" "" $(BENCHMARK_GOAL) "" $(BENCHMARK_GOAL)
 
 test/timeseries.txt:
