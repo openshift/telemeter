@@ -9,17 +9,17 @@ set -euo pipefail
 result=1
 trap 'kill $(jobs -p); exit $result' EXIT
 
-( ./authorization-server localhost:9001 ./test/tokens.json ) &
+( ./authorization-server localhost:9101 ./test/tokens.json ) &
 
 ( memcached -u "$(whoami)") &
 
 ( 
 ./telemeter-server \
     --ttl=24h \
-    --authorize http://localhost:9001 \
-    --listen localhost:9003 \
-    --listen-internal localhost:9004 \
-    --forward-url=http://localhost:9005/api/v1/receive \
+    --authorize http://localhost:9101 \
+    --listen localhost:9103 \
+    --listen-internal localhost:9104 \
+    --forward-url=http://localhost:9105/api/v1/receive \
     --memcached=localhost:11211 \
     -v
 ) &
@@ -27,23 +27,23 @@ trap 'kill $(jobs -p); exit $result' EXIT
 (
 thanos receive \
     --tsdb.path="$(mktemp -d)" \
-    --remote-write.address=127.0.0.1:9005 \
-    --grpc-address=127.0.0.1:9006
+    --remote-write.address=127.0.0.1:9105 \
+    --grpc-address=127.0.0.1:9106
 ) &
 
 (
 thanos query \
-    --grpc-address=127.0.0.1:9007 \
-    --http-address=127.0.0.1:9008 \
-    --store=127.0.0.1:9006
+    --grpc-address=127.0.0.1:9107 \
+    --http-address=127.0.0.1:9108 \
+    --store=127.0.0.1:9106
 ) &
 
 echo "waiting for dependencies to come up..."
 sleep 5
 
 if up \
-    --endpoint-write=http://127.0.0.1:9003/metrics/v1/receive \
-    --endpoint-read=http://127.0.0.1:9008/api/v1/query \
+    --endpoint-write=http://127.0.0.1:9103/metrics/v1/receive \
+    --endpoint-read=http://127.0.0.1:9108/api/v1/query \
     --period=500ms \
     --initial-query-delay=250ms \
     --threshold=1 \
