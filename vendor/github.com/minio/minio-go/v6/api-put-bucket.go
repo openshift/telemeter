@@ -1,6 +1,6 @@
 /*
  * MinIO Go Library for Amazon S3 Compatible Cloud Storage
- * Copyright 2015-2017 MinIO, Inc.
+ * Copyright 2015-2020 MinIO, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,9 +29,28 @@ import (
 	"github.com/minio/minio-go/v6/pkg/s3utils"
 )
 
+// ApplyServerSideEncryptionByDefault defines default encryption configuration, KMS or SSE. To activate
+// KMS, SSEAlgoritm needs to be set to "aws:kms"
+// Minio currently does not support Kms.
+type ApplyServerSideEncryptionByDefault struct {
+	KmsMasterKeyID string `xml:"KMSMasterKeyID,omitempty"`
+	SSEAlgorithm   string `xml:"SSEAlgorithm"`
+}
+
+// Rule layer encapsulates default encryption configuration
+type Rule struct {
+	Apply ApplyServerSideEncryptionByDefault `xml:"ApplyServerSideEncryptionByDefault"`
+}
+
+// ServerSideEncryptionConfiguration is the default encryption configuration structure
+type ServerSideEncryptionConfiguration struct {
+	XMLName xml.Name `xml:"ServerSideEncryptionConfiguration"`
+	Rules   []Rule   `xml:"Rule"`
+}
+
 /// Bucket operations
 
-func (c Client) makeBucket(bucketName string, location string, objectLockEnabled bool) (err error) {
+func (c Client) makeBucket(ctx context.Context, bucketName string, location string, objectLockEnabled bool) (err error) {
 	defer func() {
 		// Save the location into cache on a successful makeBucket response.
 		if err == nil {
@@ -81,7 +100,7 @@ func (c Client) makeBucket(bucketName string, location string, objectLockEnabled
 	}
 
 	// Execute PUT to create a new bucket.
-	resp, err := c.executeMethod(context.Background(), "PUT", reqMetadata)
+	resp, err := c.executeMethod(ctx, "PUT", reqMetadata)
 	defer closeResponse(resp)
 	if err != nil {
 		return err
@@ -105,7 +124,18 @@ func (c Client) makeBucket(bucketName string, location string, objectLockEnabled
 // For Amazon S3 for more supported regions - http://docs.aws.amazon.com/general/latest/gr/rande.html
 // For Google Cloud Storage for more supported regions - https://cloud.google.com/storage/docs/bucket-locations
 func (c Client) MakeBucket(bucketName string, location string) (err error) {
-	return c.makeBucket(bucketName, location, false)
+	return c.MakeBucketWithContext(context.Background(), bucketName, location)
+}
+
+// MakeBucketWithContext creates a new bucket with bucketName with a context to control cancellations and timeouts.
+//
+// Location is an optional argument, by default all buckets are
+// created in US Standard Region.
+//
+// For Amazon S3 for more supported regions - http://docs.aws.amazon.com/general/latest/gr/rande.html
+// For Google Cloud Storage for more supported regions - https://cloud.google.com/storage/docs/bucket-locations
+func (c Client) MakeBucketWithContext(ctx context.Context, bucketName string, location string) (err error) {
+	return c.makeBucket(ctx, bucketName, location, false)
 }
 
 // MakeBucketWithObjectLock creates a object lock enabled new bucket with bucketName.
@@ -116,11 +146,28 @@ func (c Client) MakeBucket(bucketName string, location string) (err error) {
 // For Amazon S3 for more supported regions - http://docs.aws.amazon.com/general/latest/gr/rande.html
 // For Google Cloud Storage for more supported regions - https://cloud.google.com/storage/docs/bucket-locations
 func (c Client) MakeBucketWithObjectLock(bucketName string, location string) (err error) {
-	return c.makeBucket(bucketName, location, true)
+	return c.MakeBucketWithObjectLockWithContext(context.Background(), bucketName, location)
+}
+
+// MakeBucketWithObjectLockWithContext creates a object lock enabled new bucket with bucketName with a context to
+// control cancellations and timeouts.
+//
+// Location is an optional argument, by default all buckets are
+// created in US Standard Region.
+//
+// For Amazon S3 for more supported regions - http://docs.aws.amazon.com/general/latest/gr/rande.html
+// For Google Cloud Storage for more supported regions - https://cloud.google.com/storage/docs/bucket-locations
+func (c Client) MakeBucketWithObjectLockWithContext(ctx context.Context, bucketName string, location string) (err error) {
+	return c.makeBucket(ctx, bucketName, location, true)
 }
 
 // SetBucketPolicy set the access permissions on an existing bucket.
 func (c Client) SetBucketPolicy(bucketName, policy string) error {
+	return c.SetBucketPolicyWithContext(context.Background(), bucketName, policy)
+}
+
+// SetBucketPolicyWithContext set the access permissions on an existing bucket.
+func (c Client) SetBucketPolicyWithContext(ctx context.Context, bucketName, policy string) error {
 	// Input validation.
 	if err := s3utils.CheckValidBucketName(bucketName); err != nil {
 		return err
@@ -128,15 +175,15 @@ func (c Client) SetBucketPolicy(bucketName, policy string) error {
 
 	// If policy is empty then delete the bucket policy.
 	if policy == "" {
-		return c.removeBucketPolicy(bucketName)
+		return c.removeBucketPolicy(ctx, bucketName)
 	}
 
 	// Save the updated policies.
-	return c.putBucketPolicy(bucketName, policy)
+	return c.putBucketPolicy(ctx, bucketName, policy)
 }
 
 // Saves a new bucket policy.
-func (c Client) putBucketPolicy(bucketName, policy string) error {
+func (c Client) putBucketPolicy(ctx context.Context, bucketName, policy string) error {
 	// Input validation.
 	if err := s3utils.CheckValidBucketName(bucketName); err != nil {
 		return err
@@ -162,7 +209,7 @@ func (c Client) putBucketPolicy(bucketName, policy string) error {
 	}
 
 	// Execute PUT to upload a new bucket policy.
-	resp, err := c.executeMethod(context.Background(), "PUT", reqMetadata)
+	resp, err := c.executeMethod(ctx, "PUT", reqMetadata)
 	defer closeResponse(resp)
 	if err != nil {
 		return err
@@ -176,7 +223,7 @@ func (c Client) putBucketPolicy(bucketName, policy string) error {
 }
 
 // Removes all policies on a bucket.
-func (c Client) removeBucketPolicy(bucketName string) error {
+func (c Client) removeBucketPolicy(ctx context.Context, bucketName string) error {
 	// Input validation.
 	if err := s3utils.CheckValidBucketName(bucketName); err != nil {
 		return err
@@ -187,7 +234,7 @@ func (c Client) removeBucketPolicy(bucketName string) error {
 	urlValues.Set("policy", "")
 
 	// Execute DELETE on objectName.
-	resp, err := c.executeMethod(context.Background(), "DELETE", requestMetadata{
+	resp, err := c.executeMethod(ctx, "DELETE", requestMetadata{
 		bucketName:       bucketName,
 		queryValues:      urlValues,
 		contentSHA256Hex: emptySHA256Hex,
@@ -201,6 +248,11 @@ func (c Client) removeBucketPolicy(bucketName string) error {
 
 // SetBucketLifecycle set the lifecycle on an existing bucket.
 func (c Client) SetBucketLifecycle(bucketName, lifecycle string) error {
+	return c.SetBucketLifecycleWithContext(context.Background(), bucketName, lifecycle)
+}
+
+// SetBucketLifecycleWithContext set the lifecycle on an existing bucket with a context to control cancellations and timeouts.
+func (c Client) SetBucketLifecycleWithContext(ctx context.Context, bucketName, lifecycle string) error {
 	// Input validation.
 	if err := s3utils.CheckValidBucketName(bucketName); err != nil {
 		return err
@@ -208,15 +260,15 @@ func (c Client) SetBucketLifecycle(bucketName, lifecycle string) error {
 
 	// If lifecycle is empty then delete it.
 	if lifecycle == "" {
-		return c.removeBucketLifecycle(bucketName)
+		return c.removeBucketLifecycle(ctx, bucketName)
 	}
 
 	// Save the updated lifecycle.
-	return c.putBucketLifecycle(bucketName, lifecycle)
+	return c.putBucketLifecycle(ctx, bucketName, lifecycle)
 }
 
 // Saves a new bucket lifecycle.
-func (c Client) putBucketLifecycle(bucketName, lifecycle string) error {
+func (c Client) putBucketLifecycle(ctx context.Context, bucketName, lifecycle string) error {
 	// Input validation.
 	if err := s3utils.CheckValidBucketName(bucketName); err != nil {
 		return err
@@ -243,7 +295,7 @@ func (c Client) putBucketLifecycle(bucketName, lifecycle string) error {
 	}
 
 	// Execute PUT to upload a new bucket lifecycle.
-	resp, err := c.executeMethod(context.Background(), "PUT", reqMetadata)
+	resp, err := c.executeMethod(ctx, "PUT", reqMetadata)
 	defer closeResponse(resp)
 	if err != nil {
 		return err
@@ -257,7 +309,7 @@ func (c Client) putBucketLifecycle(bucketName, lifecycle string) error {
 }
 
 // Remove lifecycle from a bucket.
-func (c Client) removeBucketLifecycle(bucketName string) error {
+func (c Client) removeBucketLifecycle(ctx context.Context, bucketName string) error {
 	// Input validation.
 	if err := s3utils.CheckValidBucketName(bucketName); err != nil {
 		return err
@@ -268,7 +320,7 @@ func (c Client) removeBucketLifecycle(bucketName string) error {
 	urlValues.Set("lifecycle", "")
 
 	// Execute DELETE on objectName.
-	resp, err := c.executeMethod(context.Background(), "DELETE", requestMetadata{
+	resp, err := c.executeMethod(ctx, "DELETE", requestMetadata{
 		bucketName:       bucketName,
 		queryValues:      urlValues,
 		contentSHA256Hex: emptySHA256Hex,
@@ -280,8 +332,90 @@ func (c Client) removeBucketLifecycle(bucketName string) error {
 	return nil
 }
 
+// SetBucketEncryption sets the default encryption configuration on an existing bucket.
+func (c Client) SetBucketEncryption(bucketName string, configuration ServerSideEncryptionConfiguration) error {
+	return c.SetBucketEncryptionWithContext(context.Background(), bucketName, configuration)
+}
+
+// SetBucketEncryptionWithContext sets the default encryption configuration on an existing bucket with a context to control cancellations and timeouts.
+func (c Client) SetBucketEncryptionWithContext(ctx context.Context, bucketName string, configuration ServerSideEncryptionConfiguration) error {
+	// Input validation.
+	if err := s3utils.CheckValidBucketName(bucketName); err != nil {
+		return err
+	}
+
+	buf, err := xml.Marshal(&configuration)
+	if err != nil {
+		return err
+	}
+
+	// Get resources properly escaped and lined up before
+	// using them in http request.
+	urlValues := make(url.Values)
+	urlValues.Set("encryption", "")
+
+	// Content-length is mandatory to set a default encryption configuration
+	reqMetadata := requestMetadata{
+		bucketName:       bucketName,
+		queryValues:      urlValues,
+		contentBody:      bytes.NewReader(buf),
+		contentLength:    int64(len(buf)),
+		contentMD5Base64: sumMD5Base64(buf),
+	}
+
+	// Execute PUT to upload a new bucket default encryption configuration.
+	resp, err := c.executeMethod(ctx, http.MethodPut, reqMetadata)
+	defer closeResponse(resp)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return httpRespToErrorResponse(resp, bucketName, "")
+	}
+	return nil
+}
+
+// DeleteBucketEncryption removes the default encryption configuration on a bucket.
+func (c Client) DeleteBucketEncryption(bucketName string) error {
+	return c.DeleteBucketEncryptionWithContext(context.Background(), bucketName)
+}
+
+// DeleteBucketEncryptionWithContext removes the default encryption configuration on a bucket with a context to control cancellations and timeouts.
+func (c Client) DeleteBucketEncryptionWithContext(ctx context.Context, bucketName string) error {
+	// Input validation.
+	if err := s3utils.CheckValidBucketName(bucketName); err != nil {
+		return err
+	}
+
+	// Get resources properly escaped and lined up before
+	// using them in http request.
+	urlValues := make(url.Values)
+	urlValues.Set("encryption", "")
+
+	// DELETE default encryption configuration on a bucket.
+	resp, err := c.executeMethod(ctx, http.MethodDelete, requestMetadata{
+		bucketName:       bucketName,
+		queryValues:      urlValues,
+		contentSHA256Hex: emptySHA256Hex,
+	})
+	defer closeResponse(resp)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		return httpRespToErrorResponse(resp, bucketName, "")
+	}
+	return nil
+}
+
 // SetBucketNotification saves a new bucket notification.
 func (c Client) SetBucketNotification(bucketName string, bucketNotification BucketNotification) error {
+	return c.SetBucketNotificationWithContext(context.Background(), bucketName, bucketNotification)
+}
+
+// SetBucketNotificationWithContext saves a new bucket notification with a context to control cancellations
+// and timeouts.
+func (c Client) SetBucketNotificationWithContext(ctx context.Context, bucketName string, bucketNotification BucketNotification) error {
 	// Input validation.
 	if err := s3utils.CheckValidBucketName(bucketName); err != nil {
 		return err
@@ -308,7 +442,7 @@ func (c Client) SetBucketNotification(bucketName string, bucketNotification Buck
 	}
 
 	// Execute PUT to upload a new bucket notification.
-	resp, err := c.executeMethod(context.Background(), "PUT", reqMetadata)
+	resp, err := c.executeMethod(ctx, "PUT", reqMetadata)
 	defer closeResponse(resp)
 	if err != nil {
 		return err
@@ -338,7 +472,7 @@ var (
 	versionDisableConfigSHA256 = sum256Hex(versionDisableConfig)
 )
 
-func (c Client) setVersioning(bucketName string, config []byte, length int64, md5sum, sha256sum string) error {
+func (c Client) setVersioning(ctx context.Context, bucketName string, config []byte, length int64, md5sum, sha256sum string) error {
 	// Input validation.
 	if err := s3utils.CheckValidBucketName(bucketName); err != nil {
 		return err
@@ -359,7 +493,7 @@ func (c Client) setVersioning(bucketName string, config []byte, length int64, md
 	}
 
 	// Execute PUT to set a bucket versioning.
-	resp, err := c.executeMethod(context.Background(), "PUT", reqMetadata)
+	resp, err := c.executeMethod(ctx, "PUT", reqMetadata)
 	defer closeResponse(resp)
 	if err != nil {
 		return err
@@ -374,10 +508,20 @@ func (c Client) setVersioning(bucketName string, config []byte, length int64, md
 
 // EnableVersioning - Enable object versioning in given bucket.
 func (c Client) EnableVersioning(bucketName string) error {
-	return c.setVersioning(bucketName, versionEnableConfig, versionEnableConfigLen, versionEnableConfigMD5Sum, versionEnableConfigSHA256)
+	return c.EnableVersioningWithContext(context.Background(), bucketName)
+}
+
+// EnableVersioningWithContext - Enable object versioning in given bucket with a context to control cancellations and timeouts.
+func (c Client) EnableVersioningWithContext(ctx context.Context, bucketName string) error {
+	return c.setVersioning(ctx, bucketName, versionEnableConfig, versionEnableConfigLen, versionEnableConfigMD5Sum, versionEnableConfigSHA256)
 }
 
 // DisableVersioning - Disable object versioning in given bucket.
 func (c Client) DisableVersioning(bucketName string) error {
-	return c.setVersioning(bucketName, versionDisableConfig, versionDisableConfigLen, versionDisableConfigMD5Sum, versionDisableConfigSHA256)
+	return c.DisableVersioningWithContext(context.Background(), bucketName)
+}
+
+// DisableVersioningWithContext - Disable object versioning in given bucket with a context to control cancellations and timeouts.
+func (c Client) DisableVersioningWithContext(ctx context.Context, bucketName string) error {
+	return c.setVersioning(ctx, bucketName, versionDisableConfig, versionDisableConfigLen, versionDisableConfigMD5Sum, versionDisableConfigSHA256)
 }

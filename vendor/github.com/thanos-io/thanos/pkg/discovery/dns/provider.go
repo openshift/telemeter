@@ -1,3 +1,6 @@
+// Copyright (c) The Thanos Authors.
+// Licensed under the Apache License 2.0.
+
 package dns
 
 import (
@@ -74,6 +77,18 @@ func NewProvider(logger log.Logger, reg prometheus.Registerer, resolverType Reso
 	}
 
 	return p
+}
+
+// Clone returns a new provider from an existing one.
+func (p *Provider) Clone() *Provider {
+	return &Provider{
+		resolver:              p.resolver,
+		resolved:              make(map[string][]string),
+		logger:                p.logger,
+		resolverAddrs:         p.resolverAddrs,
+		resolverLookupsCount:  p.resolverLookupsCount,
+		resolverFailuresCount: p.resolverFailuresCount,
+	}
 }
 
 // Resolve stores a list of provided addresses or their DNS records if requested.

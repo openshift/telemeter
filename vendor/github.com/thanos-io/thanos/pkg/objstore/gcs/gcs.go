@@ -1,3 +1,6 @@
+// Copyright (c) The Thanos Authors.
+// Licensed under the Apache License 2.0.
+
 // Package gcs implements common object storage abstractions against Google Cloud Storage.
 package gcs
 
@@ -120,6 +123,15 @@ func (b *Bucket) Get(ctx context.Context, name string) (io.ReadCloser, error) {
 // GetRange returns a new range reader for the given object name and range.
 func (b *Bucket) GetRange(ctx context.Context, name string, off, length int64) (io.ReadCloser, error) {
 	return b.bkt.Object(name).NewRangeReader(ctx, off, length)
+}
+
+// ObjectSize returns the size of the specified object.
+func (b *Bucket) ObjectSize(ctx context.Context, name string) (uint64, error) {
+	obj, err := b.bkt.Object(name).Attrs(ctx)
+	if err != nil {
+		return 0, err
+	}
+	return uint64(obj.Size), nil
 }
 
 // Handle returns the underlying GCS bucket handle.

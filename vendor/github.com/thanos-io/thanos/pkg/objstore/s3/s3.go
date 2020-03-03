@@ -1,3 +1,6 @@
+// Copyright (c) The Thanos Authors.
+// Licensed under the Apache License 2.0.
+
 // Package s3 implements common object storage abstractions against s3-compatible APIs.
 package s3
 
@@ -336,6 +339,15 @@ func (b *Bucket) Upload(ctx context.Context, name string, r io.Reader) error {
 	}
 
 	return nil
+}
+
+// ObjectSize returns the size of the specified object.
+func (b *Bucket) ObjectSize(ctx context.Context, name string) (uint64, error) {
+	objInfo, err := b.client.StatObject(b.name, name, minio.StatObjectOptions{})
+	if err != nil {
+		return 0, err
+	}
+	return uint64(objInfo.Size), nil
 }
 
 // Delete removes the object with the given name.

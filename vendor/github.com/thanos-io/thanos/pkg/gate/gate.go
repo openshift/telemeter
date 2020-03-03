@@ -1,4 +1,7 @@
-package store
+// Copyright (c) The Thanos Authors.
+// Licensed under the Apache License 2.0.
+
+package gate
 
 import (
 	"context"
@@ -7,6 +10,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/pkg/gate"
 )
+
+type Gater interface {
+	IsMyTurn(ctx context.Context) error
+	Done()
+}
 
 // Gate wraps the Prometheus gate with extra metrics.
 type Gate struct {
@@ -41,7 +49,7 @@ func NewGate(maxConcurrent int, reg prometheus.Registerer) *Gate {
 func (g *Gate) IsMyTurn(ctx context.Context) error {
 	start := time.Now()
 	defer func() {
-		g.gateTiming.Observe(float64(time.Since(start)))
+		g.gateTiming.Observe(time.Since(start).Seconds())
 	}()
 
 	if err := g.g.Start(ctx); err != nil {

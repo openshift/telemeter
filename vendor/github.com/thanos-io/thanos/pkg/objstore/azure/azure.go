@@ -1,3 +1,6 @@
+// Copyright (c) The Thanos Authors.
+// Licensed under the Apache License 2.0.
+
 package azure
 
 import (
@@ -226,6 +229,20 @@ func (b *Bucket) Get(ctx context.Context, name string) (io.ReadCloser, error) {
 // GetRange returns a new range reader for the given object name and range.
 func (b *Bucket) GetRange(ctx context.Context, name string, off, length int64) (io.ReadCloser, error) {
 	return b.getBlobReader(ctx, name, off, length)
+}
+
+// ObjectSize returns the size of the specified object.
+func (b *Bucket) ObjectSize(ctx context.Context, name string) (uint64, error) {
+	blobURL, err := getBlobURL(ctx, *b.config, name)
+	if err != nil {
+		return 0, errors.Wrapf(err, "cannot get Azure blob URL, blob: %s", name)
+	}
+	var props *blob.BlobGetPropertiesResponse
+	props, err = blobURL.GetProperties(ctx, blob.BlobAccessConditions{})
+	if err != nil {
+		return 0, err
+	}
+	return uint64(props.ContentLength()), nil
 }
 
 // Exists checks if the given object exists.
