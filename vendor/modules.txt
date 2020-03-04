@@ -36,6 +36,10 @@ github.com/Azure/go-autorest/tracing
 github.com/BurntSushi/toml
 # github.com/NYTimes/gziphandler v1.1.1
 github.com/NYTimes/gziphandler
+# github.com/PuerkitoBio/purell v1.1.1
+github.com/PuerkitoBio/purell
+# github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578
+github.com/PuerkitoBio/urlesc
 # github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
 github.com/alecthomas/template
 github.com/alecthomas/template/parse
@@ -48,7 +52,9 @@ github.com/armon/go-metrics
 github.com/armon/go-metrics/prometheus
 # github.com/armon/go-radix v1.0.0
 github.com/armon/go-radix
-# github.com/aws/aws-sdk-go v1.25.35
+# github.com/asaskevich/govalidator v0.0.0-20190424111038-f61b66f89f4a
+github.com/asaskevich/govalidator
+# github.com/aws/aws-sdk-go v1.25.48
 github.com/aws/aws-sdk-go/aws
 github.com/aws/aws-sdk-go/aws/awserr
 github.com/aws/aws-sdk-go/aws/awsutil
@@ -114,6 +120,8 @@ github.com/elastic/go-sysinfo/providers/windows
 github.com/elastic/go-sysinfo/types
 # github.com/elastic/go-windows v1.0.1
 github.com/elastic/go-windows
+# github.com/facette/natsort v0.0.0-20181210072756-2cd4dd1e2dcb
+github.com/facette/natsort
 # github.com/fatih/color v1.7.0
 github.com/fatih/color
 # github.com/fsnotify/fsnotify v1.4.7
@@ -125,6 +133,29 @@ github.com/go-kit/kit/log
 github.com/go-kit/kit/log/level
 # github.com/go-logfmt/logfmt v0.4.0
 github.com/go-logfmt/logfmt
+# github.com/go-openapi/analysis v0.19.4
+github.com/go-openapi/analysis
+github.com/go-openapi/analysis/internal
+# github.com/go-openapi/errors v0.19.2
+github.com/go-openapi/errors
+# github.com/go-openapi/jsonpointer v0.19.2
+github.com/go-openapi/jsonpointer
+# github.com/go-openapi/jsonreference v0.19.2
+github.com/go-openapi/jsonreference
+# github.com/go-openapi/loads v0.19.2
+github.com/go-openapi/loads
+# github.com/go-openapi/runtime v0.19.4
+github.com/go-openapi/runtime
+# github.com/go-openapi/spec v0.19.2
+github.com/go-openapi/spec
+# github.com/go-openapi/strfmt v0.19.2
+github.com/go-openapi/strfmt
+# github.com/go-openapi/swag v0.19.5
+github.com/go-openapi/swag
+# github.com/go-openapi/validate v0.19.2
+github.com/go-openapi/validate
+# github.com/go-stack/stack v1.8.0
+github.com/go-stack/stack
 # github.com/gogo/protobuf v1.3.1
 github.com/gogo/protobuf/gogoproto
 github.com/gogo/protobuf/proto
@@ -262,6 +293,10 @@ github.com/lightstep/lightstep-tracer-go
 github.com/lightstep/lightstep-tracer-go/lightstep/rand
 # github.com/lovoo/gcloud-opentracing v0.3.0
 github.com/lovoo/gcloud-opentracing
+# github.com/mailru/easyjson v0.0.0-20190626092158-b2ccc519800e
+github.com/mailru/easyjson/buffer
+github.com/mailru/easyjson/jlexer
+github.com/mailru/easyjson/jwriter
 # github.com/mattn/go-colorable v0.1.1
 github.com/mattn/go-colorable
 # github.com/mattn/go-ieproxy v0.0.0-20191113090002-7c0f6868bffe
@@ -274,7 +309,7 @@ github.com/mattn/go-runewidth
 github.com/matttproud/golang_protobuf_extensions/pbutil
 # github.com/miekg/dns v1.1.22
 github.com/miekg/dns
-# github.com/minio/minio-go/v6 v6.0.41
+# github.com/minio/minio-go/v6 v6.0.49
 github.com/minio/minio-go/v6
 github.com/minio/minio-go/v6/pkg/credentials
 github.com/minio/minio-go/v6/pkg/encrypt
@@ -319,6 +354,8 @@ github.com/pmezard/go-difflib/difflib
 # github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35
 github.com/pquerna/cachecontrol
 github.com/pquerna/cachecontrol/cacheobject
+# github.com/prometheus/alertmanager v0.20.0
+github.com/prometheus/alertmanager/api/v2/models
 # github.com/prometheus/client_golang v1.2.1
 github.com/prometheus/client_golang/api
 github.com/prometheus/client_golang/prometheus
@@ -339,7 +376,7 @@ github.com/prometheus/common/version
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
-# github.com/prometheus/prometheus v1.8.2-0.20191126064551-80ba03c67da1
+# github.com/prometheus/prometheus v1.8.2-0.20200110114423-1e64d757f711
 github.com/prometheus/prometheus/config
 github.com/prometheus/prometheus/discovery/azure
 github.com/prometheus/prometheus/discovery/config
@@ -405,11 +442,13 @@ github.com/serialx/hashring
 github.com/spf13/cobra
 # github.com/spf13/pflag v1.0.5
 github.com/spf13/pflag
-# github.com/thanos-io/thanos v0.9.0
+# github.com/thanos-io/thanos v0.11.0
 github.com/thanos-io/thanos/cmd/thanos
 github.com/thanos-io/thanos/pkg/alert
 github.com/thanos-io/thanos/pkg/block
+github.com/thanos-io/thanos/pkg/block/indexheader
 github.com/thanos-io/thanos/pkg/block/metadata
+github.com/thanos-io/thanos/pkg/cacheutil
 github.com/thanos-io/thanos/pkg/compact
 github.com/thanos-io/thanos/pkg/compact/downsample
 github.com/thanos-io/thanos/pkg/component
@@ -417,8 +456,12 @@ github.com/thanos-io/thanos/pkg/discovery/cache
 github.com/thanos-io/thanos/pkg/discovery/dns
 github.com/thanos-io/thanos/pkg/discovery/dns/miekgdns
 github.com/thanos-io/thanos/pkg/extflag
+github.com/thanos-io/thanos/pkg/extgrpc
+github.com/thanos-io/thanos/pkg/exthttp
 github.com/thanos-io/thanos/pkg/extprom
 github.com/thanos-io/thanos/pkg/extprom/http
+github.com/thanos-io/thanos/pkg/gate
+github.com/thanos-io/thanos/pkg/http
 github.com/thanos-io/thanos/pkg/model
 github.com/thanos-io/thanos/pkg/objstore
 github.com/thanos-io/thanos/pkg/objstore/azure
@@ -446,6 +489,7 @@ github.com/thanos-io/thanos/pkg/store
 github.com/thanos-io/thanos/pkg/store/cache
 github.com/thanos-io/thanos/pkg/store/storepb
 github.com/thanos-io/thanos/pkg/strutil
+github.com/thanos-io/thanos/pkg/testutil
 github.com/thanos-io/thanos/pkg/tls
 github.com/thanos-io/thanos/pkg/tracing
 github.com/thanos-io/thanos/pkg/tracing/client
@@ -500,6 +544,13 @@ go.elastic.co/apm/module/apmhttp
 go.elastic.co/apm/module/apmot
 # go.elastic.co/fastjson v1.0.0
 go.elastic.co/fastjson
+# go.mongodb.org/mongo-driver v1.0.4
+go.mongodb.org/mongo-driver/bson
+go.mongodb.org/mongo-driver/bson/bsoncodec
+go.mongodb.org/mongo-driver/bson/bsonrw
+go.mongodb.org/mongo-driver/bson/bsontype
+go.mongodb.org/mongo-driver/bson/primitive
+go.mongodb.org/mongo-driver/x/bsonx/bsoncore
 # go.opencensus.io v0.22.2
 go.opencensus.io
 go.opencensus.io/internal
@@ -584,6 +635,7 @@ golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
+golang.org/x/text/width
 # golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 golang.org/x/time/rate
 # golang.org/x/tools v0.0.0-20191115202509-3a792d9c32b2
@@ -667,6 +719,8 @@ google.golang.org/grpc/credentials/oauth
 google.golang.org/grpc/encoding
 google.golang.org/grpc/encoding/proto
 google.golang.org/grpc/grpclog
+google.golang.org/grpc/health
+google.golang.org/grpc/health/grpc_health_v1
 google.golang.org/grpc/internal
 google.golang.org/grpc/internal/backoff
 google.golang.org/grpc/internal/balancerload

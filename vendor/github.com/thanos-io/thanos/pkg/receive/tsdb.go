@@ -1,3 +1,6 @@
+// Copyright (c) The Thanos Authors.
+// Licensed under the Apache License 2.0.
+
 package receive
 
 import (
@@ -92,6 +95,7 @@ func (f *FlushableStorage) Flush() error {
 	if err != nil {
 		return errors.Wrap(err, "opening read-only DB")
 	}
+	defer ro.Close()
 	if err := ro.FlushWAL(f.path); err != nil {
 		return errors.Wrap(err, "flushing WAL")
 	}

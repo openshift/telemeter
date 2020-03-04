@@ -1,3 +1,6 @@
+// Copyright (c) The Thanos Authors.
+// Licensed under the Apache License 2.0.
+
 package main
 
 import (
@@ -26,7 +29,7 @@ func registerCheckRules(m map[string]setupFunc, root *kingpin.CmdClause, name st
 		"The rule files to check.",
 	).Required().ExistingFiles()
 
-	m[name+" rules"] = func(g *run.Group, logger log.Logger, reg *prometheus.Registry, _ opentracing.Tracer, _ bool) error {
+	m[name+" rules"] = func(g *run.Group, logger log.Logger, reg *prometheus.Registry, _ opentracing.Tracer, _ <-chan struct{}, _ bool) error {
 		// Dummy actor to immediately kill the group after the run function returns.
 		g.Add(func() error { return nil }, func(error) {})
 		return checkRulesFiles(logger, ruleFiles)
