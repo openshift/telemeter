@@ -9,7 +9,6 @@ local tlsMountPath = '/etc/pki/service';
 local authorizePort = 8083;
 local externalPort = 8080;
 local internalPort = 8081;
-local clusterPort = 8082;
 local tokensFileName = 'tokens.json';
 
 {
@@ -69,11 +68,8 @@ local tokensFileName = 'tokens.json';
         container.new('telemeter-server', ts.config.image) +
         container.withCommand([
           '/usr/bin/telemeter-server',
-          '--join=telemeter-server',
-          '--name=$(NAME)',
           '--listen=0.0.0.0:' + externalPort,
           '--listen-internal=0.0.0.0:' + internalPort,
-          '--listen-cluster=0.0.0.0:' + clusterPort,
           '--shared-key=%s/tls.key' % tlsMountPath,
           '--authorize=' + b.config.telemeterServer.authorizeURL,
           '--forward-url=http://%s.%s.svc:19291/api/v1/receive' % [b.receivers[b.config.hashrings[0].hashring].config.name, b.config.namespace],
@@ -81,7 +77,6 @@ local tokensFileName = 'tokens.json';
         container.withPorts([
           containerPort.newNamed(externalPort, 'external'),
           containerPort.newNamed(internalPort, 'internal'),
-          containerPort.newNamed(clusterPort, 'cluster'),
         ]) +
         container.withVolumeMounts([secretMount, tlsMount]) +
         container.withEnv([name]) + {
@@ -138,9 +133,8 @@ local tokensFileName = 'tokens.json';
 
       local servicePortExternal = servicePort.newNamed('external', externalPort, 'external');
       local servicePortInternal = servicePort.newNamed('internal', internalPort, 'internal');
-      local servicePortCluster = servicePort.newNamed('cluster', clusterPort, 'cluster');
 
-      service.new('telemeter-server', ts.statefulSet.spec.selector.matchLabels, [servicePortExternal, servicePortInternal, servicePortCluster]) +
+      service.new('telemeter-server', ts.statefulSet.spec.selector.matchLabels, [servicePortExternal, servicePortInternal]) +
       service.mixin.metadata.withNamespace(b.config.namespace) +
       service.mixin.metadata.withLabels({ 'k8s-app': 'telemeter-server' }) +
       service.mixin.spec.withClusterIp('None') +

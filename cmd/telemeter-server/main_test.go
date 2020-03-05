@@ -15,7 +15,6 @@ import (
 	"github.com/go-kit/kit/log"
 
 	"github.com/openshift/telemeter/pkg/metricfamily"
-	"github.com/openshift/telemeter/pkg/store"
 	"github.com/openshift/telemeter/pkg/store/memstore"
 	"github.com/openshift/telemeter/pkg/validate"
 
@@ -53,7 +52,7 @@ func TestPostError(t *testing.T) {
 	validator := validate.New("cluster", 4096, 0, now)
 	ttl := 10 * time.Minute
 	store := memstore.New(ttl)
-	server := server.New(log.NewNopLogger(), store, validator, nil, ttl)
+	server := server.New(log.NewNopLogger(), store, validator, nil)
 	labels := map[string]string{"cluster": "test"}
 
 	s := httptest.NewServer(fakeAuthorizeHandler(http.HandlerFunc(server.Post), &authorize.Client{ID: "test", Labels: labels}))
@@ -89,7 +88,7 @@ func testPost(t *testing.T, validator validate.Validator, send, expect []*client
 
 	ttl := 10 * time.Minute
 	memStore := memstore.New(ttl)
-	server := server.New(log.NewNopLogger(), memStore, validator, nil, ttl)
+	server := server.New(log.NewNopLogger(), memStore, validator, nil)
 
 	s := httptest.NewServer(fakeAuthorizeHandler(http.HandlerFunc(server.Post), &authorize.Client{ID: "test", Labels: map[string]string{"cluster": "test"}}))
 	defer s.Close()
@@ -110,36 +109,6 @@ func testPost(t *testing.T, validator validate.Validator, send, expect []*client
 
 	if e, a := metricsAsStringOrDie(expect), metricsAsStringOrDie(actual); e != a {
 		t.Errorf("expected:\n%s\nactual:\n%s", e, a)
-	}
-}
-
-func TestGet(t *testing.T) {
-	ttl := 10 * time.Minute
-	memStore := memstore.New(ttl)
-	validator := validate.New("cluster", 0, 0, now)
-	server := server.NewNonExpiring(log.NewNopLogger(), memStore, validator, nil, ttl)
-	srv := httptest.NewServer(http.HandlerFunc(server.Get))
-	defer srv.Close()
-
-	if err := memStore.WriteMetrics(context.Background(), &store.PartitionedMetrics{
-		PartitionKey: "test",
-		Families:     mustReadString(sampleMetrics),
-	}); err != nil {
-		t.Fatal(err)
-	}
-
-	actual := mustGet(srv.URL, expfmt.FmtText)
-	expected := mustReadString(sampleMetrics)
-
-	for _, mf := range expected {
-		for _, m := range mf.Metric {
-			nowTS := now().Unix() * 1000
-			m.TimestampMs = &nowTS
-		}
-	}
-
-	if e, a := metricsAsStringOrDie(expected), metricsAsStringOrDie(actual); e != a {
-		t.Errorf("unexpected output metrics:\n%s\n%s", e, a)
 	}
 }
 
@@ -239,22 +208,6 @@ func mustPost(addr string, format expfmt.Format, families []*clientmodel.MetricF
 		panic(fmt.Errorf("unexpected code %d: %s", resp.StatusCode, string(body)))
 	}
 	resp.Body.Close()
-}
-
-func mustGet(addr string, format expfmt.Format) []*clientmodel.MetricFamily {
-	req, err := http.NewRequest("GET", addr, nil)
-	if err != nil {
-		panic(err)
-	}
-	req.Header.Add("Accept", string(format))
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		panic(err)
-	}
-	defer resp.Body.Close()
-
-	return mustRead(resp.Body, expfmt.ResponseFormat(resp.Header))
 }
 
 func fakeAuthorizeHandler(h http.Handler, client *authorize.Client) http.Handler {

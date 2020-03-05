@@ -15,7 +15,6 @@ trap 'kill $(jobs -p); exit $result' EXIT
 
 ( 
 ./telemeter-server \
-    --ttl=24h \
     --authorize http://localhost:9101 \
     --listen localhost:9103 \
     --listen-internal localhost:9104 \

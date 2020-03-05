@@ -144,6 +144,11 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 	}
 
 	forwardRequests.WithLabelValues("success").Inc()
+
+	if s.next == nil {
+		return nil
+	}
+
 	return s.next.WriteMetrics(ctx, p)
 }
 

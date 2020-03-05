@@ -62,7 +62,7 @@ create() {
     # to avoid undoing the scaling event.
     find ./manifests/benchmark/ ! -name '*TelemeterServer.yaml' -type f -print0 | xargs -0l -I{} oc apply -f {} > /dev/null
     local retries=20
-    until [ "$(oc get pods -n telemeter-benchmark -l 'app.kubernetes.io/part-of=telemeter-benchmark' | grep Running -c)" -eq 1 ]; do
+    until [ "$(oc get pods -n telemeter-benchmark -l 'app.kubernetes.io/part-of=telemeter-benchmark' | grep Running -c)" -eq 5 ]; do
         retries=$((retries-1))
         if [ $retries -eq 0 ]; then
             printf "timed out waiting for Thanos to be up\n"

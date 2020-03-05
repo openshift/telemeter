@@ -183,8 +183,6 @@ github.com/golang/protobuf/ptypes/timestamp
 github.com/golang/protobuf/ptypes/wrappers
 # github.com/golang/snappy v0.0.1
 github.com/golang/snappy
-# github.com/google/btree v1.0.0
-github.com/google/btree
 # github.com/google/go-cmp v0.3.1
 github.com/google/go-cmp/cmp
 github.com/google/go-cmp/cmp/internal/diff
@@ -241,25 +239,15 @@ github.com/grpc-ecosystem/grpc-gateway/runtime
 github.com/grpc-ecosystem/grpc-gateway/utilities
 # github.com/hashicorp/consul/api v1.3.0
 github.com/hashicorp/consul/api
-# github.com/hashicorp/errwrap v1.0.0
-github.com/hashicorp/errwrap
 # github.com/hashicorp/go-cleanhttp v0.5.1
 github.com/hashicorp/go-cleanhttp
 # github.com/hashicorp/go-immutable-radix v1.1.0
 github.com/hashicorp/go-immutable-radix
-# github.com/hashicorp/go-msgpack v0.5.5
-github.com/hashicorp/go-msgpack/codec
-# github.com/hashicorp/go-multierror v1.0.0
-github.com/hashicorp/go-multierror
 # github.com/hashicorp/go-rootcerts v1.0.1
 github.com/hashicorp/go-rootcerts
-# github.com/hashicorp/go-sockaddr v1.0.2
-github.com/hashicorp/go-sockaddr
 # github.com/hashicorp/golang-lru v0.5.3
 github.com/hashicorp/golang-lru
 github.com/hashicorp/golang-lru/simplelru
-# github.com/hashicorp/memberlist v0.1.5
-github.com/hashicorp/memberlist
 # github.com/hashicorp/serf v0.8.5
 github.com/hashicorp/serf/coordinate
 # github.com/inconshreveable/mousetrap v1.0.0
@@ -434,10 +422,6 @@ github.com/santhosh-tekuri/jsonschema/loader
 github.com/santhosh-tekuri/jsonschema/mediatypes
 # github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b
 github.com/satori/go.uuid
-# github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529
-github.com/sean-/seed
-# github.com/serialx/hashring v0.0.0-20180504054112-49a4782e9908
-github.com/serialx/hashring
 # github.com/spf13/cobra v0.0.3
 github.com/spf13/cobra
 # github.com/spf13/pflag v1.0.5

@@ -21,7 +21,6 @@ import (
 	"github.com/openshift/telemeter/pkg/http/server"
 	"github.com/openshift/telemeter/pkg/store"
 	"github.com/openshift/telemeter/pkg/store/forward"
-	"github.com/openshift/telemeter/pkg/store/memstore"
 	"github.com/openshift/telemeter/pkg/validate"
 )
 
@@ -71,19 +70,17 @@ func TestForward(t *testing.T) {
 	}
 	var telemeterServer *httptest.Server
 	{
-		ttl := 10 * time.Minute
 		labels := map[string]string{"cluster": "test"}
 		validator := validate.New("cluster", 0, 0, time.Now)
 
 		receiveURL, _ := url.Parse(receiveServer.URL)
 
 		var store store.Store
-		store = memstore.New(ttl)
 		// This configured the Telemeter Server to forward all metrics
 		// as TimeSeries to the mocked receiveServer above.
-		store = forward.New(log.NewNopLogger(), receiveURL, store)
+		store = forward.New(log.NewNopLogger(), receiveURL, nil)
 
-		s := server.New(log.NewNopLogger(), store, validator, nil, ttl)
+		s := server.New(log.NewNopLogger(), store, validator, nil)
 		telemeterServer = httptest.NewServer(
 			fakeAuthorizeHandler(http.HandlerFunc(s.Post), &authorize.Client{ID: "test", Labels: labels}),
 		)
