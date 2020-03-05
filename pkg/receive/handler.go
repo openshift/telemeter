@@ -131,21 +131,21 @@ func (h *Handler) ValidateLabels(next http.Handler) http.HandlerFunc {
 			return
 		}
 
-		found := false
 		for _, ts := range wreq.GetTimeseries() {
+			found := false
 			for _, l := range ts.GetLabels() {
 				if l.Name == h.PartitionKey {
 					found = true
 					break
 				}
 			}
+
+			if !found {
+				http.Error(w, ErrRequiredLabelMissing.Error(), http.StatusBadRequest)
+				return
+			}
 		}
 
-		if found {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		http.Error(w, ErrRequiredLabelMissing.Error(), http.StatusBadRequest)
+		next.ServeHTTP(w, r)
 	}
 }
