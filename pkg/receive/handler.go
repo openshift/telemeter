@@ -28,20 +28,18 @@ type ClusterAuthorizer interface {
 
 // Handler knows the forwardURL for all requests
 type Handler struct {
-	ForwardURL   string
-	PartitionKey string
-	client       *http.Client
-	logger       log.Logger
+	ForwardURL string
+	client     *http.Client
+	logger     log.Logger
 
 	// Metrics.
 	forwardRequestsTotal *prometheus.CounterVec
 }
 
 // NewHandler returns a new Handler with a http client
-func NewHandler(logger log.Logger, forwardURL string, partitionKey string, reg prometheus.Registerer) *Handler {
+func NewHandler(logger log.Logger, forwardURL string, reg prometheus.Registerer) *Handler {
 	h := &Handler{
-		ForwardURL:   forwardURL,
-		PartitionKey: partitionKey,
+		ForwardURL: forwardURL,
 		client: &http.Client{
 			Timeout: forwardTimeout,
 		},
@@ -107,9 +105,15 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 // ErrRequiredLabelMissing is returned if a required label is missing from a metric
 var ErrRequiredLabelMissing = fmt.Errorf("a required label is missing from the metric")
 
-// ValidateLabels makes sure that the request's content contains the required partitionKey
-func (h *Handler) ValidateLabels(next http.Handler) http.HandlerFunc {
+// ValidateLabels by checking each enforced label to be present in every time series
+func ValidateLabels(next http.Handler, labels ...string) http.HandlerFunc {
+	labelmap := make(map[string]struct{})
+	for _, label := range labels {
+		labelmap[label] = struct{}{}
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
+
 		bodyBytes, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, "failed to read body", http.StatusInternalServerError)
@@ -133,15 +137,21 @@ func (h *Handler) ValidateLabels(next http.Handler) http.HandlerFunc {
 		}
 
 		for _, ts := range wreq.GetTimeseries() {
-			found := false
+			// exit early if not enough labels anyway
+			if len(ts.GetLabels()) < len(labels) {
+				http.Error(w, ErrRequiredLabelMissing.Error(), http.StatusBadRequest)
+				return
+			}
+
+			found := 0
+
 			for _, l := range ts.GetLabels() {
-				if l.Name == h.PartitionKey {
-					found = true
-					break
+				if _, ok := labelmap[l.GetName()]; ok {
+					found++
 				}
 			}
 
-			if !found {
+			if len(labels) != found {
 				http.Error(w, ErrRequiredLabelMissing.Error(), http.StatusBadRequest)
 				return
 			}

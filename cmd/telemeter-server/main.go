@@ -379,7 +379,7 @@ func (o *Options) Run() error {
 	transforms.With(metricfamily.NewElide(o.ElideLabels...))
 
 	server := httpserver.New(o.Logger, store, validator, transforms)
-	receiver := receive.NewHandler(o.Logger, o.ForwardURL, o.PartitionKey, prometheus.DefaultRegisterer)
+	receiver := receive.NewHandler(o.Logger, o.ForwardURL, prometheus.DefaultRegisterer)
 
 	internalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/metrics", "/debug/pprof", "/healthz", "/healthz/ready"}}, "", "  ")
 	externalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/authorize", "/upload", "/healthz", "/healthz/ready", "/metrics/v1/receive"}}, "", "  ")
@@ -432,8 +432,9 @@ func (o *Options) Run() error {
 	external.Handle("/metrics/v1/receive",
 		telemeter_http.NewInstrumentedHandler("receive",
 			authorize.NewHandler(o.Logger, &v2AuthorizeClient, authorizeURL, o.TenantKey,
-				receiver.ValidateLabels(
+				receive.ValidateLabels(
 					http.HandlerFunc(receiver.Receive),
+					"__name__", o.PartitionKey, // TODO: Enforce the same labels for v1 and v2
 				),
 			),
 		),
