@@ -104,6 +104,7 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(resp.StatusCode)
 }
 
+// ErrRequiredLabelMissing is returned if a required label is missing from a metric
 var ErrRequiredLabelMissing = fmt.Errorf("a required label is missing from the metric")
 
 // ValidateLabels makes sure that the request's content contains the required partitionKey
