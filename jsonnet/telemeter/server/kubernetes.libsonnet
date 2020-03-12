@@ -193,44 +193,6 @@ local internalPort = 8081;
           ],
         },
       },
-    serviceMonitorFederate:
-      {
-        apiVersion: 'monitoring.coreos.com/v1',
-        kind: 'ServiceMonitor',
-        metadata: {
-          name: 'telemeter-server-federate',
-          namespace: $._config.namespace,
-          labels: {
-            'k8s-app': 'telemeter-server',
-            endpoint: 'federate',
-          },
-        },
-        spec: {
-          jobLabel: 'k8s-app',
-          selector: {
-            matchLabels: {
-              'k8s-app': 'telemeter-server',
-            },
-          },
-          endpoints: [
-            {
-              bearerTokenFile: '/var/run/secrets/kubernetes.io/serviceaccount/token',
-              honorLabels: true,
-              interval: '15s',
-              params: {
-                'match[]': ['{__name__=~".*"}'],
-              },
-              path: '/federate',
-              port: 'internal',
-              scheme: 'https',
-              tlsConfig: {
-                caFile: '/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt',
-                serverName: 'telemeter-server.%s.svc' % $._config.namespace,
-              },
-            },
-          ],
-        },
-      },
   },
 
   memcached+:: {
