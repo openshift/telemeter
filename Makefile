@@ -111,10 +111,9 @@ $(METRICS_JSON):
 
 manifests: $(JSONNET_LOCAL_OR_INSTALLED) $(JSONNET_SRC) $(JSONNET_VENDOR) $(GOJSONTOYAML_BIN) $(METRICS_JSON)
 	rm -rf manifests
-	mkdir -p manifests/{benchmark,client,server,prometheus}
+	mkdir -p manifests/{benchmark,client}
 	$(JSONNET_LOCAL_OR_INSTALLED) jsonnet/benchmark.jsonnet -J jsonnet/vendor -m manifests/benchmark --tla-code metrics="$$(cat $(METRICS_JSON))"
 	$(JSONNET_LOCAL_OR_INSTALLED) jsonnet/client.jsonnet -J jsonnet/vendor -m manifests/client
-	$(JSONNET_LOCAL_OR_INSTALLED) jsonnet/prometheus.jsonnet -J jsonnet/vendor -m manifests/prometheus
 	@for f in $$(find manifests -type f); do\
 	    cat $$f | $(GOJSONTOYAML_BIN) > $$f.yaml && rm $$f;\
 	done
