@@ -128,7 +128,8 @@ local securePort = 8443;
         ] + matchRules) +
         container.withPorts(containerPort.newNamed('http', insecurePort)) +
         container.withVolumeMounts([sccabMount, secretMount]) +
-        container.withEnv([anonymize, from, id, to, httpProxy, httpsProxy, noProxy]);
+        container.withEnv([anonymize, from, id, to, httpProxy, httpsProxy, noProxy]) +
+        container.mixin.resources.withRequests({ cpu: '1m' });
 
       local reload =
         container.new('reload', $._config.imageRepos.configmapReload + ':' + $._config.versions.configmapReload) +
@@ -136,7 +137,8 @@ local securePort = 8443;
           '--webhook-url=http://localhost:%s/-/reload' % insecurePort,
           '--volume-dir=' + servingCertsCABundleMountPath,
         ]) +
-        container.withVolumeMounts([sccabMount]);
+        container.withVolumeMounts([sccabMount]) +
+        container.mixin.resources.withRequests({ cpu: '1m' });
 
       local proxy =
         container.new('kube-rbac-proxy', $._config.imageRepos.kubeRbacProxy + ':' + $._config.versions.kubeRbacProxy) +
@@ -149,8 +151,7 @@ local securePort = 8443;
           '--tls-cipher-suites=' + std.join(',', $._config.tlsCipherSuites),
         ] else []) +
         container.withPorts(containerPort.new(securePort) + containerPort.withName('https')) +
-        container.mixin.resources.withRequests({ cpu: '10m', memory: '20Mi' }) +
-        container.mixin.resources.withLimits({ cpu: '20m', memory: '40Mi' }) +
+        container.mixin.resources.withRequests({ cpu: '1m', memory: '20Mi' }) +
         container.withVolumeMounts([tlsMount]);
 
 
