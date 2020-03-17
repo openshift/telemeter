@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -137,6 +138,7 @@ func readMetrics(m string) []*clientmodel.MetricFamily {
 
 func fakeAuthorizeHandler(h http.Handler, client *authorize.Client) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		req = req.WithContext(context.WithValue(req.Context(), authorize.TenantKey, client.ID))
 		req = req.WithContext(authorize.WithClient(req.Context(), client))
 		h.ServeHTTP(w, req)
 	})
