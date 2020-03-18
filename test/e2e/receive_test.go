@@ -82,7 +82,7 @@ func TestReceiveValidateLabels(t *testing.T) {
 
 	var telemeterServer *httptest.Server
 	{
-		receiver := receive.NewHandler(log.NewNopLogger(), receiveServer.URL, prometheus.DefaultRegisterer)
+		receiver := receive.NewHandler(log.NewNopLogger(), receiveServer.URL, prometheus.NewRegistry())
 
 		telemeterServer = httptest.NewServer(
 			fakeAuthorizeHandler(
@@ -117,5 +117,87 @@ func TestReceiveValidateLabels(t *testing.T) {
 				t.Errorf("request did not return %d, but %s: %s", tc.ExpectStatusCode, resp.Status, string(body))
 			}
 		})
+	}
+}
+
+func TestLimitBodySize(t *testing.T) {
+	var receiveServer *httptest.Server
+	{
+		receiveServer = httptest.NewServer(func() http.HandlerFunc {
+			return func(w http.ResponseWriter, r *http.Request) {}
+		}())
+		defer receiveServer.Close()
+	}
+
+	var telemeterServer *httptest.Server
+	{
+		receiver := receive.NewHandler(log.NewNopLogger(), receiveServer.URL, prometheus.NewRegistry())
+
+		telemeterServer = httptest.NewServer(
+			fakeAuthorizeHandler(
+				receive.LimitBodySize(receive.RequestLimit,
+					http.HandlerFunc(receiver.Receive),
+				),
+				&authorize.Client{ID: "test"},
+			),
+		)
+		defer telemeterServer.Close()
+	}
+
+	// Test if request within limit is fine
+	{
+		ts := []prompb.TimeSeries{{
+			Labels: []prompb.Label{{Name: "__name__", Value: "foo"}},
+		}}
+
+		wreq := &prompb.WriteRequest{Timeseries: ts}
+		data, err := proto.Marshal(wreq)
+		if err != nil {
+			t.Error("failed to marshal proto message")
+		}
+		compressed := snappy.Encode(nil, data)
+
+		resp, err := http.Post(telemeterServer.URL+"/metrics/v1/receive", "", bytes.NewBuffer(compressed))
+		if err != nil {
+			t.Error("failed to send the receive request: %w", err)
+		}
+		defer resp.Body.Close()
+
+		body, _ := ioutil.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("request did not return 200, but %s: %s", resp.Status, string(body))
+		}
+	}
+	// Test if too large request is rejected
+	{
+		var timeSeries []prompb.TimeSeries
+		for i := 0; i < 1000; i++ {
+			ts := prompb.TimeSeries{Labels: []prompb.Label{{Name: "__name__", Value: "foo" + string(i)}}}
+			for j := 0; j < i; j++ {
+				ts.Samples = append(ts.Samples, prompb.Sample{
+					Value:     float64(j),
+					Timestamp: int64(j),
+				})
+			}
+			timeSeries = append(timeSeries, ts)
+		}
+
+		wreq := &prompb.WriteRequest{Timeseries: timeSeries}
+		data, err := proto.Marshal(wreq)
+		if err != nil {
+			t.Error("failed to marshal proto message")
+		}
+		compressed := snappy.Encode(nil, data)
+
+		resp, err := http.Post(telemeterServer.URL+"/metrics/v1/receive", "", bytes.NewBuffer(compressed))
+		if err != nil {
+			t.Error("failed to send the receive request: %w", err)
+		}
+		defer resp.Body.Close()
+
+		body, _ := ioutil.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusRequestEntityTooLarge {
+			t.Errorf("request did not return 413, but %s: %s", resp.Status, string(body))
+		}
 	}
 }

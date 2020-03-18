@@ -19,7 +19,7 @@ import (
 )
 
 const forwardTimeout = 5 * time.Second
-const requestLimit = 15 * 1024 // based on historic Prometheus data with 6KB at most
+const RequestLimit = 15 * 1024 // based on historic Prometheus data with 6KB at most
 
 // ClusterAuthorizer authorizes a cluster by its token and id, returning a subject or error
 type ClusterAuthorizer interface {
@@ -65,11 +65,7 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-
 	defer r.Body.Close()
-
-	// Limit the request body size to a sane default
-	r.Body = http.MaxBytesReader(w, r.Body, requestLimit)
 
 	ctx, cancel := context.WithTimeout(r.Context(), forwardTimeout)
 	defer cancel()
@@ -100,6 +96,24 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 	}
 	h.forwardRequestsTotal.WithLabelValues("success").Inc()
 	w.WriteHeader(resp.StatusCode)
+}
+
+func LimitBodySize(limit int64, next http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, limit)
+
+		data, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			if len(data) >= int(limit) {
+				http.Error(w, "request too big", http.StatusRequestEntityTooLarge)
+				return
+			}
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	}
 }
 
 // ErrRequiredLabelMissing is returned if a required label is missing from a metric
