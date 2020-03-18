@@ -1,7 +1,6 @@
 package receive
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -127,16 +126,14 @@ func ValidateLabels(next http.Handler, labels ...string) http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-
-		bodyBytes, err := ioutil.ReadAll(r.Body)
+		r.Body = ioutil.NopCloser(r.Body)
+		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, "failed to read body", http.StatusInternalServerError)
 			return
 		}
-		r.Body.Close()
 
-		r.Body = ioutil.NopCloser(bytes.NewBuffer(bodyBytes))
-		body, err := ioutil.ReadAll(r.Body)
+		r.Body.Close()
 
 		content, err := snappy.Decode(nil, body)
 		if err != nil {
