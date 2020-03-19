@@ -56,6 +56,8 @@ func NewHandler(logger log.Logger, forwardURL string, reg prometheus.Registerer)
 		reg.MustRegister(h.forwardRequestsTotal)
 	}
 
+	h.logger.Log("msg", "running receive handler")
+
 	return h
 }
 
@@ -123,7 +125,9 @@ func LimitBodySize(limit int64, next http.Handler) http.HandlerFunc {
 var ErrRequiredLabelMissing = fmt.Errorf("a required label is missing from the metric")
 
 // ValidateLabels by checking each enforced label to be present in every time series
-func ValidateLabels(next http.Handler, labels ...string) http.HandlerFunc {
+func ValidateLabels(logger log.Logger, next http.Handler, labels ...string) http.HandlerFunc {
+	logger = log.With(logger, "component", "receive", "middleware", "validateLabels")
+
 	labelmap := make(map[string]struct{})
 	for _, label := range labels {
 		labelmap[label] = struct{}{}
@@ -132,6 +136,7 @@ func ValidateLabels(next http.Handler, labels ...string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
+			level.Error(logger).Log("msg", "failed to read body", "err", err)
 			http.Error(w, "failed to read body", http.StatusInternalServerError)
 			return
 		}
@@ -142,12 +147,14 @@ func ValidateLabels(next http.Handler, labels ...string) http.HandlerFunc {
 
 		content, err := snappy.Decode(nil, body)
 		if err != nil {
+			level.Warn(logger).Log("msg", "failed to decode request body", "err", err)
 			http.Error(w, "failed to decode request body", http.StatusBadRequest)
 			return
 		}
 
 		var wreq prompb.WriteRequest
 		if err := proto.Unmarshal(content, &wreq); err != nil {
+			level.Warn(logger).Log("msg", "failed to decode protobuf from body", "err", err)
 			http.Error(w, "failed to decode protobuf from body", http.StatusBadRequest)
 			return
 		}
@@ -155,6 +162,7 @@ func ValidateLabels(next http.Handler, labels ...string) http.HandlerFunc {
 		for _, ts := range wreq.GetTimeseries() {
 			// exit early if not enough labels anyway
 			if len(ts.GetLabels()) < len(labels) {
+				level.Warn(logger).Log("msg", "request is missing required labels", "err", ErrRequiredLabelMissing)
 				http.Error(w, ErrRequiredLabelMissing.Error(), http.StatusBadRequest)
 				return
 			}
@@ -168,6 +176,7 @@ func ValidateLabels(next http.Handler, labels ...string) http.HandlerFunc {
 			}
 
 			if len(labels) != found {
+				level.Warn(logger).Log("msg", "request is missing required labels", "err", ErrRequiredLabelMissing)
 				http.Error(w, ErrRequiredLabelMissing.Error(), http.StatusBadRequest)
 				return
 			}

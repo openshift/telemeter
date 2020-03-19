@@ -87,6 +87,7 @@ func TestReceiveValidateLabels(t *testing.T) {
 		telemeterServer = httptest.NewServer(
 			fakeAuthorizeHandler(
 				receive.ValidateLabels(
+					log.NewNopLogger(),
 					http.HandlerFunc(receiver.Receive),
 					"__name__",
 				),
