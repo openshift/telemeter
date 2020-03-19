@@ -1,6 +1,7 @@
 package receive
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -99,15 +100,18 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 
 func LimitBodySize(limit int64, next http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, limit)
-
-		data, err := ioutil.ReadAll(r.Body)
+		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			if len(data) >= int(limit) {
-				http.Error(w, "request too big", http.StatusRequestEntityTooLarge)
-				return
-			}
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer r.Body.Close()
+
+		// Set body to this buffer for other handlers to read
+		r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+
+		if len(body) >= int(limit) {
+			http.Error(w, "request too big", http.StatusRequestEntityTooLarge)
 			return
 		}
 
@@ -126,14 +130,15 @@ func ValidateLabels(next http.Handler, labels ...string) http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		r.Body = ioutil.NopCloser(r.Body)
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, "failed to read body", http.StatusInternalServerError)
 			return
 		}
+		defer r.Body.Close()
 
-		r.Body.Close()
+		// Set body to this buffer for other handlers to read
+		r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
 
 		content, err := snappy.Decode(nil, body)
 		if err != nil {
