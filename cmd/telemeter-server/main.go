@@ -428,7 +428,7 @@ func (o *Options) Run() error {
 	external.Handle("/metrics/v1/receive",
 		telemeter_http.NewInstrumentedHandler("receive",
 			authorize.NewHandler(o.Logger, &v2AuthorizeClient, authorizeURL, o.TenantKey,
-				receive.LimitBodySize(receive.RequestLimit,
+				receive.LimitBodySize(receive.DefaultRequestLimit,
 					receive.ValidateLabels(
 						o.Logger,
 						http.HandlerFunc(receiver.Receive),
