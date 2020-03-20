@@ -135,11 +135,7 @@ func main() {
 	cmd.Flags().StringVar(&opt.LogLevel, "log-level", opt.LogLevel, "Log filtering level. e.g info, debug, warn, error")
 
 	l := log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
-	lvl, err := cmd.Flags().GetString("log-level")
-	if err != nil {
-		level.Error(l).Log("msg", "could not parse log-level.")
-	}
-	l = level.NewFilter(l, logger.LogLevelFromString(lvl))
+	l = level.NewFilter(l, logger.LogLevelFromString(opt.LogLevel))
 	l = log.WithPrefix(l, "ts", log.DefaultTimestampUTC)
 	l = log.WithPrefix(l, "caller", log.DefaultCaller)
 	stdlog.SetOutput(log.NewStdlibAdapter(l))
@@ -432,7 +428,13 @@ func (o *Options) Run() error {
 	external.Handle("/metrics/v1/receive",
 		telemeter_http.NewInstrumentedHandler("receive",
 			authorize.NewHandler(o.Logger, &v2AuthorizeClient, authorizeURL, o.TenantKey,
-				http.HandlerFunc(receiver.Receive),
+				receive.LimitBodySize(receive.DefaultRequestLimit,
+					receive.ValidateLabels(
+						o.Logger,
+						http.HandlerFunc(receiver.Receive),
+						o.PartitionKey, // TODO: Enforce the same labels for v1 and v2
+					),
+				),
 			),
 		),
 	)

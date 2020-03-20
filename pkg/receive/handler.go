@@ -1,18 +1,27 @@
 package receive
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"io/ioutil"
 	"net/http"
 	"time"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/gogo/protobuf/proto"
+	"github.com/golang/snappy"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/prometheus/prompb"
 
 	"github.com/openshift/telemeter/pkg/authorize"
 )
 
 const forwardTimeout = 5 * time.Second
+
+// DefaultRequestLimit is the size limit of a request body coming in
+const DefaultRequestLimit = 15 * 1024 // based on historic Prometheus data with 6KB at most
 
 // ClusterAuthorizer authorizes a cluster by its token and id, returning a subject or error
 type ClusterAuthorizer interface {
@@ -58,7 +67,6 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-
 	defer r.Body.Close()
 
 	ctx, cancel := context.WithTimeout(r.Context(), forwardTimeout)
@@ -90,4 +98,91 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 	}
 	h.forwardRequestsTotal.WithLabelValues("success").Inc()
 	w.WriteHeader(resp.StatusCode)
+}
+
+// LimitBodySize is a middleware that check that the request body is not bigger than the limit
+func LimitBodySize(limit int64, next http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer r.Body.Close()
+
+		// Set body to this buffer for other handlers to read
+		r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+
+		if len(body) >= int(limit) {
+			http.Error(w, "request too big", http.StatusRequestEntityTooLarge)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	}
+}
+
+// ErrRequiredLabelMissing is returned if a required label is missing from a metric
+var ErrRequiredLabelMissing = fmt.Errorf("a required label is missing from the metric")
+
+// ValidateLabels by checking each enforced label to be present in every time series
+func ValidateLabels(logger log.Logger, next http.Handler, labels ...string) http.HandlerFunc {
+	logger = log.With(logger, "component", "receive", "middleware", "validateLabels")
+
+	labelmap := make(map[string]struct{})
+	for _, label := range labels {
+		labelmap[label] = struct{}{}
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			level.Error(logger).Log("msg", "failed to read body", "err", err)
+			http.Error(w, "failed to read body", http.StatusInternalServerError)
+			return
+		}
+		defer r.Body.Close()
+
+		// Set body to this buffer for other handlers to read
+		r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+
+		content, err := snappy.Decode(nil, body)
+		if err != nil {
+			level.Warn(logger).Log("msg", "failed to decode request body", "err", err)
+			http.Error(w, "failed to decode request body", http.StatusBadRequest)
+			return
+		}
+
+		var wreq prompb.WriteRequest
+		if err := proto.Unmarshal(content, &wreq); err != nil {
+			level.Warn(logger).Log("msg", "failed to decode protobuf from body", "err", err)
+			http.Error(w, "failed to decode protobuf from body", http.StatusBadRequest)
+			return
+		}
+
+		for _, ts := range wreq.GetTimeseries() {
+			// exit early if not enough labels anyway
+			if len(ts.GetLabels()) < len(labels) {
+				level.Warn(logger).Log("msg", "request is missing required labels", "err", ErrRequiredLabelMissing)
+				http.Error(w, ErrRequiredLabelMissing.Error(), http.StatusBadRequest)
+				return
+			}
+
+			found := 0
+
+			for _, l := range ts.GetLabels() {
+				if _, ok := labelmap[l.GetName()]; ok {
+					found++
+				}
+			}
+
+			if len(labels) != found {
+				level.Warn(logger).Log("msg", "request is missing required labels", "err", ErrRequiredLabelMissing)
+				http.Error(w, ErrRequiredLabelMissing.Error(), http.StatusBadRequest)
+				return
+			}
+		}
+
+		next.ServeHTTP(w, r)
+	}
 }
