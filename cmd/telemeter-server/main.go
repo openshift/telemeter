@@ -20,7 +20,7 @@ import (
 	"strings"
 	"time"
 
-	oidc "github.com/coreos/go-oidc"
+	"github.com/coreos/go-oidc"
 	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
@@ -275,189 +275,39 @@ func (o *Options) Run() error {
 	case (len(o.InternalTLSCertificatePath) == 0) != (len(o.InternalTLSKeyPath) == 0):
 		return fmt.Errorf("both --internal-tls-key and --internal-tls-crt must be provided")
 	}
-	useTLS := len(o.TLSCertificatePath) > 0
-	useInternalTLS := len(o.InternalTLSCertificatePath) > 0
 
-	var (
-		publicKey  crypto.PublicKey
-		privateKey crypto.PrivateKey
-	)
+	var g run.Group
+	{
+		internal := http.NewServeMux()
 
-	if len(o.SharedKey) > 0 {
-		data, err := ioutil.ReadFile(o.SharedKey)
-		if err != nil {
-			return fmt.Errorf("unable to read --shared-key: %v", err)
+		internalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/metrics", "/debug/pprof", "/healthz", "/healthz/ready"}}, "", "  ")
+
+		internal.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			if req.URL.Path == "/" && req.Method == "GET" {
+				w.Header().Add("Content-Type", "application/json")
+				if _, err := w.Write(internalPathJSON); err != nil {
+					level.Error(o.Logger).Log("msg", "could not write internal paths", "err", err)
+				}
+				return
+			}
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		telemeter_http.DebugRoutes(internal)
+		telemeter_http.MetricRoutes(internal)
+		telemeter_http.HealthRoutes(internal)
+
+		s := &http.Server{
+			Handler: internal,
 		}
 
-		key, err := loadPrivateKey(data)
+		internalListener, err := net.Listen("tcp", o.ListenInternal)
 		if err != nil {
 			return err
 		}
 
-		switch t := key.(type) {
-		case *ecdsa.PrivateKey:
-			privateKey, publicKey = t, t.Public()
-		case *rsa.PrivateKey:
-			privateKey, publicKey = t, t.Public()
-		default:
-			return fmt.Errorf("unknown key type in --shared-key")
-		}
-	} else {
-		level.Warn(o.Logger).Log("msg", "Using a generated shared-key")
-
-		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-		if err != nil {
-			return fmt.Errorf("key generation failed: %v", err)
-		}
-
-		privateKey, publicKey = key, key.Public()
-	}
-
-	// Configure the whitelist.
-	if len(o.WhitelistFile) > 0 {
-		data, err := ioutil.ReadFile(o.WhitelistFile)
-		if err != nil {
-			return fmt.Errorf("unable to read --whitelist-file: %v", err)
-		}
-		o.Whitelist = append(o.Whitelist, strings.Split(string(data), "\n")...)
-	}
-	for i := 0; i < len(o.Whitelist); {
-		s := strings.TrimSpace(o.Whitelist[i])
-		if len(s) == 0 {
-			o.Whitelist = append(o.Whitelist[:i], o.Whitelist[i+1:]...)
-			continue
-		}
-		o.Whitelist[i] = s
-		i++
-	}
-	whitelister, err := metricfamily.NewWhitelist(o.Whitelist)
-	if err != nil {
-		return err
-	}
-
-	issuer := "telemeter.selfsigned"
-	audience := "telemeter-client"
-
-	jwtAuthorizer := jwt.NewClientAuthorizer(
-		issuer,
-		[]crypto.PublicKey{publicKey},
-		jwt.NewValidator(o.Logger, []string{audience}),
-	)
-	signer := jwt.NewSigner(issuer, privateKey)
-
-	external := http.NewServeMux()
-	internal := http.NewServeMux()
-
-	// configure the authenticator and incoming data validator
-	var clusterAuth authorize.ClusterAuthorizer = authorize.ClusterAuthorizerFunc(stub.Authorize)
-	if authorizeURL != nil {
-		clusterAuth = tollbooth.NewAuthorizer(o.Logger, &authorizeClient, authorizeURL)
-	}
-
-	auth := jwt.NewAuthorizeClusterHandler(o.Logger, o.PartitionKey, o.TokenExpireSeconds, signer, o.RequiredLabels, clusterAuth)
-	validator := validate.New(o.PartitionKey, o.LimitBytes, 24*time.Hour, time.Now)
-
-	var store store.Store
-	u, err := url.Parse(o.ForwardURL)
-	if err != nil {
-		return fmt.Errorf("--forward-url must be a valid URL: %v", err)
-	}
-	store = forward.New(o.Logger, u, nil)
-
-	// Create a rate-limited store with a memory-store as its backend.
-	store = ratelimited.New(o.Ratelimit, store)
-
-	transforms := metricfamily.MultiTransformer{}
-	transforms.With(whitelister)
-	if len(o.Labels) > 0 {
-		transforms.With(metricfamily.NewLabel(o.Labels, nil))
-	}
-	transforms.With(metricfamily.NewElide(o.ElideLabels...))
-
-	server := httpserver.New(o.Logger, store, validator, transforms)
-	receiver := receive.NewHandler(o.Logger, o.ForwardURL, prometheus.DefaultRegisterer)
-
-	internalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/metrics", "/debug/pprof", "/healthz", "/healthz/ready"}}, "", "  ")
-	externalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/authorize", "/upload", "/healthz", "/healthz/ready", "/metrics/v1/receive"}}, "", "  ")
-
-	internal.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if req.URL.Path == "/" && req.Method == "GET" {
-			w.Header().Add("Content-Type", "application/json")
-			if _, err := w.Write(internalPathJSON); err != nil {
-				level.Error(o.Logger).Log("msg", "could not write internal paths", "err", err)
-			}
-			return
-		}
-		w.WriteHeader(http.StatusNotFound)
-	}))
-	telemeter_http.DebugRoutes(internal)
-	telemeter_http.MetricRoutes(internal)
-	telemeter_http.HealthRoutes(internal)
-
-	external.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if req.URL.Path == "/" && req.Method == "GET" {
-			w.Header().Add("Content-Type", "application/json")
-			if _, err := w.Write(externalPathJSON); err != nil {
-				level.Error(o.Logger).Log("msg", "could not write external paths", "err", err)
-			}
-			return
-		}
-		w.WriteHeader(http.StatusNotFound)
-	}))
-	telemeter_http.HealthRoutes(external)
-
-	// v1 routes
-	external.Handle("/authorize", telemeter_http.NewInstrumentedHandler("authorize", auth))
-	external.Handle("/upload",
-		authorize.NewAuthorizeClientHandler(jwtAuthorizer,
-			telemeter_http.NewInstrumentedHandler("upload",
-				http.HandlerFunc(server.Post),
-			),
-		),
-	)
-
-	// v2 routes
-	v2AuthorizeClient := authorizeClient
-
-	if len(o.Memcacheds) > 0 {
-		mc := memcached.New(context.Background(), o.MemcachedInterval, o.MemcachedExpire, o.Memcacheds...)
-		l := log.With(o.Logger, "component", "cache")
-		v2AuthorizeClient.Transport = cache.NewRoundTripper(mc, tollbooth.ExtractToken, v2AuthorizeClient.Transport, l, prometheus.DefaultRegisterer)
-	}
-
-	external.Handle("/metrics/v1/receive",
-		telemeter_http.NewInstrumentedHandler("receive",
-			authorize.NewHandler(o.Logger, &v2AuthorizeClient, authorizeURL, o.TenantKey,
-				receive.LimitBodySize(receive.DefaultRequestLimit,
-					receive.ValidateLabels(
-						o.Logger,
-						http.HandlerFunc(receiver.Receive),
-						o.PartitionKey, // TODO: Enforce the same labels for v1 and v2
-					),
-				),
-			),
-		),
-	)
-
-	level.Info(o.Logger).Log("msg", "starting telemeter-server", "listen", o.Listen, "internal", o.ListenInternal)
-
-	internalListener, err := net.Listen("tcp", o.ListenInternal)
-	if err != nil {
-		return err
-	}
-	externalListener, err := net.Listen("tcp", o.Listen)
-	if err != nil {
-		return err
-	}
-
-	var g run.Group
-	{
 		// Run the internal server.
 		g.Add(func() error {
-			s := &http.Server{
-				Handler: internal,
-			}
-			if useInternalTLS {
+			if len(o.InternalTLSCertificatePath) > 0 {
 				if err := s.ServeTLS(internalListener, o.InternalTLSCertificatePath, o.InternalTLSKeyPath); err != nil && err != http.ErrServerClosed {
 					level.Error(o.Logger).Log("msg", "internal HTTPS server exited", "err", err)
 					return err
@@ -470,17 +320,173 @@ func (o *Options) Run() error {
 			}
 			return nil
 		}, func(error) {
+			_ = s.Shutdown(context.TODO())
 			internalListener.Close()
 		})
 	}
-
 	{
+		external := http.NewServeMux()
+
+		// v1 routes
+		{
+			var (
+				publicKey  crypto.PublicKey
+				privateKey crypto.PrivateKey
+			)
+
+			if len(o.SharedKey) > 0 {
+				data, err := ioutil.ReadFile(o.SharedKey)
+				if err != nil {
+					return fmt.Errorf("unable to read --shared-key: %v", err)
+				}
+
+				key, err := loadPrivateKey(data)
+				if err != nil {
+					return err
+				}
+
+				switch t := key.(type) {
+				case *ecdsa.PrivateKey:
+					privateKey, publicKey = t, t.Public()
+				case *rsa.PrivateKey:
+					privateKey, publicKey = t, t.Public()
+				default:
+					return fmt.Errorf("unknown key type in --shared-key")
+				}
+			} else {
+				level.Warn(o.Logger).Log("msg", "Using a generated shared-key")
+
+				key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+				if err != nil {
+					return fmt.Errorf("key generation failed: %v", err)
+				}
+
+				privateKey, publicKey = key, key.Public()
+			}
+
+			// Configure the whitelist.
+			if len(o.WhitelistFile) > 0 {
+				data, err := ioutil.ReadFile(o.WhitelistFile)
+				if err != nil {
+					return fmt.Errorf("unable to read --whitelist-file: %v", err)
+				}
+				o.Whitelist = append(o.Whitelist, strings.Split(string(data), "\n")...)
+			}
+			for i := 0; i < len(o.Whitelist); {
+				s := strings.TrimSpace(o.Whitelist[i])
+				if len(s) == 0 {
+					o.Whitelist = append(o.Whitelist[:i], o.Whitelist[i+1:]...)
+					continue
+				}
+				o.Whitelist[i] = s
+				i++
+			}
+			whitelister, err := metricfamily.NewWhitelist(o.Whitelist)
+			if err != nil {
+				return err
+			}
+
+			const issuer = "telemeter.selfsigned"
+			const audience = "telemeter-client"
+
+			jwtAuthorizer := jwt.NewClientAuthorizer(
+				issuer,
+				[]crypto.PublicKey{publicKey},
+				jwt.NewValidator(o.Logger, []string{audience}),
+			)
+			signer := jwt.NewSigner(issuer, privateKey)
+
+			// configure the authenticator and incoming data validator
+			var clusterAuth authorize.ClusterAuthorizer = authorize.ClusterAuthorizerFunc(stub.Authorize)
+			if authorizeURL != nil {
+				clusterAuth = tollbooth.NewAuthorizer(o.Logger, &authorizeClient, authorizeURL)
+			}
+
+			auth := jwt.NewAuthorizeClusterHandler(o.Logger, o.PartitionKey, o.TokenExpireSeconds, signer, o.RequiredLabels, clusterAuth)
+			validator := validate.New(o.PartitionKey, o.LimitBytes, 24*time.Hour, time.Now)
+
+			var store store.Store
+			u, err := url.Parse(o.ForwardURL)
+			if err != nil {
+				return fmt.Errorf("--forward-url must be a valid URL: %v", err)
+			}
+			store = forward.New(o.Logger, u, nil)
+
+			// Create a rate-limited store with a memory-store as its backend.
+			store = ratelimited.New(o.Ratelimit, store)
+
+			transforms := metricfamily.MultiTransformer{}
+			transforms.With(whitelister)
+			if len(o.Labels) > 0 {
+				transforms.With(metricfamily.NewLabel(o.Labels, nil))
+			}
+			transforms.With(metricfamily.NewElide(o.ElideLabels...))
+
+			server := httpserver.New(o.Logger, store, validator, transforms)
+
+			external.Handle("/authorize", telemeter_http.NewInstrumentedHandler("authorize", auth))
+			external.Handle("/upload",
+				authorize.NewAuthorizeClientHandler(jwtAuthorizer,
+					telemeter_http.NewInstrumentedHandler("upload",
+						http.HandlerFunc(server.Post),
+					),
+				),
+			)
+		}
+
+		// v2 routes
+		{
+			v2AuthorizeClient := authorizeClient
+
+			if len(o.Memcacheds) > 0 {
+				mc := memcached.New(context.Background(), o.MemcachedInterval, o.MemcachedExpire, o.Memcacheds...)
+				l := log.With(o.Logger, "component", "cache")
+				v2AuthorizeClient.Transport = cache.NewRoundTripper(mc, tollbooth.ExtractToken, v2AuthorizeClient.Transport, l, prometheus.DefaultRegisterer)
+			}
+
+			receiver := receive.NewHandler(o.Logger, o.ForwardURL, prometheus.DefaultRegisterer)
+
+			external.Handle("/metrics/v1/receive",
+				telemeter_http.NewInstrumentedHandler("receive",
+					authorize.NewHandler(o.Logger, &v2AuthorizeClient, authorizeURL, o.TenantKey,
+						receive.LimitBodySize(receive.DefaultRequestLimit,
+							receive.ValidateLabels(
+								o.Logger,
+								http.HandlerFunc(receiver.Receive),
+								o.PartitionKey, // TODO: Enforce the same labels for v1 and v2
+							),
+						),
+					),
+				),
+			)
+		}
+
+		externalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/authorize", "/upload", "/healthz", "/healthz/ready", "/metrics/v1/receive"}}, "", "  ")
+
+		external.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			if req.URL.Path == "/" && req.Method == "GET" {
+				w.Header().Add("Content-Type", "application/json")
+				if _, err := w.Write(externalPathJSON); err != nil {
+					level.Error(o.Logger).Log("msg", "could not write external paths", "err", err)
+				}
+				return
+			}
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		telemeter_http.HealthRoutes(external)
+
+		s := &http.Server{
+			Handler: external,
+		}
+
+		externalListener, err := net.Listen("tcp", o.Listen)
+		if err != nil {
+			return err
+		}
+
 		// Run the external server.
 		g.Add(func() error {
-			s := &http.Server{
-				Handler: external,
-			}
-			if useTLS {
+			if len(o.TLSCertificatePath) > 0 {
 				if err := s.ServeTLS(externalListener, o.TLSCertificatePath, o.TLSKeyPath); err != nil && err != http.ErrServerClosed {
 					level.Error(o.Logger).Log("msg", "external HTTPS server exited", "err", err)
 					return err
@@ -493,9 +499,12 @@ func (o *Options) Run() error {
 			}
 			return nil
 		}, func(error) {
+			_ = s.Shutdown(context.TODO())
 			externalListener.Close()
 		})
 	}
+
+	level.Info(o.Logger).Log("msg", "starting telemeter-server", "listen", o.Listen, "internal", o.ListenInternal)
 
 	return g.Run()
 }
