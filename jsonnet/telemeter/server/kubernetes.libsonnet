@@ -43,7 +43,6 @@ local internalPort = 8081;
       local podLabels = { 'k8s-app': 'telemeter-server' };
       local tlsMount = containerVolumeMount.new(tlsVolumeName, tlsMountPath);
       local tlsVolume = volume.fromSecret(tlsVolumeName, tlsSecret);
-      local name = containerEnv.fromFieldPath('NAME', 'metadata.name');
       local authorizeURL = containerEnv.fromSecretRef('AUTHORIZE_URL', secretName, 'authorize_url');
       local oidcIssuer = containerEnv.fromSecretRef('OIDC_ISSUER', secretName, 'oidc_issuer');
       local clientSecret = containerEnv.fromSecretRef('CLIENT_SECRET', secretName, 'client_secret');
@@ -96,7 +95,7 @@ local internalPort = 8081;
         container.mixin.resources.withLimitsMixin($._config.telemeterServer.resourceLimits) +
         container.mixin.resources.withRequestsMixin($._config.telemeterServer.resourceRequests) +
         container.withVolumeMounts([tlsMount]) +
-        container.withEnv([oidcIssuer, clientSecret, clientID]) + {
+        container.withEnv([authorizeURL, oidcIssuer, clientSecret, clientID]) + {
           livenessProbe: {
             httpGet: {
               path: '/healthz',
