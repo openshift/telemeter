@@ -15,7 +15,7 @@ GOLANGCI_LINT_VERSION=v1.18.0
 EMBEDMD_BIN=$(BIN_DIR)/embedmd
 THANOS_BIN=$(BIN_DIR)/thanos
 UP_BIN=$(BIN_DIR)/up
-MEMCACHED_BIN=$(BIN_DIR)/memched
+MEMCACHED_BIN=$(BIN_DIR)/memcached
 PROMETHEUS_BIN=$(BIN_DIR)/prometheus
 GOJSONTOYAML_BIN=$(BIN_DIR)/gojsontoyaml
 JSONNET_BIN?=$(BIN_DIR)/jsonnet
@@ -192,8 +192,9 @@ $(UP_BIN): $(BIN_DIR)
 
 $(MEMCACHED_BIN): $(BIN_DIR) $(LIB_DIR)
 	@echo "Downloading Memcached"
-	curl -L https://www.archlinux.org/packages/core/x86_64/libevent/download/ | tar --strip-components=2 -xJf - -C $(LIB_DIR) usr/lib
-	curl -L https://www.archlinux.org/packages/extra/x86_64/memcached/download/ | tar --strip-components=2 -xJf - -C $(BIN_DIR) usr/bin/memcached
+	curl -L https://www.archlinux.org/packages/core/x86_64/zstd/download/ | tar --strip-components=2 -xJf - -C $(LIB_DIR) usr/bin/zstd
+	curl -L https://www.archlinux.org/packages/core/x86_64/libevent/download/ | tar -I $(LIB_DIR)/zstd --strip-components=2 -xf - -C $(LIB_DIR) usr/lib
+	curl -L https://www.archlinux.org/packages/extra/x86_64/memcached/download/ | tar -I $(LIB_DIR)/zstd --strip-components=2 -xf - -C $(BIN_DIR) usr/bin/memcached
 
 $(PROMETHEUS_BIN): $(BIN_DIR)
 	@echo "Downloading Prometheus"
