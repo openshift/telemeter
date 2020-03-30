@@ -27,10 +27,9 @@ type validator struct {
 // It implements metrics transforms that sanitize the incoming content.
 func New(partitionKey string, limitBytes int64, maxAge time.Duration, nowFunc func() time.Time) Validator {
 	return &validator{
-		partitionKey: partitionKey,
-		limitBytes:   limitBytes,
-		maxAge:       maxAge,
-		nowFunc:      nowFunc,
+		limitBytes: limitBytes,
+		maxAge:     maxAge,
+		nowFunc:    nowFunc,
 	}
 }
 
@@ -39,9 +38,6 @@ func (v *validator) Validate(ctx context.Context, req *http.Request) (string, me
 	client, ok := authorize.FromContext(ctx)
 	if !ok {
 		return "", nil, fmt.Errorf("unable to find user info")
-	}
-	if len(client.Labels[v.partitionKey]) == 0 {
-		return "", nil, fmt.Errorf("user data must contain a '%s' label", v.partitionKey)
 	}
 
 	var transforms metricfamily.MultiTransformer
@@ -60,4 +56,47 @@ func (v *validator) Validate(ctx context.Context, req *http.Request) (string, me
 	}
 
 	return client.Labels[v.partitionKey], transforms, nil
+}
+
+func PartitionKey(key string, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		client, ok := authorize.FromContext(r.Context())
+		if !ok {
+			http.Error(w, "unable to find user info", http.StatusInternalServerError)
+			return
+		}
+		if len(client.Labels[key]) == 0 {
+			http.Error(w, fmt.Sprintf("user data must contain a '%s' label", key), http.StatusInternalServerError)
+			return
+		}
+
+		r = r.WithContext(WithPartition(r.Context(), client.Labels[key]))
+
+		next.ServeHTTP(w, r)
+	}
+}
+
+func WithPartition(ctx context.Context, partition string) context.Context {
+	return context.WithValue(ctx, partitionCtx, partition)
+}
+
+func PartitionFromContext(ctx context.Context) (string, bool) {
+	p, ok := ctx.Value(partitionCtx).(string)
+	return p, ok
+}
+
+type partitionCtxType int
+
+const (
+	partitionCtx partitionCtxType = iota
+)
+
+func ByteLimit(limit int64, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+	}
+}
+
+func MaxAge(maxAge time.Duration, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+	}
 }
