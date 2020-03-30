@@ -13,16 +13,14 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log"
-
-	"github.com/openshift/telemeter/pkg/metricfamily"
-	"github.com/openshift/telemeter/pkg/store/memstore"
-	"github.com/openshift/telemeter/pkg/validate"
-
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 
 	"github.com/openshift/telemeter/pkg/authorize"
 	"github.com/openshift/telemeter/pkg/http/server"
+	"github.com/openshift/telemeter/pkg/metricfamily"
+	"github.com/openshift/telemeter/pkg/store/memstore"
+	"github.com/openshift/telemeter/pkg/validate"
 )
 
 const (
@@ -45,17 +43,62 @@ var (
 func TestPost(t *testing.T) {
 	validator := validate.New("cluster", 0, 0, now)
 	labels := map[string]string{"cluster": "test"}
-	testPost(t, validator, withLabels(sort(mustReadString(sampleMetrics)), labels), withLabels(sort(mustReadString(sampleMetrics)), labels))
+
+	send := withLabels(sort(mustReadString(sampleMetrics)), labels)
+	expect := withLabels(sort(mustReadString(sampleMetrics)), labels)
+
+	memStore := memstore.New(10 * time.Minute)
+
+	s := httptest.NewServer(fakeAuthorizeHandler(
+		server.Post(log.NewNopLogger(), memStore, validator, nil),
+		&authorize.Client{ID: "test", Labels: map[string]string{"cluster": "test"}},
+	))
+	defer s.Close()
+
+	format := expfmt.FmtProtoDelim
+
+	buf := &bytes.Buffer{}
+	encoder := expfmt.NewEncoder(buf, format)
+	for _, family := range send {
+		if err := encoder.Encode(family); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	req, err := http.NewRequest(http.MethodPost, s.URL, buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Add("Content-Type", string(format))
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := ioutil.ReadAll(resp.Body)
+		t.Fatalf("unexpected code %d: %s", resp.StatusCode, string(body))
+	}
+	resp.Body.Close()
+
+	ps, err := memStore.ReadMetrics(context.Background(), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if e, a := metricsAsStringOrDie(expect), metricsAsStringOrDie(ps[0].Families); e != a {
+		t.Errorf("expected:\n%s\nactual:\n%s", e, a)
+	}
+
 }
 
 func TestPostError(t *testing.T) {
 	validator := validate.New("cluster", 4096, 0, now)
 	ttl := 10 * time.Minute
 	store := memstore.New(ttl)
-	server := server.New(log.NewNopLogger(), store, validator, nil)
 	labels := map[string]string{"cluster": "test"}
 
-	s := httptest.NewServer(fakeAuthorizeHandler(http.HandlerFunc(server.Post), &authorize.Client{ID: "test", Labels: labels}))
+	s := httptest.NewServer(fakeAuthorizeHandler(server.Post(log.NewNopLogger(), store, validator, nil), &authorize.Client{ID: "test", Labels: labels}))
 	defer s.Close()
 
 	longName := strings.Repeat("abcd", 2048)
@@ -81,35 +124,6 @@ func TestPostError(t *testing.T) {
 		})
 	}
 
-}
-
-func testPost(t *testing.T, validator validate.Validator, send, expect []*clientmodel.MetricFamily) {
-	t.Helper()
-
-	ttl := 10 * time.Minute
-	memStore := memstore.New(ttl)
-	server := server.New(log.NewNopLogger(), memStore, validator, nil)
-
-	s := httptest.NewServer(fakeAuthorizeHandler(http.HandlerFunc(server.Post), &authorize.Client{ID: "test", Labels: map[string]string{"cluster": "test"}}))
-	defer s.Close()
-
-	mustPost(s.URL, expfmt.FmtProtoDelim, send)
-
-	var actual []*clientmodel.MetricFamily
-	ps, err := memStore.ReadMetrics(context.Background(), 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	p := ps[0]
-	if p.PartitionKey != "test" {
-		t.Fatalf("unexpected partition key: %s", p.PartitionKey)
-	}
-	actual = p.Families
-
-	if e, a := metricsAsStringOrDie(expect), metricsAsStringOrDie(actual); e != a {
-		t.Errorf("expected:\n%s\nactual:\n%s", e, a)
-	}
 }
 
 func sort(families []*clientmodel.MetricFamily) []*clientmodel.MetricFamily {
@@ -183,31 +197,6 @@ func mustPostError(addr string, format expfmt.Format, families []*clientmodel.Me
 	body, _ := ioutil.ReadAll(resp.Body)
 	resp.Body.Close()
 	return resp.StatusCode, string(body)
-}
-
-func mustPost(addr string, format expfmt.Format, families []*clientmodel.MetricFamily) {
-	buf := &bytes.Buffer{}
-	encoder := expfmt.NewEncoder(buf, format)
-	for _, family := range families {
-		if err := encoder.Encode(family); err != nil {
-			panic(err)
-		}
-	}
-	req, err := http.NewRequest("POST", addr, buf)
-	if err != nil {
-		panic(err)
-	}
-	req.Header.Add("Content-Type", string(format))
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		panic(err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		body, _ := ioutil.ReadAll(resp.Body)
-		panic(fmt.Errorf("unexpected code %d: %s", resp.StatusCode, string(body)))
-	}
-	resp.Body.Close()
 }
 
 func fakeAuthorizeHandler(h http.Handler, client *authorize.Client) http.Handler {

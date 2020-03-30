@@ -7,6 +7,7 @@ require (
 	github.com/brancz/gojsontoyaml v0.0.0-20191212081931-bf2969bbd742
 	github.com/campoy/embedmd v1.0.0
 	github.com/coreos/go-oidc v2.0.0+incompatible
+	github.com/go-chi/chi v4.0.4+incompatible
 	github.com/go-kit/kit v0.9.0
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/protobuf v1.3.2
