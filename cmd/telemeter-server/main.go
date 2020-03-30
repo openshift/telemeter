@@ -41,7 +41,6 @@ import (
 	"github.com/openshift/telemeter/pkg/logger"
 	"github.com/openshift/telemeter/pkg/metricfamily"
 	"github.com/openshift/telemeter/pkg/receive"
-	"github.com/openshift/telemeter/pkg/store"
 	"github.com/openshift/telemeter/pkg/store/forward"
 	"github.com/openshift/telemeter/pkg/store/ratelimited"
 	"github.com/openshift/telemeter/pkg/validate"
@@ -409,17 +408,14 @@ func (o *Options) Run() error {
 			}
 
 			auth := jwt.NewAuthorizeClusterHandler(o.Logger, o.PartitionKey, o.TokenExpireSeconds, signer, o.RequiredLabels, clusterAuth)
-			validator := validate.New(o.PartitionKey, o.LimitBytes, 24*time.Hour, time.Now)
+			//validator := validate.New(o.PartitionKey, o.LimitBytes, 24*time.Hour, time.Now)
 
-			var store store.Store
-			u, err := url.Parse(o.ForwardURL)
+			//var store store.Store
+			fowardURL, err := url.Parse(o.ForwardURL)
 			if err != nil {
 				return fmt.Errorf("--forward-url must be a valid URL: %v", err)
 			}
-			store = forward.New(o.Logger, u, nil)
-
-			//// Create a rate-limited store with a memory-store as its backend.
-			//store = ratelimited.New(o.Ratelimit, store)
+			//store = forward.New(o.Logger, fowardURL, nil)
 
 			transforms := metricfamily.MultiTransformer{}
 			transforms.With(whitelister)
@@ -435,7 +431,7 @@ func (o *Options) Run() error {
 						server.PostMethod(
 							ratelimited.Middleware(o.Ratelimit, time.Now,
 								server.Snappy(
-									server.Post(o.Logger, store, validator, transforms),
+									forward.Handler(o.Logger, fowardURL),
 								),
 							),
 						),

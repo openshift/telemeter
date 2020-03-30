@@ -19,8 +19,6 @@ import (
 	"github.com/prometheus/prometheus/prompb"
 
 	"github.com/openshift/telemeter/pkg/authorize"
-	"github.com/openshift/telemeter/pkg/http/server"
-	"github.com/openshift/telemeter/pkg/store"
 	"github.com/openshift/telemeter/pkg/store/forward"
 	"github.com/openshift/telemeter/pkg/validate"
 )
@@ -71,19 +69,20 @@ func TestForward(t *testing.T) {
 	}
 	var telemeterServer *httptest.Server
 	{
+		logger := log.NewNopLogger()
+
 		labels := map[string]string{"cluster": "test"}
-		validator := validate.New("cluster", 0, 0, time.Now)
+		//validator := validate.New("cluster", 0, 0, time.Now)
 
 		receiveURL, _ := url.Parse(receiveServer.URL)
 
-		var store store.Store
-		// This configured the Telemeter Server to forward all metrics
-		// as TimeSeries to the mocked receiveServer above.
-		store = forward.New(log.NewNopLogger(), receiveURL, nil)
-
-		s := server.New(log.NewNopLogger(), store, validator, nil)
 		telemeterServer = httptest.NewServer(
-			fakeAuthorizeHandler(http.HandlerFunc(s.Post), &authorize.Client{ID: "test", Labels: labels}),
+			fakeAuthorizeHandler(
+				validate.PartitionKey("cluster",
+					forward.Handler(logger, receiveURL),
+				),
+				&authorize.Client{ID: "test", Labels: labels},
+			),
 		)
 		defer telemeterServer.Close()
 	}
