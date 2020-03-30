@@ -1,8 +1,10 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -18,72 +20,54 @@ import (
 	"github.com/openshift/telemeter/pkg/validate"
 )
 
-type Server struct {
-	store       store.Store
-	transformer metricfamily.Transformer
-	validator   validate.Validator
-	logger      log.Logger
-}
+func Post(logger log.Logger, store store.Store, validator validate.Validator, transformer metricfamily.Transformer) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		defer req.Body.Close()
 
-func New(logger log.Logger, store store.Store, validator validate.Validator, transformer metricfamily.Transformer) *Server {
-	return &Server{
-		store:       store,
-		transformer: transformer,
-		validator:   validator,
-		logger:      log.With(logger, "component", "http/server"),
-	}
-}
+		// TODO: Make middleware
+		ctx, cancel := context.WithTimeout(req.Context(), 5*time.Second)
+		defer cancel()
 
-func (s *Server) Post(w http.ResponseWriter, req *http.Request) {
-	if req.Method != "POST" {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-	defer req.Body.Close()
-
-	ctx, cancel := context.WithTimeout(req.Context(), 5*time.Second)
-	defer cancel()
-
-	partitionKey, transforms, err := s.validator.Validate(ctx, req)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	var t metricfamily.MultiTransformer
-	t.With(transforms)
-	t.With(s.transformer)
-
-	// read the response into memory
-	format := expfmt.ResponseFormat(req.Header)
-	var r io.Reader = req.Body
-	if req.Header.Get("Content-Encoding") == "snappy" {
-		r = snappy.NewReader(r)
-	}
-	decoder := expfmt.NewDecoder(r, format)
-
-	errCh := make(chan error)
-	go func() { errCh <- s.decodeAndStoreMetrics(ctx, partitionKey, decoder, t) }()
-
-	select {
-	case <-ctx.Done():
-		http.Error(w, "Timeout while storing metrics", http.StatusInternalServerError)
-		level.Error(s.logger).Log("msg", "timeout processing incoming request")
-		return
-	case err := <-errCh:
-		switch err {
-		case nil:
-			break
-		case ratelimited.ErrWriteLimitReached(partitionKey):
-			http.Error(w, err.Error(), http.StatusTooManyRequests)
-		default:
+		partitionKey, transforms, err := validator.Validate(ctx, req)
+		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
-		return
+
+		var t metricfamily.MultiTransformer
+		t.With(transforms)
+
+		// read the response into memory
+		format := expfmt.ResponseFormat(req.Header)
+		var r io.Reader = req.Body
+		if req.Header.Get("Content-Encoding") == "snappy" {
+			r = snappy.NewReader(r)
+		}
+		decoder := expfmt.NewDecoder(r, format)
+
+		errCh := make(chan error)
+		go func() { errCh <- decodeAndStoreMetrics(ctx, store, partitionKey, decoder, t) }()
+
+		select {
+		case <-ctx.Done():
+			http.Error(w, "Timeout while storing metrics", http.StatusInternalServerError)
+			level.Error(logger).Log("msg", "timeout processing incoming request")
+			return
+		case err := <-errCh:
+			switch err {
+			case nil:
+				break
+			case ratelimited.ErrWriteLimitReached(partitionKey):
+				http.Error(w, err.Error(), http.StatusTooManyRequests)
+			default:
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
 	}
 }
 
-func (s *Server) decodeAndStoreMetrics(ctx context.Context, partitionKey string, decoder expfmt.Decoder, transformer metricfamily.Transformer) error {
+func decodeAndStoreMetrics(ctx context.Context, s store.Store, partitionKey string, decoder expfmt.Decoder, transformer metricfamily.Transformer) error {
 	families := make([]*clientmodel.MetricFamily, 0, 100)
 	for {
 		family := &clientmodel.MetricFamily{}
@@ -101,8 +85,39 @@ func (s *Server) decodeAndStoreMetrics(ctx context.Context, partitionKey string,
 	}
 	families = metricfamily.Pack(families)
 
-	return s.store.WriteMetrics(ctx, &store.PartitionedMetrics{
+	return s.WriteMetrics(ctx, &store.PartitionedMetrics{
 		PartitionKey: partitionKey,
 		Families:     families,
 	})
+}
+
+func PostMethod(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		next.ServeHTTP(w, r)
+	}
+}
+
+func Snappy(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		reader := r.Body
+
+		if r.Header.Get("Content-Encoding") == "snappy" {
+			body, err := ioutil.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+			defer r.Body.Close()
+
+			payload, _ := snappy.Decode(nil, body)
+			reader = ioutil.NopCloser(bytes.NewBuffer(payload))
+		}
+
+		r.Body = reader
+
+		next.ServeHTTP(w, r)
+	}
 }
