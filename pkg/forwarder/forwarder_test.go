@@ -1,9 +1,7 @@
 package forwarder
 
 import (
-	"bytes"
 	"context"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -294,16 +292,4 @@ func TestRun(t *testing.T) {
 	}()
 
 	wg.Wait()
-}
-
-type fakeRoundTripper struct {
-	fn func(*http.Request)
-}
-
-func (frt *fakeRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	frt.fn(req)
-	return &http.Response{
-		Body:       ioutil.NopCloser(bytes.NewBuffer(nil)),
-		StatusCode: http.StatusOK,
-	}, nil
 }
