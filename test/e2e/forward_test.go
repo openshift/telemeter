@@ -19,8 +19,7 @@ import (
 	"github.com/prometheus/prometheus/prompb"
 
 	"github.com/openshift/telemeter/pkg/authorize"
-	"github.com/openshift/telemeter/pkg/store/forward"
-	"github.com/openshift/telemeter/pkg/validate"
+	"github.com/openshift/telemeter/pkg/server"
 )
 
 const sampleMetrics = `
@@ -78,8 +77,8 @@ func TestForward(t *testing.T) {
 
 		telemeterServer = httptest.NewServer(
 			fakeAuthorizeHandler(
-				validate.PartitionKey("cluster",
-					forward.Handler(logger, receiveURL),
+				server.PartitionKey("cluster",
+					server.ForwardHandler(logger, receiveURL),
 				),
 				&authorize.Client{ID: "test", Labels: labels},
 			),

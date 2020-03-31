@@ -1,4 +1,4 @@
-package ratelimited
+package server
 
 import (
 	"fmt"
@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"golang.org/x/time/rate"
-
-	"github.com/openshift/telemeter/pkg/validate"
 )
 
 type ErrWriteLimitReached string
@@ -17,14 +15,14 @@ func (e ErrWriteLimitReached) Error() string {
 	return fmt.Sprintf("write limit reached for key %q", string(e))
 }
 
-func Middleware(limit time.Duration, now func() time.Time, next http.HandlerFunc) http.HandlerFunc {
-	s := middlewareStore{
+func Ratelimit(limit time.Duration, now func() time.Time, next http.HandlerFunc) http.HandlerFunc {
+	s := ratelimitStore{
 		limits: make(map[string]*rate.Limiter),
 		mu:     sync.Mutex{},
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		partitionKey, ok := validate.PartitionFromContext(r.Context())
+		partitionKey, ok := PartitionFromContext(r.Context())
 		if !ok {
 			http.Error(w, "failed to get partition from request", http.StatusInternalServerError)
 			return
@@ -39,12 +37,12 @@ func Middleware(limit time.Duration, now func() time.Time, next http.HandlerFunc
 	}
 }
 
-type middlewareStore struct {
+type ratelimitStore struct {
 	limits map[string]*rate.Limiter
 	mu     sync.Mutex
 }
 
-func (s *middlewareStore) Limit(limit time.Duration, now time.Time, key string) error {
+func (s *ratelimitStore) Limit(limit time.Duration, now time.Time, key string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

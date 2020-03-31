@@ -1,4 +1,4 @@
-package forward
+package server
 
 import (
 	"bytes"
@@ -20,8 +20,6 @@ import (
 	"github.com/prometheus/prometheus/prompb"
 
 	"github.com/openshift/telemeter/pkg/metricfamily"
-	"github.com/openshift/telemeter/pkg/store"
-	"github.com/openshift/telemeter/pkg/validate"
 )
 
 const (
@@ -55,7 +53,98 @@ func init() {
 	prometheus.MustRegister(overwrittenTimestamps)
 }
 
-func convertToTimeseries(p *store.PartitionedMetrics, now time.Time) ([]prompb.TimeSeries, error) {
+func ForwardHandler(logger log.Logger, forwardURL *url.URL) http.HandlerFunc {
+	client := http.Client{}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		partitionKey, ok := PartitionFromContext(r.Context())
+		if !ok {
+			http.Error(w, "failed to retreive partitionKey", http.StatusInternalServerError)
+			return
+		}
+
+		decoder := expfmt.NewDecoder(r.Body, expfmt.ResponseFormat(r.Header))
+		defer r.Body.Close()
+
+		families := make([]*clientmodel.MetricFamily, 0, 100)
+		for {
+			family := &clientmodel.MetricFamily{}
+			if err := decoder.Decode(family); err != nil {
+				if err == io.EOF {
+					break
+				}
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			families = append(families, family)
+		}
+		families = metricfamily.Pack(families)
+
+		timeseries, err := convertToTimeseries(&PartitionedMetrics{PartitionKey: partitionKey, Families: families}, time.Now())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if len(timeseries) == 0 {
+			level.Info(logger).Log("msg", "no time series to forward to receive endpoint")
+			return
+		}
+
+		wreq := &prompb.WriteRequest{Timeseries: timeseries}
+
+		data, err := proto.Marshal(wreq)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		compressed := snappy.Encode(nil, data)
+
+		req, err := http.NewRequest(http.MethodPost, forwardURL.String(), bytes.NewBuffer(compressed))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		req.Header.Add("THANOS-TENANT", partitionKey)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		req = req.WithContext(ctx)
+
+		begin := time.Now()
+		resp, err := client.Do(req)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
+		}
+
+		forwardDuration.
+			WithLabelValues(fmt.Sprintf("%d", resp.StatusCode)).
+			Observe(time.Since(begin).Seconds())
+
+		meanDrift := timeseriesMeanDrift(timeseries, time.Now().Unix())
+		if math.Abs(meanDrift) > 10 {
+			level.Info(logger).Log("msg", "mean drift from now for clusters", "partitionkey", partitionKey, "drift", fmt.Sprintf("%.3fs", meanDrift))
+		}
+
+		if resp.StatusCode/100 != 2 {
+			// surfacing upstreams error to our users too
+			http.Error(w, fmt.Errorf("response status code is %s", resp.Status).Error(), resp.StatusCode)
+			return
+		}
+
+		s := 0
+		for _, ts := range wreq.Timeseries {
+			s = s + len(ts.Samples)
+		}
+		forwardSamples.Add(float64(s))
+	}
+}
+
+func convertToTimeseries(p *PartitionedMetrics, now time.Time) ([]prompb.TimeSeries, error) {
 	var timeseries []prompb.TimeSeries
 
 	timestamp := now.UnixNano() / int64(time.Millisecond)
@@ -117,95 +206,4 @@ func timeseriesMeanDrift(ts []prompb.TimeSeries, timestampSeconds int64) float64
 	}
 
 	return sum / count
-}
-
-func Handler(logger log.Logger, forwardURL *url.URL) http.HandlerFunc {
-	client := http.Client{}
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		partitionKey, ok := validate.PartitionFromContext(r.Context())
-		if !ok {
-			http.Error(w, "failed to retreive partitionKey", http.StatusInternalServerError)
-			return
-		}
-
-		decoder := expfmt.NewDecoder(r.Body, expfmt.ResponseFormat(r.Header))
-		defer r.Body.Close()
-
-		families := make([]*clientmodel.MetricFamily, 0, 100)
-		for {
-			family := &clientmodel.MetricFamily{}
-			if err := decoder.Decode(family); err != nil {
-				if err == io.EOF {
-					break
-				}
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			families = append(families, family)
-		}
-		families = metricfamily.Pack(families)
-
-		timeseries, err := convertToTimeseries(&store.PartitionedMetrics{PartitionKey: partitionKey, Families: families}, time.Now())
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		if len(timeseries) == 0 {
-			level.Info(logger).Log("msg", "no time series to forward to receive endpoint")
-			return
-		}
-
-		wreq := &prompb.WriteRequest{Timeseries: timeseries}
-
-		data, err := proto.Marshal(wreq)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		compressed := snappy.Encode(nil, data)
-
-		req, err := http.NewRequest(http.MethodPost, forwardURL.String(), bytes.NewBuffer(compressed))
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		req.Header.Add("THANOS-TENANT", partitionKey)
-
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		req = req.WithContext(ctx)
-
-		begin := time.Now()
-		resp, err := client.Do(req)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadGateway)
-			return
-		}
-
-		forwardDuration.
-			WithLabelValues(fmt.Sprintf("%d", resp.StatusCode)).
-			Observe(time.Since(begin).Seconds())
-
-		meanDrift := timeseriesMeanDrift(timeseries, time.Now().Unix())
-		if math.Abs(meanDrift) > 10 {
-			level.Info(logger).Log("msg", "mean drift from now for clusters", "partitionkey", partitionKey, "drift", fmt.Sprintf("%.3fs", meanDrift))
-		}
-
-		if resp.StatusCode/100 != 2 {
-			// surfacing upstreams error to our users too
-			http.Error(w, fmt.Errorf("response status code is %s", resp.Status).Error(), resp.StatusCode)
-			return
-		}
-
-		s := 0
-		for _, ts := range wreq.Timeseries {
-			s = s + len(ts.Samples)
-		}
-		forwardSamples.Add(float64(s))
-	}
 }

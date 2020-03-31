@@ -8,16 +8,6 @@ import (
 	"github.com/golang/snappy"
 )
 
-func PostMethod(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-		next.ServeHTTP(w, r)
-	}
-}
-
 func Snappy(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		reader := r.Body

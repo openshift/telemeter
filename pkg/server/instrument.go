@@ -1,4 +1,4 @@
-package http
+package server
 
 import (
 	"net/http"
@@ -36,7 +36,7 @@ func init() {
 	prometheus.MustRegister(requestDuration, requestSize, requestsTotal)
 }
 
-func NewInstrumentedHandler(handlerName string, next http.Handler) http.Handler {
+func InstrumentedHandler(handlerName string, next http.Handler) http.Handler {
 	return promhttp.InstrumentHandlerDuration(
 		requestDuration.MustCurryWith(prometheus.Labels{"handler": handlerName}),
 		promhttp.InstrumentHandlerRequestSize(

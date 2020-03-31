@@ -1,4 +1,4 @@
-package store
+package server
 
 import (
 	clientmodel "github.com/prometheus/client_model/go"

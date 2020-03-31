@@ -1,7 +1,6 @@
-package ratelimited
+package server
 
 import (
-	"context"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -13,93 +12,9 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/openshift/telemeter/pkg/authorize"
-	"github.com/openshift/telemeter/pkg/store"
-	"github.com/openshift/telemeter/pkg/validate"
 )
 
-type testStore struct{}
-
-func (s *testStore) ReadMetrics(ctx context.Context, minTimestampMs int64) ([]*store.PartitionedMetrics, error) {
-	return nil, nil
-}
-
-func (s *testStore) WriteMetrics(context.Context, *store.PartitionedMetrics) error {
-	return nil
-}
-
-func TestWriteMetrics(t *testing.T) {
-	var (
-		s   = New(time.Minute, &testStore{})
-		ctx = context.Background()
-		now = time.Time{}.Add(time.Hour)
-	)
-
-	for _, tc := range []struct {
-		name        string
-		advance     time.Duration
-		expectedErr error
-		metrics     *store.PartitionedMetrics
-	}{
-		{
-			name:        "write of nil metric is silently dropped",
-			advance:     0,
-			metrics:     nil,
-			expectedErr: nil,
-		},
-		{
-			name:        "immediate write succeeds",
-			advance:     0,
-			metrics:     &store.PartitionedMetrics{PartitionKey: "a"},
-			expectedErr: nil,
-		},
-		{
-			name:        "write after 1 second fails",
-			advance:     time.Second,
-			metrics:     &store.PartitionedMetrics{PartitionKey: "a"},
-			expectedErr: ErrWriteLimitReached("a"),
-		},
-		{
-			name:        "write after 10 seconds still fails",
-			advance:     9 * time.Second,
-			metrics:     &store.PartitionedMetrics{PartitionKey: "a"},
-			expectedErr: ErrWriteLimitReached("a"),
-		},
-		{
-			name:        "write after 10 seconds for another partition succeeds",
-			advance:     0,
-			metrics:     &store.PartitionedMetrics{PartitionKey: "b"},
-			expectedErr: nil,
-		},
-		{
-			name:        "write after 1 minute succeeds",
-			advance:     50 * time.Second,
-			metrics:     &store.PartitionedMetrics{PartitionKey: "a"},
-			expectedErr: nil,
-		},
-		{
-			name:        "write after 2 minutes succeeds",
-			advance:     time.Minute,
-			metrics:     &store.PartitionedMetrics{PartitionKey: "a"},
-			expectedErr: nil,
-		},
-		{
-			name:        "write after 2 minutes for another partition succeeds",
-			advance:     time.Minute,
-			metrics:     &store.PartitionedMetrics{PartitionKey: "b"},
-			expectedErr: nil,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			now = now.Add(tc.advance)
-
-			if got := s.writeMetrics(ctx, tc.metrics, now); got != tc.expectedErr {
-				t.Errorf("expected err %v, got %v", tc.expectedErr, got)
-			}
-		})
-	}
-}
-
-func TestMiddleware(t *testing.T) {
+func TestRatelimit(t *testing.T) {
 	clientID := func() string { return "" }
 
 	fakeAuthorizeHandler := func(next http.HandlerFunc) http.HandlerFunc {
@@ -112,8 +27,8 @@ func TestMiddleware(t *testing.T) {
 	}
 	server := httptest.NewServer(
 		fakeAuthorizeHandler(
-			validate.PartitionKey("_id",
-				Middleware(time.Minute, time.Now,
+			PartitionKey("_id",
+				Ratelimit(time.Minute, time.Now,
 					func(w http.ResponseWriter, r *http.Request) {},
 				),
 			),
@@ -187,8 +102,8 @@ func TestMiddleware(t *testing.T) {
 	}
 }
 
-func Test_middlewareStore_Limit(t *testing.T) {
-	s := &middlewareStore{
+func TestRatelimitStore_Limit(t *testing.T) {
+	s := &ratelimitStore{
 		limits: map[string]*rate.Limiter{},
 		mu:     sync.Mutex{},
 	}

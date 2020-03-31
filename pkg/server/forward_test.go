@@ -1,4 +1,4 @@
-package forward
+package server
 
 import (
 	"fmt"
@@ -7,8 +7,6 @@ import (
 
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/prompb"
-
-	"github.com/openshift/telemeter/pkg/store"
 )
 
 func Test_convertToTimeseries(t *testing.T) {
@@ -35,11 +33,11 @@ func Test_convertToTimeseries(t *testing.T) {
 
 	tests := []struct {
 		name string
-		in   *store.PartitionedMetrics
+		in   *PartitionedMetrics
 		want []prompb.TimeSeries
 	}{{
 		name: "counter",
-		in: &store.PartitionedMetrics{
+		in: &PartitionedMetrics{
 			PartitionKey: "foo",
 			Families: []*clientmodel.MetricFamily{{
 				Name: &fooMetricName,
@@ -77,7 +75,7 @@ func Test_convertToTimeseries(t *testing.T) {
 		}},
 	}, {
 		name: "gauge",
-		in: &store.PartitionedMetrics{
+		in: &PartitionedMetrics{
 			PartitionKey: "foo",
 			Families: []*clientmodel.MetricFamily{{
 				Name: &fooMetricName,
@@ -115,7 +113,7 @@ func Test_convertToTimeseries(t *testing.T) {
 		}},
 	}, {
 		name: "untyped",
-		in: &store.PartitionedMetrics{
+		in: &PartitionedMetrics{
 			PartitionKey: "foo",
 			Families: []*clientmodel.MetricFamily{{
 				Name: &fooMetricName,

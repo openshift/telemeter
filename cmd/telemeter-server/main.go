@@ -37,13 +37,10 @@ import (
 	"github.com/openshift/telemeter/pkg/cache"
 	"github.com/openshift/telemeter/pkg/cache/memcached"
 	telemeter_http "github.com/openshift/telemeter/pkg/http"
-	"github.com/openshift/telemeter/pkg/http/server"
 	"github.com/openshift/telemeter/pkg/logger"
 	"github.com/openshift/telemeter/pkg/metricfamily"
 	"github.com/openshift/telemeter/pkg/receive"
-	"github.com/openshift/telemeter/pkg/store/forward"
-	"github.com/openshift/telemeter/pkg/store/ratelimited"
-	"github.com/openshift/telemeter/pkg/validate"
+	"github.com/openshift/telemeter/pkg/server"
 )
 
 const desc = `
@@ -410,12 +407,10 @@ func (o *Options) Run() error {
 			auth := jwt.NewAuthorizeClusterHandler(o.Logger, o.PartitionKey, o.TokenExpireSeconds, signer, o.RequiredLabels, clusterAuth)
 			//validator := validate.New(o.PartitionKey, o.LimitBytes, 24*time.Hour, time.Now)
 
-			//var store store.Store
-			fowardURL, err := url.Parse(o.ForwardURL)
+			forwardURL, err := url.Parse(o.ForwardURL)
 			if err != nil {
 				return fmt.Errorf("--forward-url must be a valid URL: %v", err)
 			}
-			//store = forward.New(o.Logger, fowardURL, nil)
 
 			transforms := metricfamily.MultiTransformer{}
 			transforms.With(whitelister)
@@ -424,19 +419,21 @@ func (o *Options) Run() error {
 			}
 			transforms.With(metricfamily.NewElide(o.ElideLabels...))
 
-			external.Handle("/authorize", telemeter_http.NewInstrumentedHandler("authorize", auth))
-			external.Handle("/upload",
-				telemeter_http.NewInstrumentedHandler("upload",
+			external.Post("/authorize",
+				server.InstrumentedHandler("authorize",
+					auth,
+				).ServeHTTP)
+
+			external.Post("/upload",
+				server.InstrumentedHandler("upload",
 					authorize.NewAuthorizeClientHandler(jwtAuthorizer,
-						server.PostMethod(
-							ratelimited.Middleware(o.Ratelimit, time.Now,
-								server.Snappy(
-									forward.Handler(o.Logger, fowardURL),
-								),
+						server.Ratelimit(o.Ratelimit, time.Now,
+							server.Snappy(
+								server.ForwardHandler(o.Logger, forwardURL),
 							),
 						),
 					),
-				),
+				).ServeHTTP,
 			)
 		}
 
@@ -453,10 +450,10 @@ func (o *Options) Run() error {
 			receiver := receive.NewHandler(o.Logger, o.ForwardURL, prometheus.DefaultRegisterer)
 
 			external.Handle("/metrics/v1/receive",
-				telemeter_http.NewInstrumentedHandler("receive",
+				server.InstrumentedHandler("receive",
 					authorize.NewHandler(o.Logger, &v2AuthorizeClient, authorizeURL, o.TenantKey,
 						receive.LimitBodySize(receive.DefaultRequestLimit,
-							validate.PartitionKey(o.PartitionKey,
+							server.PartitionKey(o.PartitionKey,
 								receive.ValidateLabels(
 									o.Logger,
 									http.HandlerFunc(receiver.Receive),
