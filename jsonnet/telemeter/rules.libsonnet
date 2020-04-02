@@ -35,6 +35,18 @@
                 topk by (_id) (1, max by (_id, managed, ebs_account, internal) (label_replace(label_replace((subscription_labels{support=~"Standard|Premium|Layered"} * 0 + 1) or subscription_labels * 0, "internal", "true", "email_domain", "redhat.com|(.*\\.|^)ibm.com"), "managed", "", "managed", "false")) + on(_id) group_left(version) (topk by (_id) (1, 0*cluster_version{type="current"})))
               |||,
             },
+            {
+              record: 'id:critical_alerts_firing:count',
+              expr: |||
+                count by (_id) (alerts{alertstate='firing', severity='critical'})
+              |||,
+            },
+            {
+              record: 'id:cluster_operator_failing:count',
+              expr: |||
+                count by (_id) (cluster_operator_conditions{condition="Failing"})
+              |||,
+            },
           ],
         },
       ],
