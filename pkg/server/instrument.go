@@ -36,6 +36,7 @@ func init() {
 	prometheus.MustRegister(requestDuration, requestSize, requestsTotal)
 }
 
+// InstrumentedHandler is a HTTP middleware that monitors HTTP requests and responses.
 func InstrumentedHandler(handlerName string, next http.Handler) http.Handler {
 	return promhttp.InstrumentHandlerDuration(
 		requestDuration.MustCurryWith(prometheus.Labels{"handler": handlerName}),

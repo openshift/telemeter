@@ -160,7 +160,7 @@ func TestRatelimitStore_Limit(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			err := s.Limit(time.Minute, now.Add(tc.advance), tc.key)
+			err := s.limit(time.Minute, now.Add(tc.advance), tc.key)
 			if err != tc.err {
 				t.Errorf("expected '%s' got '%s'", tc.err, err)
 			}

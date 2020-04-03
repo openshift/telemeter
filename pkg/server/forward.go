@@ -53,6 +53,8 @@ func init() {
 	prometheus.MustRegister(overwrittenTimestamps)
 }
 
+// ForwardHandler gets a request containing metric families and
+// converts it to a remote write request forwarding it to the upstream at fowardURL.
 func ForwardHandler(logger log.Logger, forwardURL *url.URL) http.HandlerFunc {
 	client := http.Client{}
 

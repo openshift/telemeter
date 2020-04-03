@@ -9,12 +9,14 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// ErrWriteLimitReached is an error that is returned when a cluster has send too many requests.
 type ErrWriteLimitReached string
 
 func (e ErrWriteLimitReached) Error() string {
 	return fmt.Sprintf("write limit reached for key %q", string(e))
 }
 
+// Ratelimit is a middleware that rate limits requests based on a partition key.
 func Ratelimit(limit time.Duration, now func() time.Time, next http.HandlerFunc) http.HandlerFunc {
 	s := ratelimitStore{
 		limits: make(map[string]*rate.Limiter),
@@ -28,7 +30,7 @@ func Ratelimit(limit time.Duration, now func() time.Time, next http.HandlerFunc)
 			return
 		}
 
-		if err := s.Limit(limit, now(), partitionKey); err != nil {
+		if err := s.limit(limit, now(), partitionKey); err != nil {
 			http.Error(w, err.Error(), http.StatusTooManyRequests)
 			return
 		}
@@ -42,7 +44,7 @@ type ratelimitStore struct {
 	mu     sync.Mutex
 }
 
-func (s *ratelimitStore) Limit(limit time.Duration, now time.Time, key string) error {
+func (s *ratelimitStore) limit(limit time.Duration, now time.Time, key string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
