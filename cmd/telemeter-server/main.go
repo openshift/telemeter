@@ -429,7 +429,9 @@ func (o *Options) Run() error {
 					authorize.NewAuthorizeClientHandler(jwtAuthorizer,
 						server.Ratelimit(o.Ratelimit, time.Now,
 							server.Snappy(
-								server.ForwardHandler(o.Logger, forwardURL),
+								server.Validate(24*time.Hour, o.LimitBytes, time.Now,
+									server.ForwardHandler(o.Logger, forwardURL),
+								),
 							),
 						),
 					),
