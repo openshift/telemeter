@@ -67,7 +67,7 @@ func (r requestBuilder) WithForm(kvs ...string) requestBuilder {
 }
 
 func TestAuthorizeClusterHandler(t *testing.T) {
-	partitionKey := "partitionKey"
+	clusterIDKey := "_id"
 	labels := map[string]string{
 		"foo": "bar",
 		"baz": "qux",
@@ -85,10 +85,10 @@ func TestAuthorizeClusterHandler(t *testing.T) {
 			if err := json.Unmarshal(rec.Body.Bytes(), &tr); err != nil {
 				return fmt.Errorf("failed to unmarshal TokenResponse: %v", err)
 			}
-			if tr.Labels[partitionKey] != id {
-				return fmt.Errorf("expected response to have '%s=%s', got '%s=%s'", partitionKey, id, partitionKey, tr.Labels[partitionKey])
+			if tr.Labels[clusterIDKey] != id {
+				return fmt.Errorf("expected response to have '%s=%s', got '%s=%s'", clusterIDKey, id, clusterIDKey, tr.Labels[clusterIDKey])
 			}
-			delete(tr.Labels, partitionKey)
+			delete(tr.Labels, clusterIDKey)
 			if len(labels) > len(tr.Labels) {
 				for k, v := range labels {
 					if v != tr.Labels[k] {
@@ -193,7 +193,7 @@ func TestAuthorizeClusterHandler(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			h := NewAuthorizeClusterHandler(log.NewNopLogger(), partitionKey, 2, tc.signer, labels, tc.clusterAuth)
+			h := NewAuthorizeClusterHandler(log.NewNopLogger(), clusterIDKey, 2, tc.signer, labels, tc.clusterAuth)
 			rec := httptest.NewRecorder()
 			h.ServeHTTP(rec, tc.req)
 			if err := tc.check(rec); err != nil {

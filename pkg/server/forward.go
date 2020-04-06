@@ -59,9 +59,9 @@ func ForwardHandler(logger log.Logger, forwardURL *url.URL) http.HandlerFunc {
 	client := http.Client{}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		partitionKey, ok := PartitionFromContext(r.Context())
+		clusterID, ok := ClusterIDFromContext(r.Context())
 		if !ok {
-			http.Error(w, "failed to retreive partitionKey", http.StatusInternalServerError)
+			http.Error(w, "failed to retrieve clusterID", http.StatusInternalServerError)
 			return
 		}
 
@@ -83,7 +83,7 @@ func ForwardHandler(logger log.Logger, forwardURL *url.URL) http.HandlerFunc {
 		}
 		families = metricfamily.Pack(families)
 
-		timeseries, err := convertToTimeseries(&PartitionedMetrics{PartitionKey: partitionKey, Families: families}, time.Now())
+		timeseries, err := convertToTimeseries(&PartitionedMetrics{ClusterID: clusterID, Families: families}, time.Now())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -109,7 +109,7 @@ func ForwardHandler(logger log.Logger, forwardURL *url.URL) http.HandlerFunc {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		req.Header.Add("THANOS-TENANT", partitionKey)
+		req.Header.Add("THANOS-TENANT", clusterID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -129,7 +129,7 @@ func ForwardHandler(logger log.Logger, forwardURL *url.URL) http.HandlerFunc {
 
 		meanDrift := timeseriesMeanDrift(timeseries, time.Now().Unix())
 		if math.Abs(meanDrift) > 10 {
-			level.Info(logger).Log("msg", "mean drift from now for clusters", "partitionkey", partitionKey, "drift", fmt.Sprintf("%.3fs", meanDrift))
+			level.Info(logger).Log("msg", "mean drift from now for clusters", "clusterID", clusterID, "drift", fmt.Sprintf("%.3fs", meanDrift))
 		}
 
 		if resp.StatusCode/100 != 2 {

@@ -14,7 +14,7 @@ import (
 )
 
 type authorizeClusterHandler struct {
-	partitionKey    string
+	clusterIDKey    string
 	labels          map[string]string
 	expireInSeconds int64
 	signer          *Signer
@@ -28,10 +28,10 @@ type authorizeClusterHandler struct {
 // Upon success, the given cluster authorizer returns a subject which is used as the client identifier
 // in a generated signed JWT which is returned to the client, along with any labels.
 //
-// A single partition key parameter must be passed to uniquely identify the caller's data.
-func NewAuthorizeClusterHandler(logger log.Logger, partitionKey string, expireInSeconds int64, signer *Signer, labels map[string]string, ca authorize.ClusterAuthorizer) *authorizeClusterHandler {
+// A single cluster ID key parameter must be passed to uniquely identify the caller's data.
+func NewAuthorizeClusterHandler(logger log.Logger, clusterIDKey string, expireInSeconds int64, signer *Signer, labels map[string]string, ca authorize.ClusterAuthorizer) *authorizeClusterHandler {
 	return &authorizeClusterHandler{
-		partitionKey:    partitionKey,
+		clusterIDKey:    clusterIDKey,
 		expireInSeconds: expireInSeconds,
 		signer:          signer,
 		labels:          labels,
@@ -55,8 +55,8 @@ func (a *authorizeClusterHandler) ServeHTTP(w http.ResponseWriter, req *http.Req
 	}
 
 	uniqueIDKey := "id"
-	cluster := req.Form.Get(uniqueIDKey)
-	if len(cluster) == 0 {
+	clusterID := req.Form.Get(uniqueIDKey)
+	if len(clusterID) == 0 {
 		http.Error(w, fmt.Sprintf("The '%s' parameter must be specified via URL or url-encoded form body", uniqueIDKey), http.StatusBadRequest)
 		return
 	}
@@ -72,7 +72,7 @@ func (a *authorizeClusterHandler) ServeHTTP(w http.ResponseWriter, req *http.Req
 	}
 	clientToken := auth[1]
 
-	subject, err := a.clusterAuth.AuthorizeCluster(clientToken, cluster)
+	subject, err := a.clusterAuth.AuthorizeCluster(clientToken, clusterID)
 	if err != nil {
 		if scerr, ok := err.(authorize.ErrorWithCode); ok {
 			if scerr.HTTPStatusCode() >= http.StatusInternalServerError {
@@ -93,7 +93,7 @@ func (a *authorizeClusterHandler) ServeHTTP(w http.ResponseWriter, req *http.Req
 	}
 
 	labels := map[string]string{
-		a.partitionKey: cluster,
+		a.clusterIDKey: clusterID,
 	}
 	for k, v := range a.labels {
 		labels[k] = v

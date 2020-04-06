@@ -16,7 +16,7 @@ func (e ErrWriteLimitReached) Error() string {
 	return fmt.Sprintf("write limit reached for key %q", string(e))
 }
 
-// Ratelimit is a middleware that rate limits requests based on a partition key.
+// Ratelimit is a middleware that rate limits requests based on a cluster ID.
 func Ratelimit(limit time.Duration, now func() time.Time, next http.HandlerFunc) http.HandlerFunc {
 	s := ratelimitStore{
 		limits: make(map[string]*rate.Limiter),
@@ -24,13 +24,13 @@ func Ratelimit(limit time.Duration, now func() time.Time, next http.HandlerFunc)
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		partitionKey, ok := PartitionFromContext(r.Context())
+		clusterID, ok := ClusterIDFromContext(r.Context())
 		if !ok {
-			http.Error(w, "failed to get partition from request", http.StatusInternalServerError)
+			http.Error(w, "failed to get cluster ID from request", http.StatusInternalServerError)
 			return
 		}
 
-		if err := s.limit(limit, now(), partitionKey); err != nil {
+		if err := s.limit(limit, now(), clusterID); err != nil {
 			http.Error(w, err.Error(), http.StatusTooManyRequests)
 			return
 		}

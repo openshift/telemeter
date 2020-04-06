@@ -77,7 +77,7 @@ func main() {
 
 		LimitBytes:         500 * 1024,
 		TokenExpireSeconds: 24 * 60 * 60,
-		PartitionKey:       "_id",
+		clusterIDKey:       "_id",
 		Ratelimit:          4*time.Minute + 30*time.Second,
 		MemcachedExpire:    24 * 60 * 60,
 		MemcachedInterval:  10,
@@ -102,7 +102,7 @@ func main() {
 	cmd.Flags().StringVar(&opt.InternalTLSCertificatePath, "internal-tls-crt", opt.InternalTLSCertificatePath, "Path to a certificate to serve TLS for internal traffic.")
 
 	cmd.Flags().StringSliceVar(&opt.LabelFlag, "label", opt.LabelFlag, "Labels to add to each outgoing metric, in key=value form.")
-	cmd.Flags().StringVar(&opt.PartitionKey, "partition-label", opt.PartitionKey, "The label to separate incoming data on. This label will be required for callers to include.")
+	cmd.Flags().StringVar(&opt.clusterIDKey, "partition-label", opt.clusterIDKey, "The label to separate incoming data on. This label will be required for callers to include.")
 
 	cmd.Flags().StringVar(&opt.SharedKey, "shared-key", opt.SharedKey, "The path to a private key file that will be used to sign authentication requests.")
 	cmd.Flags().Int64Var(&opt.TokenExpireSeconds, "token-expire-seconds", opt.TokenExpireSeconds, "The expiration of auth tokens in seconds.")
@@ -167,7 +167,7 @@ type Options struct {
 	MemcachedExpire   int32
 	MemcachedInterval int32
 
-	PartitionKey      string
+	clusterIDKey      string
 	LabelFlag         []string
 	Labels            map[string]string
 	LimitBytes        int64
@@ -404,7 +404,7 @@ func (o *Options) Run() error {
 				clusterAuth = tollbooth.NewAuthorizer(o.Logger, &authorizeClient, authorizeURL)
 			}
 
-			auth := jwt.NewAuthorizeClusterHandler(o.Logger, o.PartitionKey, o.TokenExpireSeconds, signer, o.RequiredLabels, clusterAuth)
+			auth := jwt.NewAuthorizeClusterHandler(o.Logger, o.clusterIDKey, o.TokenExpireSeconds, signer, o.RequiredLabels, clusterAuth)
 
 			forwardURL, err := url.Parse(o.ForwardURL)
 			if err != nil {
@@ -454,11 +454,11 @@ func (o *Options) Run() error {
 				server.InstrumentedHandler("receive",
 					authorize.NewHandler(o.Logger, &v2AuthorizeClient, authorizeURL, o.TenantKey,
 						receive.LimitBodySize(receive.DefaultRequestLimit,
-							server.PartitionKey(o.PartitionKey,
+							server.ClusterID(o.clusterIDKey,
 								receive.ValidateLabels(
 									o.Logger,
 									http.HandlerFunc(receiver.Receive),
-									o.PartitionKey, // TODO: Enforce the same labels for v1 and v2
+									o.clusterIDKey, // TODO: Enforce the same labels for v1 and v2
 								),
 							),
 						),

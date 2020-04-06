@@ -5,6 +5,6 @@ import (
 )
 
 type PartitionedMetrics struct {
-	PartitionKey string
-	Families     []*clientmodel.MetricFamily
+	ClusterID string
+	Families  []*clientmodel.MetricFamily
 }

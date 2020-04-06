@@ -27,7 +27,7 @@ func TestRatelimit(t *testing.T) {
 	}
 	server := httptest.NewServer(
 		fakeAuthorizeHandler(
-			PartitionKey("_id",
+			ClusterID("_id",
 				Ratelimit(time.Minute, time.Now,
 					func(w http.ResponseWriter, r *http.Request) {},
 				),

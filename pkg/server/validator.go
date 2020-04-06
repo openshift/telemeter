@@ -18,8 +18,8 @@ import (
 	"github.com/openshift/telemeter/pkg/reader"
 )
 
-// PartitionKey is a HTTP middleware that extracts the partitionKey and passes it on via context.
-func PartitionKey(key string, next http.HandlerFunc) http.HandlerFunc {
+// ClusterID is a HTTP middleware that extracts the cluster's ID and passes it on via context.
+func ClusterID(key string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		client, ok := authorize.FromContext(r.Context())
 		if !ok {
@@ -31,27 +31,27 @@ func PartitionKey(key string, next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		r = r.WithContext(WithPartition(r.Context(), client.Labels[key]))
+		r = r.WithContext(WithClusterID(r.Context(), client.Labels[key]))
 
 		next.ServeHTTP(w, r)
 	}
 }
 
-// WithPartition puts the partitionKey into the given context.
-func WithPartition(ctx context.Context, partition string) context.Context {
-	return context.WithValue(ctx, partitionCtx, partition)
+// WithClusterID puts the clusterID into the given context.
+func WithClusterID(ctx context.Context, clusterID string) context.Context {
+	return context.WithValue(ctx, clusterIDCtx, clusterID)
 }
 
-// PartitionFromContext returns the partitionKey from the context.
-func PartitionFromContext(ctx context.Context) (string, bool) {
-	p, ok := ctx.Value(partitionCtx).(string)
+// ClusterIDFromContext returns the clusterID from the context.
+func ClusterIDFromContext(ctx context.Context) (string, bool) {
+	p, ok := ctx.Value(clusterIDCtx).(string)
 	return p, ok
 }
 
-type partitionCtxType int
+type clusterIDCtxType int
 
 const (
-	partitionCtx partitionCtxType = iota
+	clusterIDCtx clusterIDCtxType = iota
 )
 
 // Validate the payload of a request against given and required rules.

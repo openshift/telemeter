@@ -76,7 +76,7 @@ func TestForward(t *testing.T) {
 
 		telemeterServer = httptest.NewServer(
 			fakeAuthorizeHandler(
-				server.PartitionKey("cluster",
+				server.ClusterID("cluster",
 					server.ForwardHandler(logger, receiveURL),
 				),
 				&authorize.Client{ID: "test", Labels: labels},
