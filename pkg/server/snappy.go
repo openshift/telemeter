@@ -12,8 +12,6 @@ import (
 func Snappy(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Content-Encoding") == "snappy" {
-			reader := r.Body
-
 			body, err := ioutil.ReadAll(r.Body)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -27,7 +25,7 @@ func Snappy(next http.HandlerFunc) http.HandlerFunc {
 				return
 			}
 
-			reader = ioutil.NopCloser(bytes.NewBuffer(payload))
+			reader := ioutil.NopCloser(bytes.NewBuffer(payload))
 			r.Body = reader
 		}
 
