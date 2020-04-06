@@ -71,7 +71,6 @@ func TestForward(t *testing.T) {
 		logger := log.NewNopLogger()
 
 		labels := map[string]string{"cluster": "test"}
-		//validator := validate.New("cluster", 0, 0, time.Now)
 
 		receiveURL, _ := url.Parse(receiveServer.URL)
 

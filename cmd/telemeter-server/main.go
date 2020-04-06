@@ -405,7 +405,6 @@ func (o *Options) Run() error {
 			}
 
 			auth := jwt.NewAuthorizeClusterHandler(o.Logger, o.PartitionKey, o.TokenExpireSeconds, signer, o.RequiredLabels, clusterAuth)
-			//validator := validate.New(o.PartitionKey, o.LimitBytes, 24*time.Hour, time.Now)
 
 			forwardURL, err := url.Parse(o.ForwardURL)
 			if err != nil {

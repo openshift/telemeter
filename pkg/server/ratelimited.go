@@ -9,7 +9,7 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// ErrWriteLimitReached is an error that is returned when a cluster has send too many requests.
+// ErrWriteLimitReached is an error that is returned when a cluster has sent too many requests.
 type ErrWriteLimitReached string
 
 func (e ErrWriteLimitReached) Error() string {
