@@ -63,6 +63,13 @@ func Validate(maxAge time.Duration, limitBytes int64, now func() time.Time, next
 			return
 		}
 
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer r.Body.Close()
+
 		var transforms metricfamily.MultiTransformer
 		transforms.With(metricfamily.NewErrorOnUnsorted(true))
 		transforms.With(metricfamily.NewRequiredLabels(client.Labels))
@@ -79,16 +86,7 @@ func Validate(maxAge time.Duration, limitBytes int64, now func() time.Time, next
 
 		transforms.With(metricfamily.OverwriteTimestamps(now))
 
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		defer r.Body.Close()
-
-		r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
-
-		decoder := expfmt.NewDecoder(r.Body, expfmt.ResponseFormat(r.Header))
+		decoder := expfmt.NewDecoder(bytes.NewBuffer(body), expfmt.ResponseFormat(r.Header))
 
 		families := make([]*clientmodel.MetricFamily, 0, 100)
 		for {
@@ -102,6 +100,7 @@ func Validate(maxAge time.Duration, limitBytes int64, now func() time.Time, next
 			}
 			families = append(families, family)
 		}
+
 		families = metricfamily.Pack(families)
 
 		if err := metricfamily.Filter(families, transforms); err != nil {
@@ -125,6 +124,8 @@ func Validate(maxAge time.Duration, limitBytes int64, now func() time.Time, next
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
 
 		next.ServeHTTP(w, r)
 	}

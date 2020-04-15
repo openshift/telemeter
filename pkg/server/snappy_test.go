@@ -35,7 +35,7 @@ func TestSnappy(t *testing.T) {
 
 		req.Header.Set("Content-Encoding", "snappy")
 
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := s.Client().Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -50,7 +50,7 @@ func TestSnappy(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := s.Client().Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}

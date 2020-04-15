@@ -38,7 +38,18 @@ func TestValidate(t *testing.T) {
 	s := httptest.NewServer(
 		fakeAuthorizeHandler(
 			Validate(time.Hour, 512*1024, time.Now,
-				func(w http.ResponseWriter, r *http.Request) {},
+				func(w http.ResponseWriter, r *http.Request) {
+					body, err := ioutil.ReadAll(r.Body)
+					if err != nil {
+						t.Fatalf("failed to read body: %v", err)
+					}
+
+					expectBody := "# TYPE foo_metric counter\nfoo_metric{_id=\"test\",foo=\"bar\"} 42 15615582020000\n"
+
+					if string(body) != expectBody {
+						t.Errorf("expected '%s', got: %s", expectBody, string(body))
+					}
+				},
 			),
 		),
 	)
@@ -50,6 +61,21 @@ func TestValidate(t *testing.T) {
 		expectStatus int
 		expectBody   string
 	}{{
+		name: "valid",
+		families: []*clientmodel.MetricFamily{{
+			Name: &fooMetricName,
+			Metric: []*clientmodel.Metric{{
+				Label: []*clientmodel.LabelPair{
+					{Name: &clientIDLabelName, Value: &clientIDLabelValue},
+					{Name: &fooLabelName, Value: &fooLabelValue1},
+				},
+				Counter:     &clientmodel.Counter{Value: &value42},
+				TimestampMs: &timestamp,
+			}},
+		}},
+		expectStatus: http.StatusOK,
+		expectBody:   "",
+	}, {
 		name: "noTimestamp",
 		families: []*clientmodel.MetricFamily{{
 			Name: &fooMetricName,

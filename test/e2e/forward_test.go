@@ -77,7 +77,11 @@ func TestForward(t *testing.T) {
 		telemeterServer = httptest.NewServer(
 			fakeAuthorizeHandler(
 				server.ClusterID("cluster",
-					server.ForwardHandler(logger, receiveURL),
+					server.Ratelimit(4*time.Minute+30*time.Second, time.Now,
+						server.Snappy(server.Validate(10*365*24*time.Hour, 500*1024, time.Now,
+							server.ForwardHandler(logger, receiveURL),
+						)),
+					),
 				),
 				&authorize.Client{ID: "test", Labels: labels},
 			),
@@ -104,10 +108,6 @@ func TestForward(t *testing.T) {
 		t.Errorf("failed sending the upload request: %v", err)
 	}
 	defer resp.Body.Close()
-
-	// As the fowarding happens asynchronously we want to wait a few seconds
-	// until the requests really has happened.
-	time.Sleep(3 * time.Second)
 
 	body, _ := ioutil.ReadAll(resp.Body)
 	if resp.StatusCode/100 != 2 {
