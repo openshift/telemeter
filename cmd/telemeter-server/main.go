@@ -426,10 +426,12 @@ func (o *Options) Run() error {
 			external.Post("/upload",
 				server.InstrumentedHandler("upload",
 					authorize.NewAuthorizeClientHandler(jwtAuthorizer,
-						server.Ratelimit(o.Ratelimit, time.Now,
-							server.Snappy(
-								server.Validate(24*time.Hour, o.LimitBytes, time.Now,
-									server.ForwardHandler(o.Logger, forwardURL),
+						server.ClusterID(o.clusterIDKey,
+							server.Ratelimit(o.Ratelimit, time.Now,
+								server.Snappy(
+									server.Validate(24*time.Hour, o.LimitBytes, time.Now,
+										server.ForwardHandler(o.Logger, forwardURL),
+									),
 								),
 							),
 						),
