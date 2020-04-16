@@ -19,6 +19,7 @@ import (
 	"github.com/prometheus/prometheus/prompb"
 
 	"github.com/openshift/telemeter/pkg/authorize"
+	"github.com/openshift/telemeter/pkg/metricfamily"
 	"github.com/openshift/telemeter/pkg/server"
 )
 
@@ -78,9 +79,11 @@ func TestForward(t *testing.T) {
 			fakeAuthorizeHandler(
 				server.ClusterID("cluster",
 					server.Ratelimit(4*time.Minute+30*time.Second, time.Now,
-						server.Snappy(server.Validate(10*365*24*time.Hour, 500*1024, time.Now,
-							server.ForwardHandler(logger, receiveURL),
-						)),
+						server.Snappy(
+							server.Validate(metricfamily.MultiTransformer{}, 10*365*24*time.Hour, 500*1024, time.Now,
+								server.ForwardHandler(logger, receiveURL),
+							),
+						),
 					),
 				),
 				&authorize.Client{ID: "test", Labels: labels},
