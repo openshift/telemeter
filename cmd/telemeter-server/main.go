@@ -456,12 +456,10 @@ func (o *Options) Run() error {
 				server.InstrumentedHandler("receive",
 					authorize.NewHandler(o.Logger, &v2AuthorizeClient, authorizeURL, o.TenantKey,
 						receive.LimitBodySize(receive.DefaultRequestLimit,
-							server.ClusterID(o.clusterIDKey,
-								receive.ValidateLabels(
-									o.Logger,
-									http.HandlerFunc(receiver.Receive),
-									o.clusterIDKey, // TODO: Enforce the same labels for v1 and v2
-								),
+							receive.ValidateLabels(
+								o.Logger,
+								http.HandlerFunc(receiver.Receive),
+								o.clusterIDKey, // TODO: Enforce the same labels for v1 and v2
 							),
 						),
 					),
