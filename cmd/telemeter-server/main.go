@@ -429,7 +429,7 @@ func (o *Options) Run() error {
 						server.ClusterID(o.clusterIDKey,
 							server.Ratelimit(o.Ratelimit, time.Now,
 								server.Snappy(
-									server.Validate(24*time.Hour, o.LimitBytes, time.Now,
+									server.Validate(transforms, 24*time.Hour, o.LimitBytes, time.Now,
 										server.ForwardHandler(o.Logger, forwardURL),
 									),
 								),

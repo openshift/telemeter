@@ -55,7 +55,7 @@ const (
 )
 
 // Validate the payload of a request against given and required rules.
-func Validate(maxAge time.Duration, limitBytes int64, now func() time.Time, next http.HandlerFunc) http.HandlerFunc {
+func Validate(baseTransforms metricfamily.Transformer, maxAge time.Duration, limitBytes int64, now func() time.Time, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		client, ok := authorize.FromContext(r.Context())
 		if !ok {
@@ -81,10 +81,11 @@ func Validate(maxAge time.Duration, limitBytes int64, now func() time.Time, next
 
 		// these transformers need to be created for every request
 		if maxAge > 0 {
-			transforms.With(metricfamily.NewErrorInvalidFederateSamples(time.Now().Add(-maxAge)))
+			transforms.With(metricfamily.NewErrorInvalidFederateSamples(now().Add(-maxAge)))
 		}
 
 		transforms.With(metricfamily.OverwriteTimestamps(now))
+		transforms.With(baseTransforms)
 
 		decoder := expfmt.NewDecoder(bytes.NewBuffer(body), expfmt.ResponseFormat(r.Header))
 
@@ -125,7 +126,17 @@ func Validate(maxAge time.Duration, limitBytes int64, now func() time.Time, next
 			return
 		}
 
-		r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+		buf := &bytes.Buffer{}
+		encoder := expfmt.NewEncoder(buf, expfmt.ResponseFormat(r.Header))
+		for _, f := range families {
+			if err := encoder.Encode(f); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+
+			}
+		}
+
+		r.Body = ioutil.NopCloser(buf)
 
 		next.ServeHTTP(w, r)
 	}
