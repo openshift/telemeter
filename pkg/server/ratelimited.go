@@ -13,7 +13,7 @@ import (
 type ErrWriteLimitReached string
 
 func (e ErrWriteLimitReached) Error() string {
-	return fmt.Sprintf("write limit reached for key %q", string(e))
+	return fmt.Sprintf("write limit reached for cluster with id %q", string(e))
 }
 
 // Ratelimit is a middleware that rate limits requests based on a cluster ID.
