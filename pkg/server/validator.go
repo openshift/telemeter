@@ -63,6 +63,10 @@ func Validate(baseTransforms metricfamily.Transformer, maxAge time.Duration, lim
 			return
 		}
 
+		if limitBytes > 0 {
+			r.Body = reader.NewLimitReadCloser(r.Body, limitBytes)
+		}
+
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -74,10 +78,6 @@ func Validate(baseTransforms metricfamily.Transformer, maxAge time.Duration, lim
 		transforms.With(metricfamily.NewErrorOnUnsorted(true))
 		transforms.With(metricfamily.NewRequiredLabels(client.Labels))
 		transforms.With(metricfamily.TransformerFunc(metricfamily.DropEmptyFamilies))
-
-		if limitBytes > 0 {
-			r.Body = reader.NewLimitReadCloser(r.Body, limitBytes)
-		}
 
 		// these transformers need to be created for every request
 		if maxAge > 0 {
