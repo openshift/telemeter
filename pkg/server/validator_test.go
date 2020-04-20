@@ -36,21 +36,23 @@ func TestValidate(t *testing.T) {
 		}
 	}
 
+	now := func() time.Time { return time.Date(2020, 04, 20, 20, 20, 20, 0, time.UTC) }
+
 	s := httptest.NewServer(
 		fakeAuthorizeHandler(
-			Validate(metricfamily.MultiTransformer{}, time.Hour, 512*1024, time.Now,
+			Validate(metricfamily.MultiTransformer{}, time.Hour, 512*1024, now,
 				func(w http.ResponseWriter, r *http.Request) {
 					// TODO: Make the check proper to changing timestamps?
-					//body, err := ioutil.ReadAll(r.Body)
-					//if err != nil {
-					//	t.Fatalf("failed to read body: %v", err)
-					//}
-					//
-					//expectBody := "# TYPE foo_metric counter\nfoo_metric{_id=\"test\",foo=\"bar\"} 42 1587055774000\n"
-					//
-					//if strings.TrimSpace(string(body)) != strings.TrimSpace(expectBody) {
-					//	t.Errorf("expected '%s', got: %s", expectBody, string(body))
-					//}
+					body, err := ioutil.ReadAll(r.Body)
+					if err != nil {
+						t.Fatalf("failed to read body: %v", err)
+					}
+
+					expectBody := "# TYPE foo_metric counter\nfoo_metric{_id=\"test\",foo=\"bar\"} 42 1587414020000\n"
+
+					if strings.TrimSpace(string(body)) != strings.TrimSpace(expectBody) {
+						t.Errorf("expected '%s', got: %s", expectBody, string(body))
+					}
 				},
 			),
 		),
