@@ -18,6 +18,23 @@ import (
 	"github.com/openshift/telemeter/pkg/reader"
 )
 
+type clusterIDCtxType int
+
+const (
+	clusterIDCtx clusterIDCtxType = iota
+)
+
+// WithClusterID puts the clusterID into the given context.
+func WithClusterID(ctx context.Context, clusterID string) context.Context {
+	return context.WithValue(ctx, clusterIDCtx, clusterID)
+}
+
+// ClusterIDFromContext returns the clusterID from the context.
+func ClusterIDFromContext(ctx context.Context) (string, bool) {
+	p, ok := ctx.Value(clusterIDCtx).(string)
+	return p, ok
+}
+
 // ClusterID is a HTTP middleware that extracts the cluster's ID and passes it on via context.
 func ClusterID(key string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -36,23 +53,6 @@ func ClusterID(key string, next http.HandlerFunc) http.HandlerFunc {
 		next.ServeHTTP(w, r)
 	}
 }
-
-// WithClusterID puts the clusterID into the given context.
-func WithClusterID(ctx context.Context, clusterID string) context.Context {
-	return context.WithValue(ctx, clusterIDCtx, clusterID)
-}
-
-// ClusterIDFromContext returns the clusterID from the context.
-func ClusterIDFromContext(ctx context.Context) (string, bool) {
-	p, ok := ctx.Value(clusterIDCtx).(string)
-	return p, ok
-}
-
-type clusterIDCtxType int
-
-const (
-	clusterIDCtx clusterIDCtxType = iota
-)
 
 // Validate the payload of a request against given and required rules.
 func Validate(baseTransforms metricfamily.Transformer, maxAge time.Duration, limitBytes int64, now func() time.Time, next http.HandlerFunc) http.HandlerFunc {
