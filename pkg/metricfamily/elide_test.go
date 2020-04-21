@@ -6,17 +6,16 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	clientmodel "github.com/prometheus/client_model/go"
-	prom "github.com/prometheus/client_model/go"
 )
 
 func TestElide(t *testing.T) {
-	family := func(metrics ...*prom.Metric) *prom.MetricFamily {
-		families := &prom.MetricFamily{Name: proto.String("test")}
+	family := func(metrics ...*clientmodel.Metric) *clientmodel.MetricFamily {
+		families := &clientmodel.MetricFamily{Name: proto.String("test")}
 		families.Metric = append(families.Metric, metrics...)
 		return families
 	}
 
-	type checkFunc func(family *prom.MetricFamily, ok bool, err error) error
+	type checkFunc func(family *clientmodel.MetricFamily, ok bool, err error) error
 
 	isOK := func(want bool) checkFunc {
 		return func(_ *clientmodel.MetricFamily, got bool, _ error) error {
@@ -68,7 +67,7 @@ func TestElide(t *testing.T) {
 	}
 
 	hasLabels := func(want bool, labels ...string) checkFunc {
-		return func(family *prom.MetricFamily, _ bool, _ error) error {
+		return func(family *clientmodel.MetricFamily, _ bool, _ error) error {
 			labelSet := make(map[string]struct{})
 			for i := range family.Metric {
 				for j := range family.Metric[i].Label {
@@ -99,16 +98,16 @@ func TestElide(t *testing.T) {
 		}
 	}
 
-	metricWithLabels := func(labels ...string) *prom.Metric {
-		var labelPairs []*prom.LabelPair
+	metricWithLabels := func(labels ...string) *clientmodel.Metric {
+		var labelPairs []*clientmodel.LabelPair
 		for _, l := range labels {
-			labelPairs = append(labelPairs, &prom.LabelPair{Name: proto.String(l)})
+			labelPairs = append(labelPairs, &clientmodel.LabelPair{Name: proto.String(l)})
 		}
-		return &prom.Metric{Label: labelPairs}
+		return &clientmodel.Metric{Label: labelPairs}
 	}
 
 	for _, tc := range []struct {
-		family *prom.MetricFamily
+		family *clientmodel.MetricFamily
 		elide  *elide
 		name   string
 		checks []checkFunc

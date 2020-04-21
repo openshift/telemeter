@@ -19,10 +19,8 @@ import (
 	"github.com/prometheus/prometheus/prompb"
 
 	"github.com/openshift/telemeter/pkg/authorize"
-	"github.com/openshift/telemeter/pkg/http/server"
-	"github.com/openshift/telemeter/pkg/store"
-	"github.com/openshift/telemeter/pkg/store/forward"
-	"github.com/openshift/telemeter/pkg/validate"
+	"github.com/openshift/telemeter/pkg/metricfamily"
+	"github.com/openshift/telemeter/pkg/server"
 )
 
 const sampleMetrics = `
@@ -71,19 +69,25 @@ func TestForward(t *testing.T) {
 	}
 	var telemeterServer *httptest.Server
 	{
+		logger := log.NewNopLogger()
+
 		labels := map[string]string{"cluster": "test"}
-		validator := validate.New("cluster", 0, 0, time.Now)
 
 		receiveURL, _ := url.Parse(receiveServer.URL)
 
-		var store store.Store
-		// This configured the Telemeter Server to forward all metrics
-		// as TimeSeries to the mocked receiveServer above.
-		store = forward.New(log.NewNopLogger(), receiveURL, nil)
-
-		s := server.New(log.NewNopLogger(), store, validator, nil)
 		telemeterServer = httptest.NewServer(
-			fakeAuthorizeHandler(http.HandlerFunc(s.Post), &authorize.Client{ID: "test", Labels: labels}),
+			fakeAuthorizeHandler(
+				server.ClusterID("cluster",
+					server.Ratelimit(4*time.Minute+30*time.Second, time.Now,
+						server.Snappy(
+							server.Validate(metricfamily.MultiTransformer{}, 10*365*24*time.Hour, 500*1024, time.Now,
+								server.ForwardHandler(logger, receiveURL),
+							),
+						),
+					),
+				),
+				&authorize.Client{ID: "test", Labels: labels},
+			),
 		)
 		defer telemeterServer.Close()
 	}
@@ -107,10 +111,6 @@ func TestForward(t *testing.T) {
 		t.Errorf("failed sending the upload request: %v", err)
 	}
 	defer resp.Body.Close()
-
-	// As the fowarding happens asynchronously we want to wait a few seconds
-	// until the requests really has happened.
-	time.Sleep(3 * time.Second)
 
 	body, _ := ioutil.ReadAll(resp.Body)
 	if resp.StatusCode/100 != 2 {

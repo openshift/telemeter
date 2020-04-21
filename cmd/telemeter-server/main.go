@@ -21,14 +21,14 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc"
+	"github.com/go-chi/chi"
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
-
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
 
 	"github.com/openshift/telemeter/pkg/authorize"
 	"github.com/openshift/telemeter/pkg/authorize/jwt"
@@ -37,14 +37,10 @@ import (
 	"github.com/openshift/telemeter/pkg/cache"
 	"github.com/openshift/telemeter/pkg/cache/memcached"
 	telemeter_http "github.com/openshift/telemeter/pkg/http"
-	httpserver "github.com/openshift/telemeter/pkg/http/server"
 	"github.com/openshift/telemeter/pkg/logger"
 	"github.com/openshift/telemeter/pkg/metricfamily"
 	"github.com/openshift/telemeter/pkg/receive"
-	"github.com/openshift/telemeter/pkg/store"
-	"github.com/openshift/telemeter/pkg/store/forward"
-	"github.com/openshift/telemeter/pkg/store/ratelimited"
-	"github.com/openshift/telemeter/pkg/validate"
+	"github.com/openshift/telemeter/pkg/server"
 )
 
 const desc = `
@@ -81,7 +77,7 @@ func main() {
 
 		LimitBytes:         500 * 1024,
 		TokenExpireSeconds: 24 * 60 * 60,
-		PartitionKey:       "_id",
+		clusterIDKey:       "_id",
 		Ratelimit:          4*time.Minute + 30*time.Second,
 		MemcachedExpire:    24 * 60 * 60,
 		MemcachedInterval:  10,
@@ -106,7 +102,7 @@ func main() {
 	cmd.Flags().StringVar(&opt.InternalTLSCertificatePath, "internal-tls-crt", opt.InternalTLSCertificatePath, "Path to a certificate to serve TLS for internal traffic.")
 
 	cmd.Flags().StringSliceVar(&opt.LabelFlag, "label", opt.LabelFlag, "Labels to add to each outgoing metric, in key=value form.")
-	cmd.Flags().StringVar(&opt.PartitionKey, "partition-label", opt.PartitionKey, "The label to separate incoming data on. This label will be required for callers to include.")
+	cmd.Flags().StringVar(&opt.clusterIDKey, "partition-label", opt.clusterIDKey, "The label to separate incoming data on. This label will be required for callers to include.")
 
 	cmd.Flags().StringVar(&opt.SharedKey, "shared-key", opt.SharedKey, "The path to a private key file that will be used to sign authentication requests.")
 	cmd.Flags().Int64Var(&opt.TokenExpireSeconds, "token-expire-seconds", opt.TokenExpireSeconds, "The expiration of auth tokens in seconds.")
@@ -171,7 +167,7 @@ type Options struct {
 	MemcachedExpire   int32
 	MemcachedInterval int32
 
-	PartitionKey      string
+	clusterIDKey      string
 	LabelFlag         []string
 	Labels            map[string]string
 	LimitBytes        int64
@@ -280,24 +276,25 @@ func (o *Options) Run() error {
 	{
 		internal := http.NewServeMux()
 
-		internalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/metrics", "/debug/pprof", "/healthz", "/healthz/ready"}}, "", "  ")
-
-		internal.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			if req.URL.Path == "/" && req.Method == "GET" {
-				w.Header().Add("Content-Type", "application/json")
-				if _, err := w.Write(internalPathJSON); err != nil {
-					level.Error(o.Logger).Log("msg", "could not write internal paths", "err", err)
-				}
-				return
-			}
-			w.WriteHeader(http.StatusNotFound)
-		}))
+		// TODO: Refactor to not take *http.Mux
 		telemeter_http.DebugRoutes(internal)
 		telemeter_http.MetricRoutes(internal)
 		telemeter_http.HealthRoutes(internal)
 
+		r := chi.NewRouter()
+		r.Mount("/", internal)
+
+		r.Get("/", func(w http.ResponseWriter, req *http.Request) {
+			internalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/metrics", "/debug/pprof", "/healthz", "/healthz/ready"}}, "", "  ")
+
+			w.Header().Add("Content-Type", "application/json")
+			if _, err := w.Write(internalPathJSON); err != nil {
+				level.Error(o.Logger).Log("msg", "could not write internal paths", "err", err)
+			}
+		})
+
 		s := &http.Server{
-			Handler: internal,
+			Handler: r,
 		}
 
 		internalListener, err := net.Listen("tcp", o.ListenInternal)
@@ -325,7 +322,12 @@ func (o *Options) Run() error {
 		})
 	}
 	{
-		external := http.NewServeMux()
+		external := chi.NewRouter()
+
+		// TODO: Refactor HealthRoutes to not take *http.Mux
+		mux := http.NewServeMux()
+		telemeter_http.HealthRoutes(mux)
+		external.Mount("/", mux)
 
 		// v1 routes
 		{
@@ -402,18 +404,12 @@ func (o *Options) Run() error {
 				clusterAuth = tollbooth.NewAuthorizer(o.Logger, &authorizeClient, authorizeURL)
 			}
 
-			auth := jwt.NewAuthorizeClusterHandler(o.Logger, o.PartitionKey, o.TokenExpireSeconds, signer, o.RequiredLabels, clusterAuth)
-			validator := validate.New(o.PartitionKey, o.LimitBytes, 24*time.Hour, time.Now)
+			auth := jwt.NewAuthorizeClusterHandler(o.Logger, o.clusterIDKey, o.TokenExpireSeconds, signer, o.RequiredLabels, clusterAuth)
 
-			var store store.Store
-			u, err := url.Parse(o.ForwardURL)
+			forwardURL, err := url.Parse(o.ForwardURL)
 			if err != nil {
 				return fmt.Errorf("--forward-url must be a valid URL: %v", err)
 			}
-			store = forward.New(o.Logger, u, nil)
-
-			// Create a rate-limited store with a memory-store as its backend.
-			store = ratelimited.New(o.Ratelimit, store)
 
 			transforms := metricfamily.MultiTransformer{}
 			transforms.With(whitelister)
@@ -422,15 +418,25 @@ func (o *Options) Run() error {
 			}
 			transforms.With(metricfamily.NewElide(o.ElideLabels...))
 
-			server := httpserver.New(o.Logger, store, validator, transforms)
+			external.Post("/authorize",
+				server.InstrumentedHandler("authorize",
+					auth,
+				).ServeHTTP)
 
-			external.Handle("/authorize", telemeter_http.NewInstrumentedHandler("authorize", auth))
-			external.Handle("/upload",
-				authorize.NewAuthorizeClientHandler(jwtAuthorizer,
-					telemeter_http.NewInstrumentedHandler("upload",
-						http.HandlerFunc(server.Post),
+			external.Post("/upload",
+				server.InstrumentedHandler("upload",
+					authorize.NewAuthorizeClientHandler(jwtAuthorizer,
+						server.ClusterID(o.clusterIDKey,
+							server.Ratelimit(o.Ratelimit, time.Now,
+								server.Snappy(
+									server.Validate(transforms, 24*time.Hour, o.LimitBytes, time.Now,
+										server.ForwardHandler(o.Logger, forwardURL),
+									),
+								),
+							),
+						),
 					),
-				),
+				).ServeHTTP,
 			)
 		}
 
@@ -447,13 +453,13 @@ func (o *Options) Run() error {
 			receiver := receive.NewHandler(o.Logger, o.ForwardURL, prometheus.DefaultRegisterer)
 
 			external.Handle("/metrics/v1/receive",
-				telemeter_http.NewInstrumentedHandler("receive",
+				server.InstrumentedHandler("receive",
 					authorize.NewHandler(o.Logger, &v2AuthorizeClient, authorizeURL, o.TenantKey,
 						receive.LimitBodySize(receive.DefaultRequestLimit,
 							receive.ValidateLabels(
 								o.Logger,
 								http.HandlerFunc(receiver.Receive),
-								o.PartitionKey, // TODO: Enforce the same labels for v1 and v2
+								o.clusterIDKey, // TODO: Enforce the same labels for v1 and v2
 							),
 						),
 					),
@@ -463,17 +469,12 @@ func (o *Options) Run() error {
 
 		externalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/authorize", "/upload", "/healthz", "/healthz/ready", "/metrics/v1/receive"}}, "", "  ")
 
-		external.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			if req.URL.Path == "/" && req.Method == "GET" {
-				w.Header().Add("Content-Type", "application/json")
-				if _, err := w.Write(externalPathJSON); err != nil {
-					level.Error(o.Logger).Log("msg", "could not write external paths", "err", err)
-				}
-				return
+		external.Get("/", func(w http.ResponseWriter, req *http.Request) {
+			w.Header().Add("Content-Type", "application/json")
+			if _, err := w.Write(externalPathJSON); err != nil {
+				level.Error(o.Logger).Log("msg", "could not write external paths", "err", err)
 			}
-			w.WriteHeader(http.StatusNotFound)
-		}))
-		telemeter_http.HealthRoutes(external)
+		})
 
 		s := &http.Server{
 			Handler: external,

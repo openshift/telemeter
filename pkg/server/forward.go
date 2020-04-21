@@ -1,9 +1,10 @@
-package forward
+package server
 
 import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"net/url"
@@ -15,9 +16,10 @@ import (
 	"github.com/golang/snappy"
 	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/prometheus/prompb"
 
-	"github.com/openshift/telemeter/pkg/store"
+	"github.com/openshift/telemeter/pkg/metricfamily"
 )
 
 const (
@@ -51,58 +53,63 @@ func init() {
 	prometheus.MustRegister(overwrittenTimestamps)
 }
 
-type Store struct {
-	next   store.Store
-	url    *url.URL
-	client *http.Client
-	logger log.Logger
-}
+// ForwardHandler gets a request containing metric families and
+// converts it to a remote write request forwarding it to the upstream at fowardURL.
+func ForwardHandler(logger log.Logger, forwardURL *url.URL) http.HandlerFunc {
+	client := http.Client{}
 
-func New(logger log.Logger, url *url.URL, next store.Store) *Store {
-	return &Store{
-		next:   next,
-		url:    url,
-		client: &http.Client{},
-		logger: log.With(logger, "component", "store/forward"),
-	}
-}
+	return func(w http.ResponseWriter, r *http.Request) {
+		clusterID, ok := ClusterIDFromContext(r.Context())
+		if !ok {
+			http.Error(w, "failed to retrieve clusterID", http.StatusInternalServerError)
+			return
+		}
 
-func (s *Store) ReadMetrics(ctx context.Context, minTimestampMs int64) ([]*store.PartitionedMetrics, error) {
-	return s.next.ReadMetrics(ctx, minTimestampMs)
-}
+		decoder := expfmt.NewDecoder(r.Body, expfmt.ResponseFormat(r.Header))
+		defer r.Body.Close()
 
-func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) error {
-	if p == nil {
-		return nil
-	}
+		families := make([]*clientmodel.MetricFamily, 0, 100)
+		for {
+			family := &clientmodel.MetricFamily{}
+			if err := decoder.Decode(family); err != nil {
+				if err == io.EOF {
+					break
+				}
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 
-	err := func() error {
-		timeseries, err := convertToTimeseries(p, time.Now())
+			families = append(families, family)
+		}
+		families = metricfamily.Pack(families)
+
+		timeseries, err := convertToTimeseries(&PartitionedMetrics{ClusterID: clusterID, Families: families}, time.Now())
 		if err != nil {
-			return err
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 
 		if len(timeseries) == 0 {
-			level.Info(s.logger).Log("msg", "no time series to forward to receive endpoint")
-			return nil
+			level.Info(logger).Log("msg", "no time series to forward to receive endpoint")
+			return
 		}
 
-		wreq := &prompb.WriteRequest{
-			Timeseries: timeseries,
-		}
+		wreq := &prompb.WriteRequest{Timeseries: timeseries}
 
 		data, err := proto.Marshal(wreq)
 		if err != nil {
-			return err
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
 
 		compressed := snappy.Encode(nil, data)
 
-		req, err := http.NewRequest(http.MethodPost, s.url.String(), bytes.NewBuffer(compressed))
+		req, err := http.NewRequest(http.MethodPost, forwardURL.String(), bytes.NewBuffer(compressed))
 		if err != nil {
-			return err
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
-		req.Header.Add("THANOS-TENANT", p.PartitionKey)
+		req.Header.Add("THANOS-TENANT", clusterID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -110,9 +117,10 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 		req = req.WithContext(ctx)
 
 		begin := time.Now()
-		resp, err := s.client.Do(req)
+		resp, err := client.Do(req)
 		if err != nil {
-			return err
+			http.Error(w, err.Error(), http.StatusBadGateway)
+			return
 		}
 
 		forwardDuration.
@@ -121,11 +129,13 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 
 		meanDrift := timeseriesMeanDrift(timeseries, time.Now().Unix())
 		if math.Abs(meanDrift) > 10 {
-			level.Info(s.logger).Log("msg", "mean drift from now for clusters", "partitionkey", p.PartitionKey, "drift", fmt.Sprintf("%.3fs", meanDrift))
+			level.Info(logger).Log("msg", "mean drift from now for clusters", "clusterID", clusterID, "drift", fmt.Sprintf("%.3fs", meanDrift))
 		}
 
 		if resp.StatusCode/100 != 2 {
-			return fmt.Errorf("response status code is %s", resp.Status)
+			// surfacing upstreams error to our users too
+			http.Error(w, fmt.Errorf("response status code is %s", resp.Status).Error(), resp.StatusCode)
+			return
 		}
 
 		s := 0
@@ -133,26 +143,10 @@ func (s *Store) WriteMetrics(ctx context.Context, p *store.PartitionedMetrics) e
 			s = s + len(ts.Samples)
 		}
 		forwardSamples.Add(float64(s))
-
-		return nil
-	}()
-	if err != nil {
-		forwardRequests.WithLabelValues("error").Inc()
-		level.Error(s.logger).Log("msg", "forwarding error", "err", err)
-
-		return err
 	}
-
-	forwardRequests.WithLabelValues("success").Inc()
-
-	if s.next == nil {
-		return nil
-	}
-
-	return s.next.WriteMetrics(ctx, p)
 }
 
-func convertToTimeseries(p *store.PartitionedMetrics, now time.Time) ([]prompb.TimeSeries, error) {
+func convertToTimeseries(p *PartitionedMetrics, now time.Time) ([]prompb.TimeSeries, error) {
 	var timeseries []prompb.TimeSeries
 
 	timestamp := now.UnixNano() / int64(time.Millisecond)
