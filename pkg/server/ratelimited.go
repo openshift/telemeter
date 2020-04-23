@@ -6,6 +6,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-chi/chi/middleware"
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"golang.org/x/time/rate"
 )
 
@@ -17,20 +20,25 @@ func (e ErrWriteLimitReached) Error() string {
 }
 
 // Ratelimit is a middleware that rate limits requests based on a cluster ID.
-func Ratelimit(limit time.Duration, now func() time.Time, next http.HandlerFunc) http.HandlerFunc {
+func Ratelimit(logger log.Logger, limit time.Duration, now func() time.Time, next http.HandlerFunc) http.HandlerFunc {
 	s := ratelimitStore{
 		limits: make(map[string]*rate.Limiter),
 		mu:     sync.Mutex{},
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		logger = log.With(logger, "request", middleware.GetReqID(r.Context()))
+
 		clusterID, ok := ClusterIDFromContext(r.Context())
 		if !ok {
-			http.Error(w, "failed to get cluster ID from request", http.StatusInternalServerError)
+			msg := "failed to get cluster ID from request"
+			level.Warn(logger).Log("msg", msg)
+			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
 
 		if err := s.limit(limit, now(), clusterID); err != nil {
+			level.Debug(logger).Log("msg", "rate limited", "err", err)
 			http.Error(w, err.Error(), http.StatusTooManyRequests)
 			return
 		}

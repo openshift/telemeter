@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/kit/log"
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 
@@ -40,7 +41,7 @@ func TestValidate(t *testing.T) {
 
 	s := httptest.NewServer(
 		fakeAuthorizeHandler(
-			Validate(metricfamily.MultiTransformer{}, time.Hour, 512*1024, now,
+			Validate(log.NewNopLogger(), metricfamily.MultiTransformer{}, time.Hour, 512*1024, now,
 				func(w http.ResponseWriter, r *http.Request) {
 					// TODO: Make the check proper to changing timestamps?
 					body, err := ioutil.ReadAll(r.Body)

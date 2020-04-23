@@ -77,10 +77,10 @@ func TestForward(t *testing.T) {
 
 		telemeterServer = httptest.NewServer(
 			fakeAuthorizeHandler(
-				server.ClusterID("cluster",
-					server.Ratelimit(4*time.Minute+30*time.Second, time.Now,
+				server.ClusterID(log.NewNopLogger(), "cluster",
+					server.Ratelimit(log.NewNopLogger(), 4*time.Minute+30*time.Second, time.Now,
 						server.Snappy(
-							server.Validate(metricfamily.MultiTransformer{}, 10*365*24*time.Hour, 500*1024, time.Now,
+							server.Validate(log.NewNopLogger(), metricfamily.MultiTransformer{}, 10*365*24*time.Hour, 500*1024, time.Now,
 								server.ForwardHandler(logger, receiveURL),
 							),
 						),

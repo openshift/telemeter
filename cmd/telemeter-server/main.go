@@ -22,6 +22,7 @@ import (
 
 	"github.com/coreos/go-oidc"
 	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/oklog/run"
@@ -323,6 +324,7 @@ func (o *Options) Run() error {
 	}
 	{
 		external := chi.NewRouter()
+		external.Use(middleware.RequestID)
 
 		// TODO: Refactor HealthRoutes to not take *http.Mux
 		mux := http.NewServeMux()
@@ -426,10 +428,10 @@ func (o *Options) Run() error {
 			external.Post("/upload",
 				server.InstrumentedHandler("upload",
 					authorize.NewAuthorizeClientHandler(jwtAuthorizer,
-						server.ClusterID(o.clusterIDKey,
-							server.Ratelimit(o.Ratelimit, time.Now,
+						server.ClusterID(o.Logger, o.clusterIDKey,
+							server.Ratelimit(o.Logger, o.Ratelimit, time.Now,
 								server.Snappy(
-									server.Validate(transforms, 24*time.Hour, o.LimitBytes, time.Now,
+									server.Validate(o.Logger, transforms, 24*time.Hour, o.LimitBytes, time.Now,
 										server.ForwardHandler(o.Logger, forwardURL),
 									),
 								),
