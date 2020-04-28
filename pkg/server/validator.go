@@ -41,18 +41,18 @@ func ClusterIDFromContext(ctx context.Context) (string, bool) {
 // ClusterID is a HTTP middleware that extracts the cluster's ID and passes it on via context.
 func ClusterID(logger log.Logger, key string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		logger = log.With(logger, "request", middleware.GetReqID(r.Context()))
+		rlogger := log.With(logger, "request", middleware.GetReqID(r.Context()))
 
 		client, ok := authorize.FromContext(r.Context())
 		if !ok {
 			msg := "unable to find user info"
-			level.Warn(logger).Log("msg", msg)
+			level.Warn(rlogger).Log("msg", msg)
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
 		if len(client.Labels[key]) == 0 {
 			msg := fmt.Sprintf("user data must contain a '%s' label", key)
-			level.Warn(logger).Log("msg", msg)
+			level.Warn(rlogger).Log("msg", msg)
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
@@ -66,12 +66,12 @@ func ClusterID(logger log.Logger, key string, next http.HandlerFunc) http.Handle
 // Validate the payload of a request against given and required rules.
 func Validate(logger log.Logger, baseTransforms metricfamily.Transformer, maxAge time.Duration, limitBytes int64, now func() time.Time, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		logger = log.With(logger, "request", middleware.GetReqID(r.Context()))
+		rlogger := log.With(logger, "request", middleware.GetReqID(r.Context()))
 
 		client, ok := authorize.FromContext(r.Context())
 		if !ok {
 			msg := "unable to find user info"
-			level.Warn(logger).Log("msg", msg)
+			level.Warn(rlogger).Log("msg", msg)
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
@@ -83,7 +83,7 @@ func Validate(logger log.Logger, baseTransforms metricfamily.Transformer, maxAge
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			msg := "failed to read request body"
-			level.Warn(logger).Log("msg", msg, "err", err)
+			level.Warn(rlogger).Log("msg", msg, "err", err)
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
@@ -112,7 +112,7 @@ func Validate(logger log.Logger, baseTransforms metricfamily.Transformer, maxAge
 					break
 				}
 				msg := "failed to decode metrics"
-				level.Warn(logger).Log("msg", msg, "err", err)
+				level.Warn(rlogger).Log("msg", msg, "err", err)
 				http.Error(w, msg, http.StatusInternalServerError)
 				return
 			}
@@ -123,28 +123,28 @@ func Validate(logger log.Logger, baseTransforms metricfamily.Transformer, maxAge
 
 		if err := metricfamily.Filter(families, transforms); err != nil {
 			if errors.Is(err, metricfamily.ErrNoTimestamp) {
-				level.Debug(logger).Log("msg", err)
+				level.Debug(rlogger).Log("msg", err)
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			if errors.Is(err, metricfamily.ErrUnsorted) {
-				level.Debug(logger).Log("msg", err)
+				level.Debug(rlogger).Log("msg", err)
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			if errors.Is(err, metricfamily.ErrTimestampTooOld) {
-				level.Debug(logger).Log("msg", err)
+				level.Debug(rlogger).Log("msg", err)
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			if errors.Is(err, metricfamily.ErrRequiredLabelMissing) {
-				level.Debug(logger).Log("msg", err)
+				level.Debug(rlogger).Log("msg", err)
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 
 			msg := "unexpected error during metrics transforming"
-			level.Warn(logger).Log("msg", msg, "err", err)
+			level.Warn(rlogger).Log("msg", msg, "err", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -154,7 +154,7 @@ func Validate(logger log.Logger, baseTransforms metricfamily.Transformer, maxAge
 		for _, f := range families {
 			if err := encoder.Encode(f); err != nil {
 				msg := "failed to encode transformed metrics again"
-				level.Warn(logger).Log("msg", msg, "err", err)
+				level.Warn(rlogger).Log("msg", msg, "err", err)
 				http.Error(w, msg, http.StatusInternalServerError)
 				return
 			}
