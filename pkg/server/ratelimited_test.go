@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-kit/kit/log"
 	"golang.org/x/time/rate"
 
 	"github.com/openshift/telemeter/pkg/authorize"
@@ -27,8 +28,8 @@ func TestRatelimit(t *testing.T) {
 	}
 	server := httptest.NewServer(
 		fakeAuthorizeHandler(
-			ClusterID("_id",
-				Ratelimit(time.Minute, time.Now,
+			ClusterID(log.NewNopLogger(), "_id",
+				Ratelimit(log.NewNopLogger(), time.Minute, time.Now,
 					func(w http.ResponseWriter, r *http.Request) {},
 				),
 			),
