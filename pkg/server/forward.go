@@ -60,12 +60,12 @@ func ForwardHandler(logger log.Logger, forwardURL *url.URL) http.HandlerFunc {
 	client := http.Client{}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		logger = log.With(logger, "request", middleware.GetReqID(r.Context()))
+		rlogger := log.With(logger, "request", middleware.GetReqID(r.Context()))
 
 		clusterID, ok := ClusterIDFromContext(r.Context())
 		if !ok {
 			msg := "failed to retrieve clusterID"
-			level.Warn(logger).Log("msg", msg)
+			level.Warn(rlogger).Log("msg", msg)
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
@@ -81,7 +81,7 @@ func ForwardHandler(logger log.Logger, forwardURL *url.URL) http.HandlerFunc {
 					break
 				}
 				msg := err.Error()
-				level.Warn(logger).Log("msg", msg, "err", err)
+				level.Warn(rlogger).Log("msg", msg, "err", err)
 				http.Error(w, msg, http.StatusInternalServerError)
 				return
 			}
@@ -93,13 +93,13 @@ func ForwardHandler(logger log.Logger, forwardURL *url.URL) http.HandlerFunc {
 		timeseries, err := convertToTimeseries(&PartitionedMetrics{ClusterID: clusterID, Families: families}, time.Now())
 		if err != nil {
 			msg := "failed to convert timeseries"
-			level.Warn(logger).Log("msg", msg, "err", err)
+			level.Warn(rlogger).Log("msg", msg, "err", err)
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
 
 		if len(timeseries) == 0 {
-			level.Info(logger).Log("msg", "no time series to forward to receive endpoint")
+			level.Info(rlogger).Log("msg", "no time series to forward to receive endpoint")
 			return
 		}
 
@@ -108,7 +108,7 @@ func ForwardHandler(logger log.Logger, forwardURL *url.URL) http.HandlerFunc {
 		data, err := proto.Marshal(wreq)
 		if err != nil {
 			msg := "failed to marshal proto"
-			level.Warn(logger).Log("msg", msg, "err", err)
+			level.Warn(rlogger).Log("msg", msg, "err", err)
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
@@ -118,7 +118,7 @@ func ForwardHandler(logger log.Logger, forwardURL *url.URL) http.HandlerFunc {
 		req, err := http.NewRequest(http.MethodPost, forwardURL.String(), bytes.NewBuffer(compressed))
 		if err != nil {
 			msg := "failed to create forwarding request"
-			level.Warn(logger).Log("msg", msg, "err", err)
+			level.Warn(rlogger).Log("msg", msg, "err", err)
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
@@ -133,7 +133,7 @@ func ForwardHandler(logger log.Logger, forwardURL *url.URL) http.HandlerFunc {
 		resp, err := client.Do(req)
 		if err != nil {
 			msg := "failed to forward request"
-			level.Warn(logger).Log("msg", msg, "err", err)
+			level.Warn(rlogger).Log("msg", msg, "err", err)
 			http.Error(w, msg, http.StatusBadGateway)
 			return
 		}
@@ -144,13 +144,13 @@ func ForwardHandler(logger log.Logger, forwardURL *url.URL) http.HandlerFunc {
 
 		meanDrift := timeseriesMeanDrift(timeseries, time.Now().Unix())
 		if math.Abs(meanDrift) > 10 {
-			level.Info(logger).Log("msg", "mean drift from now for clusters", "clusterID", clusterID, "drift", fmt.Sprintf("%.3fs", meanDrift))
+			level.Info(rlogger).Log("msg", "mean drift from now for clusters", "clusterID", clusterID, "drift", fmt.Sprintf("%.3fs", meanDrift))
 		}
 
 		if resp.StatusCode/100 != 2 {
 			// surfacing upstreams error to our users too
 			msg := fmt.Sprintf("response status code is %s", resp.Status)
-			level.Warn(logger).Log("msg", msg)
+			level.Warn(rlogger).Log("msg", msg)
 			http.Error(w, msg, resp.StatusCode)
 			return
 		}

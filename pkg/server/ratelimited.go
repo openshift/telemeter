@@ -27,18 +27,18 @@ func Ratelimit(logger log.Logger, limit time.Duration, now func() time.Time, nex
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		logger = log.With(logger, "request", middleware.GetReqID(r.Context()))
+		rlogger := log.With(logger, "request", middleware.GetReqID(r.Context()))
 
 		clusterID, ok := ClusterIDFromContext(r.Context())
 		if !ok {
 			msg := "failed to get cluster ID from request"
-			level.Warn(logger).Log("msg", msg)
+			level.Warn(rlogger).Log("msg", msg)
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
 
 		if err := s.limit(limit, now(), clusterID); err != nil {
-			level.Debug(logger).Log("msg", "rate limited", "err", err)
+			level.Debug(rlogger).Log("msg", "rate limited", "err", err)
 			http.Error(w, err.Error(), http.StatusTooManyRequests)
 			return
 		}
