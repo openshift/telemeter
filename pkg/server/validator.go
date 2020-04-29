@@ -83,6 +83,11 @@ func Validate(logger log.Logger, baseTransforms metricfamily.Transformer, maxAge
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			msg := "failed to read request body"
+			if errors.Is(err, reader.ErrTooLong) {
+				level.Warn(rlogger).Log("msg", msg, "err", err)
+				http.Error(w, msg, http.StatusRequestEntityTooLarge)
+				return
+			}
 			level.Warn(rlogger).Log("msg", msg, "err", err)
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
