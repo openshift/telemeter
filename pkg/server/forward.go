@@ -122,7 +122,7 @@ func ForwardHandler(logger log.Logger, forwardURL *url.URL) http.HandlerFunc {
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
-		req.Header.Add("THANOS-TENANT", clusterID)
+		req.Header.Add("THANOS-TENANT", "FB870BF3-9F3A-44FF-9BF7-D7A047A52F43")
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()

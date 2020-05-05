@@ -14,8 +14,6 @@ import (
 	"github.com/golang/snappy"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
-
-	"github.com/openshift/telemeter/pkg/authorize"
 )
 
 const forwardTimeout = 5 * time.Second
@@ -79,7 +77,7 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req = req.WithContext(ctx)
-	req.Header.Add("THANOS-TENANT", r.Context().Value(authorize.TenantKey).(string))
+	req.Header.Add("THANOS-TENANT", "FB870BF3-9F3A-44FF-9BF7-D7A047A52F43")
 
 	resp, err := h.client.Do(req)
 	if err != nil {
