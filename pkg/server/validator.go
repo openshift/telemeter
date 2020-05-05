@@ -157,6 +157,9 @@ func Validate(logger log.Logger, baseTransforms metricfamily.Transformer, maxAge
 		buf := &bytes.Buffer{}
 		encoder := expfmt.NewEncoder(buf, expfmt.ResponseFormat(r.Header))
 		for _, f := range families {
+			if f == nil {
+				continue
+			}
 			if err := encoder.Encode(f); err != nil {
 				msg := "failed to encode transformed metrics again"
 				level.Warn(rlogger).Log("msg", msg, "err", err)
