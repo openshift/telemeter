@@ -11,7 +11,7 @@ import (
 // Snappy checks HTTP headers and if Content-Ecoding is snappy it decodes the request body.
 func Snappy(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if strings.ToLower(r.Header.Get("Content-Encoding")) == "snappy" {
+		if strings.EqualFold(r.Header.Get("Content-Encoding"), "snappy") {
 			r.Body = ioutil.NopCloser(snappy.NewReader(r.Body))
 		}
 
