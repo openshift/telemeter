@@ -82,6 +82,7 @@ func main() {
 		Ratelimit:          4*time.Minute + 30*time.Second,
 		MemcachedExpire:    24 * 60 * 60,
 		MemcachedInterval:  10,
+		TenantID:           "FB870BF3-9F3A-44FF-9BF7-D7A047A52F43",
 	}
 	cmd := &cobra.Command{
 		Short:         "Aggregate federated metrics pushes",
@@ -117,6 +118,7 @@ func main() {
 	cmd.Flags().StringSliceVar(&opt.Memcacheds, "memcached", opt.Memcacheds, "One or more Memcached server addresses.")
 	cmd.Flags().Int32Var(&opt.MemcachedExpire, "memcached-expire", opt.MemcachedExpire, "Time after which keys stored in Memcached should expire, given in seconds.")
 	cmd.Flags().Int32Var(&opt.MemcachedInterval, "memcached-interval", opt.MemcachedInterval, "The interval at which to update the Memcached DNS, given in seconds; use 0 to disable.")
+	cmd.Flags().StringVar(&opt.TenantID, "tenant-id", opt.TenantID, "Tenant ID to use for the system forwarded to.")
 
 	cmd.Flags().DurationVar(&opt.Ratelimit, "ratelimit", opt.Ratelimit, "The rate limit of metric uploads per cluster ID. Uploads happening more often than this limit will be rejected.")
 	cmd.Flags().StringVar(&opt.ForwardURL, "forward-url", opt.ForwardURL, "All written metrics will be written to this URL additionally")
@@ -164,6 +166,7 @@ type Options struct {
 	ClientID          string
 	ClientSecret      string
 	TenantKey         string
+	TenantID          string
 	Memcacheds        []string
 	MemcachedExpire   int32
 	MemcachedInterval int32
@@ -432,7 +435,7 @@ func (o *Options) Run() error {
 							server.Ratelimit(o.Logger, o.Ratelimit, time.Now,
 								server.Snappy(
 									server.Validate(o.Logger, transforms, 24*time.Hour, o.LimitBytes, time.Now,
-										server.ForwardHandler(o.Logger, forwardURL),
+										server.ForwardHandler(o.Logger, forwardURL, o.TenantID),
 									),
 								),
 							),
@@ -452,7 +455,7 @@ func (o *Options) Run() error {
 				v2AuthorizeClient.Transport = cache.NewRoundTripper(mc, tollbooth.ExtractToken, v2AuthorizeClient.Transport, l, prometheus.DefaultRegisterer)
 			}
 
-			receiver := receive.NewHandler(o.Logger, o.ForwardURL, prometheus.DefaultRegisterer)
+			receiver := receive.NewHandler(o.Logger, o.ForwardURL, prometheus.DefaultRegisterer, o.TenantID)
 
 			external.Handle("/metrics/v1/receive",
 				server.InstrumentedHandler("receive",

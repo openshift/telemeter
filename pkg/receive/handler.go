@@ -29,6 +29,7 @@ type ClusterAuthorizer interface {
 // Handler knows the forwardURL for all requests
 type Handler struct {
 	ForwardURL string
+	tenantID   string
 	client     *http.Client
 	logger     log.Logger
 
@@ -37,9 +38,10 @@ type Handler struct {
 }
 
 // NewHandler returns a new Handler with a http client
-func NewHandler(logger log.Logger, forwardURL string, reg prometheus.Registerer) *Handler {
+func NewHandler(logger log.Logger, forwardURL string, reg prometheus.Registerer, tenantID string) *Handler {
 	h := &Handler{
 		ForwardURL: forwardURL,
+		tenantID:   tenantID,
 		client: &http.Client{
 			Timeout: forwardTimeout,
 		},
@@ -77,7 +79,7 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req = req.WithContext(ctx)
-	req.Header.Add("THANOS-TENANT", "FB870BF3-9F3A-44FF-9BF7-D7A047A52F43")
+	req.Header.Add("THANOS-TENANT", h.tenantID)
 
 	resp, err := h.client.Do(req)
 	if err != nil {

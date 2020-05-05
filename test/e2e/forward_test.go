@@ -81,7 +81,7 @@ func TestForward(t *testing.T) {
 					server.Ratelimit(log.NewNopLogger(), 4*time.Minute+30*time.Second, time.Now,
 						server.Snappy(
 							server.Validate(log.NewNopLogger(), metricfamily.MultiTransformer{}, 10*365*24*time.Hour, 500*1024, time.Now,
-								server.ForwardHandler(logger, receiveURL),
+								server.ForwardHandler(logger, receiveURL, "default-tenant"),
 							),
 						),
 					),
