@@ -185,7 +185,7 @@ local internalPort = 8081;
               port: 'internal',
               scheme: 'https',
               tlsConfig: {
-                caFile: '/var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt',
+                caFile: '/etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt',
                 serverName: 'telemeter-server.%s.svc' % $._config.namespace,
               },
             },
