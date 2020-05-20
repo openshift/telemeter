@@ -1,4 +1,4 @@
-local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
+local k = import 'ksonnet/ksonnet.beta.4/k.libsonnet';
 local secretName = 'telemeter-server';
 local secretVolumeName = 'secret-telemeter-server';
 local tlsSecret = 'telemeter-server-shared';
@@ -33,9 +33,9 @@ local internalPort = 8081;
 
   telemeterServer+:: {
     statefulSet:
-      local statefulSet = k.apps.v1beta2.statefulSet;
-      local container = k.apps.v1beta2.statefulSet.mixin.spec.template.spec.containersType;
-      local volume = k.apps.v1beta2.statefulSet.mixin.spec.template.spec.volumesType;
+      local statefulSet = k.apps.v1.statefulSet;
+      local container = k.apps.v1.statefulSet.mixin.spec.template.spec.containersType;
+      local volume = k.apps.v1.statefulSet.mixin.spec.template.spec.volumesType;
       local containerPort = container.portsType;
       local containerVolumeMount = container.volumeMountsType;
       local containerEnv = container.envType;
@@ -89,8 +89,8 @@ local internalPort = 8081;
           '--client-secret=$(CLIENT_SECRET)',
         ] + memcached + whitelist + elide) +
         container.withPorts([
-          containerPort.newNamed('external', externalPort),
-          containerPort.newNamed('internal', internalPort),
+          containerPort.newNamed(externalPort, 'external'),
+          containerPort.newNamed(internalPort, 'internal'),
         ]) +
         container.mixin.resources.withLimitsMixin($._config.telemeterServer.resourceLimits) +
         container.mixin.resources.withRequestsMixin($._config.telemeterServer.resourceRequests) +
@@ -234,13 +234,13 @@ local internalPort = 8081;
       service.mixin.spec.withClusterIp('None'),
 
     statefulSet:
-      local sts = k.apps.v1beta2.statefulSet;
-      local container = k.apps.v1beta2.statefulSet.mixin.spec.template.spec.containersType;
+      local sts = k.apps.v1.statefulSet;
+      local container = k.apps.v1.statefulSet.mixin.spec.template.spec.containersType;
       local containerPort = container.portsType;
 
       local c =
         container.new('memcached', $.memcached.images.memcached + ':' + $.memcached.tags.memcached) +
-        container.withPorts([containerPort.newNamed($.memcached.service.spec.ports[0].name, $.memcached.service.spec.ports[0].port)]) +
+        container.withPorts([containerPort.newNamed($.memcached.service.spec.ports[0].port, $.memcached.service.spec.ports[0].name)]) +
         container.withArgs([
           '-m %(memoryLimitMB)s' % self,
           '-I %(maxItemSize)s' % self,
@@ -252,7 +252,7 @@ local internalPort = 8081;
 
       local exporter =
         container.new('exporter', $.memcached.images.exporter + ':' + $.memcached.tags.exporter) +
-        container.withPorts([containerPort.newNamed($.memcached.service.spec.ports[1].name, $.memcached.service.spec.ports[1].port)]) +
+        container.withPorts([containerPort.newNamed($.memcached.service.spec.ports[1].port, $.memcached.service.spec.ports[1].name)]) +
         container.withArgs([
           '--memcached.address=localhost:%d' % $.memcached.service.spec.ports[0].port,
           '--web.listen-address=0.0.0.0:%d' % $.memcached.service.spec.ports[1].port,
