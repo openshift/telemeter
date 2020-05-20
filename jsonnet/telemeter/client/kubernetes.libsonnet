@@ -1,4 +1,4 @@
-local k = import 'ksonnet/ksonnet.beta.3/k.libsonnet';
+local k = import 'ksonnet/ksonnet.beta.4/k.libsonnet';
 local secretName = 'telemeter-client';
 local secretVolumeName = 'secret-telemeter-client';
 local secretMountPath = '/etc/telemeter';
@@ -85,9 +85,9 @@ local securePort = 8443;
       clusterRoleBinding.withSubjects([{ kind: 'ServiceAccount', name: 'telemeter-client', namespace: $._config.namespace }]),
 
     deployment:
-      local deployment = k.apps.v1beta2.deployment;
-      local container = k.apps.v1beta2.deployment.mixin.spec.template.spec.containersType;
-      local volume = k.apps.v1beta2.deployment.mixin.spec.template.spec.volumesType;
+      local deployment = k.apps.v1.deployment;
+      local container = k.apps.v1.deployment.mixin.spec.template.spec.containersType;
+      local volume = k.apps.v1.deployment.mixin.spec.template.spec.volumesType;
       local containerPort = container.portsType;
       local containerVolumeMount = container.volumeMountsType;
       local containerEnv = container.envType;
@@ -126,7 +126,7 @@ local securePort = 8443;
           '--anonymize-salt-file=%s/salt' % secretMountPath,
           '--anonymize-labels=$(ANONYMIZE_LABELS)',
         ] + matchRules) +
-        container.withPorts(containerPort.newNamed('http', insecurePort)) +
+        container.withPorts(containerPort.newNamed(insecurePort, 'http')) +
         container.withVolumeMounts([sccabMount, secretMount]) +
         container.withEnv([anonymize, from, id, to, httpProxy, httpsProxy, noProxy]) +
         container.mixin.resources.withRequests({ cpu: '1m' });
