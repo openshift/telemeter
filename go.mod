@@ -10,16 +10,16 @@ require (
 	github.com/go-chi/chi v4.0.4+incompatible
 	github.com/go-kit/kit v0.9.0
 	github.com/gogo/protobuf v1.3.1
-	github.com/golang/protobuf v1.3.2
+	github.com/golang/protobuf v1.4.0
 	github.com/golang/snappy v0.0.1
 	github.com/grpc-ecosystem/grpc-gateway v1.12.1 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/oklog/run v1.0.0
 	github.com/pkg/errors v0.8.1
 	github.com/pquerna/cachecontrol v0.0.0-20180517163645-1555304b9b35 // indirect
-	github.com/prometheus/client_golang v1.2.1
-	github.com/prometheus/client_model v0.0.0-20190812154241-14fe0d1b01d4
-	github.com/prometheus/common v0.7.0
+	github.com/prometheus/client_golang v1.6.0
+	github.com/prometheus/client_model v0.2.0
+	github.com/prometheus/common v0.9.1
 	github.com/prometheus/prometheus v1.8.2-0.20200110114423-1e64d757f711 // Prometheus master v2.14.0
 	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
