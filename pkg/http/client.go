@@ -9,24 +9,22 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var (
-	inFlightGauge = promauto.With(prometheus.DefaultRegisterer).NewGaugeVec(
+func NewInstrumentedRoundTripper(reg prometheus.Registerer, clientName string, next http.RoundTripper) http.RoundTripper {
+	inFlightGaugeVec := promauto.With(reg).NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "client_in_flight_requests",
 			Help: "A gauge of in-flight requests for the wrapped client.",
 		},
 		[]string{"client"},
 	)
-
-	counter = promauto.With(prometheus.DefaultRegisterer).NewCounterVec(
+	counterVec := promauto.With(reg).NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "client_api_requests_total",
 			Help: "A counter for requests from the wrapped client.",
 		},
 		[]string{"code", "method", "client"},
 	)
-
-	dnsLatencyVec = promauto.With(prometheus.DefaultRegisterer).NewHistogramVec(
+	dnsLatencyVec := promauto.With(reg).NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "dns_duration_seconds",
 			Help:    "Trace dns latency histogram.",
@@ -34,8 +32,7 @@ var (
 		},
 		[]string{"event", "client"},
 	)
-
-	tlsLatencyVec = promauto.With(prometheus.DefaultRegisterer).NewHistogramVec(
+	tlsLatencyVec := promauto.With(reg).NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "tls_duration_seconds",
 			Help:    "Trace tls latency histogram.",
@@ -43,8 +40,7 @@ var (
 		},
 		[]string{"event", "client"},
 	)
-
-	histVec = promauto.With(prometheus.DefaultRegisterer).NewHistogramVec(
+	histVec := promauto.With(reg).NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "request_duration_seconds",
 			Help:    "A histogram of request latencies.",
@@ -52,9 +48,7 @@ var (
 		},
 		[]string{"method", "client"},
 	)
-)
 
-func NewInstrumentedRoundTripper(clientName string, next http.RoundTripper) http.RoundTripper {
 	trace := &promhttp.InstrumentTrace{
 		DNSStart: func(t float64) {
 			dnsLatencyVec.
@@ -78,20 +72,11 @@ func NewInstrumentedRoundTripper(clientName string, next http.RoundTripper) http
 		},
 	}
 
-	inFlightGauge := inFlightGauge.WithLabelValues(clientName)
-
-	counter := counter.MustCurryWith(prometheus.Labels{
-		"client": clientName,
-	})
-
-	histVec := histVec.MustCurryWith(prometheus.Labels{
-		"client": clientName,
-	})
-
-	rt := promhttp.InstrumentRoundTripperInFlight(inFlightGauge,
-		promhttp.InstrumentRoundTripperCounter(counter,
+	rt := promhttp.InstrumentRoundTripperInFlight(inFlightGaugeVec.WithLabelValues(clientName),
+		promhttp.InstrumentRoundTripperCounter(counterVec.MustCurryWith(prometheus.Labels{"client": clientName}),
 			promhttp.InstrumentRoundTripperTrace(trace,
-				promhttp.InstrumentRoundTripperDuration(histVec, next),
+				promhttp.InstrumentRoundTripperDuration(histVec.MustCurryWith(prometheus.Labels{"client": clientName}),
+					next),
 			),
 		),
 	)

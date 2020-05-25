@@ -29,29 +29,36 @@ const (
 	nameLabelName = "__name__"
 )
 
-var (
-	forwardSamples = promauto.With(prometheus.DefaultRegisterer).NewCounter(prometheus.CounterOpts{
-		Name: "telemeter_v1_forward_samples_total",
-		Help: "Total amount of successfully forwarded samples from v1 requests.",
-	})
-	forwardRequests = promauto.With(prometheus.DefaultRegisterer).NewCounterVec(prometheus.CounterOpts{
-		Name: "telemeter_v1_forward_requests_total",
-		Help: "Total amount of forwarded v1 requests.",
-	}, []string{"result"})
-	forwardDuration = promauto.With(prometheus.DefaultRegisterer).NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "telemeter_v1_forward_request_duration_seconds",
-		Help:    "Tracks the duration of all requests forwarded v1.",
-		Buckets: []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5}, // max = timeout
-	}, []string{"status_code"})
-	overwrittenTimestamps = promauto.With(prometheus.DefaultRegisterer).NewCounter(prometheus.CounterOpts{
-		Name: "telemeter_v1_forward_overwritten_timestamps_total",
-		Help: "Total number of timestamps from v1 requests that were overwritten.",
-	})
-)
+type metrics struct {
+	forwardSamples        prometheus.Counter
+	forwardRequests       *prometheus.CounterVec
+	forwardDuration       *prometheus.HistogramVec
+	overwrittenTimestamps prometheus.Counter
+}
 
 // ForwardHandler gets a request containing metric families and
 // converts it to a remote write request forwarding it to the upstream at fowardURL.
-func ForwardHandler(logger log.Logger, forwardURL *url.URL, tenantID string, client *http.Client) http.HandlerFunc {
+func ForwardHandler(logger log.Logger, reg prometheus.Registerer, client *http.Client, forwardURL *url.URL, tenantID string) http.HandlerFunc {
+	m := &metrics{
+		forwardSamples: promauto.With(reg).NewCounter(prometheus.CounterOpts{
+			Name: "telemeter_v1_forward_samples_total",
+			Help: "Total amount of successfully forwarded samples from v1 requests.",
+		}),
+		forwardRequests: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+			Name: "telemeter_v1_forward_requests_total",
+			Help: "Total amount of forwarded v1 requests.",
+		}, []string{"result"}),
+		forwardDuration: promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "telemeter_v1_forward_request_duration_seconds",
+			Help:    "Tracks the duration of all requests forwarded v1.",
+			Buckets: []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5}, // max = timeout
+		}, []string{"status_code"}),
+		overwrittenTimestamps: promauto.With(reg).NewCounter(prometheus.CounterOpts{
+			Name: "telemeter_v1_forward_overwritten_timestamps_total",
+			Help: "Total number of timestamps from v1 requests that were overwritten.",
+		}),
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		rlogger := log.With(logger, "request", middleware.GetReqID(r.Context()))
 
@@ -81,7 +88,7 @@ func ForwardHandler(logger log.Logger, forwardURL *url.URL, tenantID string, cli
 		}
 		families = metricfamily.Pack(families)
 
-		timeseries, err := convertToTimeseries(&PartitionedMetrics{ClusterID: clusterID, Families: families}, time.Now())
+		timeseries, err := convertToTimeseries(m.overwrittenTimestamps, &PartitionedMetrics{ClusterID: clusterID, Families: families}, time.Now())
 		if err != nil {
 			msg := "failed to convert timeseries"
 			level.Warn(rlogger).Log("msg", msg, "err", err)
@@ -129,7 +136,9 @@ func ForwardHandler(logger log.Logger, forwardURL *url.URL, tenantID string, cli
 		}
 		defer runutil.ExhaustCloseWithLogOnErr(rlogger, resp.Body, "close forward resp body")
 
-		forwardDuration.WithLabelValues(fmt.Sprintf("%d", resp.StatusCode)).Observe(time.Since(begin).Seconds())
+		m.forwardDuration.
+			WithLabelValues(fmt.Sprintf("%d", resp.StatusCode)).
+			Observe(time.Since(begin).Seconds())
 
 		meanDrift := timeseriesMeanDrift(timeseries, time.Now().Unix())
 		if math.Abs(meanDrift) > 10 {
@@ -148,11 +157,11 @@ func ForwardHandler(logger log.Logger, forwardURL *url.URL, tenantID string, cli
 		for _, ts := range wreq.Timeseries {
 			s = s + len(ts.Samples)
 		}
-		forwardSamples.Add(float64(s))
+		m.forwardSamples.Add(float64(s))
 	}
 }
 
-func convertToTimeseries(p *PartitionedMetrics, now time.Time) ([]prompb.TimeSeries, error) {
+func convertToTimeseries(overwrittenTimestamps prometheus.Counter, p *PartitionedMetrics, now time.Time) ([]prompb.TimeSeries, error) {
 	var timeseries []prompb.TimeSeries
 
 	timestamp := now.UnixNano() / int64(time.Millisecond)

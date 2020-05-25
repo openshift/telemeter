@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/prompb"
 )
@@ -152,7 +153,7 @@ func Test_convertToTimeseries(t *testing.T) {
 	}}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			out, err := convertToTimeseries(tt.in, now)
+			out, err := convertToTimeseries(prometheus.NewCounter(prometheus.CounterOpts{}), tt.in, now)
 			if err != nil {
 				t.Errorf("converting timeseries errored: %v", err)
 			}

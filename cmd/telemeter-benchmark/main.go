@@ -15,6 +15,8 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/oklog/run"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/version"
 	"github.com/spf13/cobra"
 
 	"github.com/openshift/telemeter/pkg/benchmark"
@@ -132,6 +134,16 @@ func runCmd() error {
 		return fmt.Errorf("either --to or --to-auth and --to-upload must be specified")
 	}
 
+	// Initialize default Prometheus Registry.
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(
+		version.NewCollector("telemeter_benchmark"),
+		prometheus.NewGoCollector(),
+		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
+	)
+	// In case some packages still use default Register.
+	prometheus.DefaultRegisterer = reg
+
 	cfg := &benchmark.Config{
 		ToAuthorize: toAuthorize,
 		ToUpload:    toUpload,
@@ -144,7 +156,7 @@ func runCmd() error {
 		Logger:      opt.Logger,
 	}
 
-	b, err := benchmark.New(cfg)
+	b, err := benchmark.New(reg, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to configure the Telemeter benchmarking tool: %v", err)
 	}

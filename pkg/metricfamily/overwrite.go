@@ -12,23 +12,30 @@ import (
 // or within the present (+-5min)
 const driftRange = 5 * time.Minute
 
-var (
-	overwrittenMetrics = promauto.With(prometheus.DefaultRegisterer).NewCounterVec(prometheus.CounterOpts{
-		Name: "telemeter_overwritten_timestamps_total",
-		Help: "Number of timestamps that were in the past, present or future",
-	}, []string{"tense"})
-)
+// TimestampOverwriter describes a mechanism to manipulate timestamps of metrics.
+type TimestampOverwriter struct {
+	overwrittenMetrics *prometheus.CounterVec
+}
 
-// OverwriteTimestamps sets all timestamps to the current time.
+func NewTimestampOverwriter(reg prometheus.Registerer) TimestampOverwriter {
+	return TimestampOverwriter{
+		overwrittenMetrics: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+			Name: "telemeter_overwritten_timestamps_total",
+			Help: "Number of timestamps that were in the past, present or future",
+		}, []string{"tense"}),
+	}
+}
+
+// Overwrite sets all timestamps to the current time.
 // We essentially already do this in Telemeter v1 by dropping all timestamps on Telemeter Servers
 // and then when federating Telemeter Prometheus sets its own current timestamp.
 // For v2 we want to be consistent when using remote-write and thus we overwrite the timestamps
 // on Telemeter Server already to forward the same timestamps to both systems.
-func OverwriteTimestamps(now func() time.Time) TransformerFunc {
+func (w TimestampOverwriter) Overwrite(now func() time.Time) TransformerFunc {
 	return func(family *client.MetricFamily) (bool, error) {
 		timestamp := now().Unix() * 1000
 		for i, m := range family.Metric {
-			observeDrift(now, m.GetTimestampMs())
+			observeDrift(w.overwrittenMetrics, now, m.GetTimestampMs())
 
 			family.Metric[i].TimestampMs = &timestamp
 		}
@@ -36,7 +43,7 @@ func OverwriteTimestamps(now func() time.Time) TransformerFunc {
 	}
 }
 
-func observeDrift(now func() time.Time, ms int64) {
+func observeDrift(overwrittenMetrics *prometheus.CounterVec, now func() time.Time, ms int64) {
 	timestamp := time.Unix(ms/1000, 0)
 
 	if timestamp.Before(now().Add(-driftRange)) {
@@ -46,5 +53,4 @@ func observeDrift(now func() time.Time, ms int64) {
 	} else {
 		overwrittenMetrics.WithLabelValues("present").Inc()
 	}
-
 }

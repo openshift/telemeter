@@ -26,11 +26,13 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/oklog/run"
-	"github.com/openshift/telemeter/pkg/runutil"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/common/version"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
+
+	"github.com/openshift/telemeter/pkg/runutil"
 
 	"github.com/openshift/telemeter/pkg/authorize"
 	"github.com/openshift/telemeter/pkg/authorize/jwt"
@@ -208,6 +210,16 @@ type Paths struct {
 }
 
 func (o *Options) Run(ctx context.Context, externalListener, internalListener net.Listener) error {
+	// Initialize default Prometheus Registry.
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(
+		version.NewCollector("telemeter_server"),
+		prometheus.NewGoCollector(),
+		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
+	)
+	// In case some packages still use default Register.
+	prometheus.DefaultRegisterer = reg
+
 	for _, flag := range o.LabelFlag {
 		values := strings.SplitN(flag, "=", 2)
 		if len(values) != 2 {
@@ -252,14 +264,14 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 
 		authorizeClient = http.Client{
 			Timeout:   20 * time.Second,
-			Transport: telemeter_http.NewInstrumentedRoundTripper("authorize", transport),
+			Transport: telemeter_http.NewInstrumentedRoundTripper(reg, "authorize", transport),
 		}
 	} else {
 		level.Warn(o.Logger).Log("msg", "no AuthorizeEndpoint specified, server /authorize will be exposed without any auth")
 	}
 
 	forwardClient := &http.Client{
-		Transport: telemeter_http.NewInstrumentedRoundTripper("forward", transport),
+		Transport: telemeter_http.NewInstrumentedRoundTripper(reg, "forward", transport),
 	}
 
 	if o.OIDCIssuer != "" {
@@ -272,7 +284,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 			&http.Client{
 				// Note, that e.g forward timeouts after 5s.
 				Timeout:   20 * time.Second,
-				Transport: telemeter_http.NewInstrumentedRoundTripper("oauth", transport),
+				Transport: telemeter_http.NewInstrumentedRoundTripper(reg, "oauth", transport),
 			},
 		)
 
@@ -350,6 +362,12 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 			internalListener.Close()
 		})
 	}
+
+	ins := server.NewNopInstrumentationMiddleware()
+	if reg != nil {
+		ins = server.NewInstrumentationMiddleware(reg)
+	}
+
 	{
 		external := chi.NewRouter()
 		external.Use(middleware.RequestID)
@@ -452,20 +470,20 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 
 			external.Post("/authorize",
 				runutil.ExhaustCloseRequestBodyHandler(o.Logger,
-					server.InstrumentedHandler("authorize",
+					ins.NewHandler("authorize",
 						auth,
 					),
 				).ServeHTTP)
 
 			external.Post("/upload",
 				runutil.ExhaustCloseRequestBodyHandler(o.Logger,
-					server.InstrumentedHandler("upload",
+					ins.NewHandler("upload",
 						authorize.NewAuthorizeClientHandler(jwtAuthorizer,
 							server.ClusterID(o.Logger, o.clusterIDKey,
 								server.Ratelimit(o.Logger, o.Ratelimit, time.Now,
 									server.Snappy(
-										server.Validate(o.Logger, transforms, 24*time.Hour, o.LimitBytes, time.Now,
-											server.ForwardHandler(o.Logger, forwardURL, o.TenantID, forwardClient),
+										server.Validate(o.Logger, reg, transforms, 24*time.Hour, o.LimitBytes, time.Now,
+											server.ForwardHandler(o.Logger, reg, forwardClient, forwardURL, o.TenantID),
 										),
 									),
 								),
@@ -483,14 +501,14 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 			if len(o.Memcacheds) > 0 {
 				mc := memcached.New(context.Background(), o.MemcachedInterval, o.MemcachedExpire, o.Memcacheds...)
 				l := log.With(o.Logger, "component", "cache")
-				v2AuthorizeClient.Transport = cache.NewRoundTripper(mc, tollbooth.ExtractToken, v2AuthorizeClient.Transport, l, prometheus.DefaultRegisterer)
+				v2AuthorizeClient.Transport = cache.NewRoundTripper(mc, tollbooth.ExtractToken, v2AuthorizeClient.Transport, l, reg)
 			}
 
-			receiver := receive.NewHandler(o.Logger, o.ForwardURL, prometheus.DefaultRegisterer, o.TenantID)
+			receiver := receive.NewHandler(o.Logger, reg, o.ForwardURL, o.TenantID)
 
 			external.Handle("/metrics/v1/receive",
 				runutil.ExhaustCloseRequestBodyHandler(o.Logger,
-					server.InstrumentedHandler("receive",
+					ins.NewHandler("receive",
 						authorize.NewHandler(o.Logger, &v2AuthorizeClient, authorizeURL, o.TenantKey,
 							receive.LimitBodySize(receive.DefaultRequestLimit,
 								receive.ValidateLabels(

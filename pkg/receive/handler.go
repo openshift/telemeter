@@ -39,7 +39,7 @@ type Handler struct {
 }
 
 // NewHandler returns a new Handler with a http client
-func NewHandler(logger log.Logger, forwardURL string, reg prometheus.Registerer, tenantID string) *Handler {
+func NewHandler(logger log.Logger, reg prometheus.Registerer, forwardURL string, tenantID string) *Handler {
 	h := &Handler{
 		ForwardURL: forwardURL,
 		tenantID:   tenantID,
@@ -47,7 +47,7 @@ func NewHandler(logger log.Logger, forwardURL string, reg prometheus.Registerer,
 			Timeout: forwardTimeout,
 		},
 		logger: log.With(logger, "component", "receive/handler"),
-		forwardRequestsTotal: promauto.With(prometheus.DefaultRegisterer).NewCounterVec(
+		forwardRequestsTotal: promauto.With(reg).NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "telemeter_forward_requests_total",
 				Help: "The number of forwarded remote-write requests.",

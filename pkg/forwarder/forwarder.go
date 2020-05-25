@@ -30,21 +30,6 @@ type RuleMatcher interface {
 	MatchRules() []string
 }
 
-var (
-	gaugeFederateSamples = promauto.With(prometheus.DefaultRegisterer).NewGauge(prometheus.GaugeOpts{
-		Name: "federate_samples",
-		Help: "Tracks the number of samples per federation",
-	})
-	gaugeFederateFilteredSamples = promauto.With(prometheus.DefaultRegisterer).NewGauge(prometheus.GaugeOpts{
-		Name: "federate_filtered_samples",
-		Help: "Tracks the number of samples filtered per federation",
-	})
-	gaugeFederateErrors = promauto.With(prometheus.DefaultRegisterer).NewGauge(prometheus.GaugeOpts{
-		Name: "federate_errors",
-		Help: "The number of times forwarding federated metrics has failed",
-	})
-)
-
 // Config defines the parameters that can be used to configure a worker.
 // The only required field is `From`.
 type Config struct {
@@ -70,10 +55,42 @@ type Config struct {
 	Logger log.Logger
 }
 
+type Metrics struct {
+	fromClientMetrics *metricsclient.Metrics
+	toClientMetrics   *metricsclient.Metrics
+
+	gaugeFederateSamples         prometheus.Gauge
+	gaugeFederateFilteredSamples prometheus.Gauge
+	gaugeFederateErrors          prometheus.Gauge
+}
+
+func NewMetrics(reg prometheus.Registerer) *Metrics {
+	return &Metrics{
+		fromClientMetrics: metricsclient.NewMetrics(reg, "federate_from"),
+		toClientMetrics:   metricsclient.NewMetrics(reg, "federate_to"),
+
+		gaugeFederateSamples: promauto.With(reg).NewGauge(prometheus.GaugeOpts{
+			Name: "federate_samples",
+			Help: "Tracks the number of samples per federation",
+		}),
+		gaugeFederateFilteredSamples: promauto.With(reg).NewGauge(prometheus.GaugeOpts{
+			Name: "federate_filtered_samples",
+			Help: "Tracks the number of samples filtered per federation",
+		}),
+		gaugeFederateErrors: promauto.With(reg).NewGauge(prometheus.GaugeOpts{
+			Name: "federate_errors",
+			Help: "The number of times forwarding federated metrics has failed",
+		}),
+	}
+}
+
 // Worker represents a metrics forwarding agent. It collects metrics from a source URL and forwards them to a sink.
 // A Worker should be configured with a `Config` and instantiated with the `New` func.
 // Workers are thread safe; all access to shared fields are synchronized.
 type Worker struct {
+	logger  log.Logger
+	metrics *Metrics
+
 	fromClient *metricsclient.Client
 	toClient   *metricsclient.Client
 	from       *url.URL
@@ -86,23 +103,23 @@ type Worker struct {
 	lastMetrics []*clientmodel.MetricFamily
 	lock        sync.Mutex
 	reconfigure chan struct{}
-
-	logger log.Logger
 }
 
 // New creates a new Worker based on the provided Config. If the Config contains invalid
 // values, then an error is returned.
-func New(cfg Config) (*Worker, error) {
+func New(metrics *Metrics, cfg Config) (*Worker, error) {
 	if cfg.From == nil {
 		return nil, errors.New("a URL from which to scrape is required")
 	}
 	logger := log.With(cfg.Logger, "component", "forwarder")
 	w := Worker{
+		logger:  log.With(cfg.Logger, "component", "forwarder/worker"),
+		metrics: metrics,
+
 		from:        cfg.From,
 		interval:    cfg.Interval,
 		reconfigure: make(chan struct{}),
 		to:          cfg.ToUpload,
-		logger:      log.With(cfg.Logger, "component", "forwarder/worker"),
 	}
 
 	if w.interval == 0 {
@@ -167,7 +184,7 @@ func New(cfg Config) (*Worker, error) {
 	if len(cfg.FromToken) > 0 {
 		fromClient.Transport = telemeterhttp.NewBearerRoundTripper(cfg.FromToken, fromClient.Transport)
 	}
-	w.fromClient = metricsclient.New(logger, fromClient, cfg.LimitBytes, w.interval, "federate_from")
+	w.fromClient = metricsclient.New(logger, metrics.fromClientMetrics, fromClient, cfg.LimitBytes, w.interval)
 
 	// Create the `toClient`.
 	toTransport := metricsclient.DefaultTransport()
@@ -193,7 +210,7 @@ func New(cfg Config) (*Worker, error) {
 		toClient.Transport = rt
 		transformer.With(metricfamily.NewLabel(nil, rt))
 	}
-	w.toClient = metricsclient.New(logger, toClient, cfg.LimitBytes, w.interval, "federate_to")
+	w.toClient = metricsclient.New(logger, metrics.toClientMetrics, toClient, cfg.LimitBytes, w.interval)
 	w.transformer = transformer
 
 	// Configure the matching rules.
@@ -222,7 +239,7 @@ func New(cfg Config) (*Worker, error) {
 // Reconfigure temporarily stops a worker and reconfigures is with the provided Config.
 // Is thread safe and can run concurrently with `LastMetrics` and `Run`.
 func (w *Worker) Reconfigure(cfg Config) error {
-	worker, err := New(cfg)
+	worker, err := New(w.metrics, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to reconfigure: %v", err)
 	}
@@ -259,7 +276,7 @@ func (w *Worker) Run(ctx context.Context) {
 		w.lock.Unlock()
 
 		if err := w.forward(ctx); err != nil {
-			gaugeFederateErrors.Inc()
+			w.metrics.gaugeFederateErrors.Inc()
 			level.Error(w.logger).Log("msg", "unable to forward results", "err", err)
 			wait = time.Minute
 		}
@@ -304,8 +321,8 @@ func (w *Worker) forward(ctx context.Context) error {
 	families = metricfamily.Pack(families)
 	after := metricfamily.MetricsCount(families)
 
-	gaugeFederateSamples.Set(float64(before))
-	gaugeFederateFilteredSamples.Set(float64(before - after))
+	w.metrics.gaugeFederateSamples.Set(float64(before))
+	w.metrics.gaugeFederateFilteredSamples.Set(float64(before - after))
 
 	w.lastMetrics = families
 

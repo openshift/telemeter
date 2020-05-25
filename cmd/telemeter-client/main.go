@@ -15,7 +15,9 @@ import (
 	"time"
 
 	"github.com/oklog/run"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/version"
 	"github.com/spf13/cobra"
 
 	"github.com/go-kit/kit/log"
@@ -228,6 +230,16 @@ func (o *Options) Run() error {
 	transformer.With(metricfamily.TransformerFunc(metricfamily.PackMetrics))
 	transformer.With(metricfamily.TransformerFunc(metricfamily.SortMetrics))
 
+	// Initialize default Prometheus Registry.
+	reg := prometheus.NewRegistry()
+	reg.MustRegister(
+		version.NewCollector("telemeter_client"),
+		prometheus.NewGoCollector(),
+		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
+	)
+	// In case some packages still use default Register.
+	prometheus.DefaultRegisterer = reg
+
 	cfg := forwarder.Config{
 		From:          from,
 		ToAuthorize:   toAuthorize,
@@ -251,7 +263,7 @@ func (o *Options) Run() error {
 		Logger: o.Logger,
 	}
 
-	worker, err := forwarder.New(cfg)
+	worker, err := forwarder.New(forwarder.NewMetrics(reg), cfg)
 	if err != nil {
 		return fmt.Errorf("failed to configure Telemeter client: %v", err)
 	}

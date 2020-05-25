@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 
@@ -64,7 +65,8 @@ func ClusterID(logger log.Logger, key string, next http.HandlerFunc) http.Handle
 }
 
 // Validate the payload of a request against given and required rules.
-func Validate(logger log.Logger, baseTransforms metricfamily.Transformer, maxAge time.Duration, limitBytes int64, now func() time.Time, next http.HandlerFunc) http.HandlerFunc {
+func Validate(logger log.Logger, reg prometheus.Registerer, baseTransforms metricfamily.Transformer, maxAge time.Duration, limitBytes int64, now func() time.Time, next http.HandlerFunc) http.HandlerFunc {
+	tw := metricfamily.NewTimestampOverwriter(reg)
 	return func(w http.ResponseWriter, r *http.Request) {
 		rlogger := log.With(logger, "request", middleware.GetReqID(r.Context()))
 
@@ -103,7 +105,7 @@ func Validate(logger log.Logger, baseTransforms metricfamily.Transformer, maxAge
 			transforms.With(metricfamily.NewErrorInvalidFederateSamples(now().Add(-maxAge)))
 		}
 
-		transforms.With(metricfamily.OverwriteTimestamps(now))
+		transforms.With(tw.Overwrite(now))
 		transforms.With(baseTransforms)
 
 		decoder := expfmt.NewDecoder(bytes.NewBuffer(body), expfmt.ResponseFormat(r.Header))

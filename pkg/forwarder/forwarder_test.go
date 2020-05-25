@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/go-kit/kit/log"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 func TestNew(t *testing.T) {
@@ -158,7 +159,7 @@ func TestNew(t *testing.T) {
 	}
 
 	for i := range tc {
-		if _, err := New(tc[i].c); (err != nil) != tc[i].err {
+		if _, err := New(NewMetrics(prometheus.NewRegistry()), tc[i].c); (err != nil) != tc[i].err {
 			no := "no"
 			if tc[i].err {
 				no = "an"
@@ -177,7 +178,7 @@ func TestReconfigure(t *testing.T) {
 		From:   from,
 		Logger: log.NewNopLogger(),
 	}
-	w, err := New(c)
+	w, err := New(NewMetrics(prometheus.NewRegistry()), c)
 	if err != nil {
 		t.Fatalf("failed to create new worker: %v", err)
 	}
@@ -240,7 +241,7 @@ func TestRun(t *testing.T) {
 		From:   &url.URL{},
 		Logger: log.NewNopLogger(),
 	}
-	w, err := New(c)
+	w, err := New(NewMetrics(prometheus.NewRegistry()), c)
 	if err != nil {
 		t.Fatalf("failed to create new worker: %v", err)
 	}

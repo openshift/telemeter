@@ -36,24 +36,15 @@ const (
 	LimitBytes        = 200 * 1024
 )
 
-var (
-	forwardErrors = promauto.With(prometheus.DefaultRegisterer).NewCounter(prometheus.CounterOpts{
-		Name: "forward_errors",
-		Help: "The number of times forwarding federated metrics has failed",
-	})
-	forwardedSamples = promauto.With(prometheus.DefaultRegisterer).NewCounter(prometheus.CounterOpts{
-		Name: "forwarded_samples",
-		Help: "The total number of forwarded samples for all time series",
-	})
-)
-
 type Benchmark struct {
+	logger log.Logger
+	reg    prometheus.Registerer
+
 	cancel      context.CancelFunc
 	lock        sync.Mutex
 	reconfigure chan struct{}
 	running     bool
 	workers     []*worker
-	logger      log.Logger
 }
 
 // Config defines the parameters that can be used to configure a worker.
@@ -74,23 +65,28 @@ type Config struct {
 // A worker should be configured with a `Config` and instantiated with the `New` func.
 // workers are thread safe; all access to shared fields is synchronized.
 type worker struct {
+	logger log.Logger
+
 	client      *metricsclient.Client
 	id          string
 	interval    time.Duration
 	metrics     []*clientmodel.MetricFamily
 	to          *url.URL
 	transformer metricfamily.Transformer
-	logger      log.Logger
+
+	forwardErrors    prometheus.Counter
+	forwardedSamples prometheus.Counter
 }
 
 // New creates a new Benchmark based on the provided Config. If the Config contains invalid
 // values, then an error is returned.
-func New(cfg *Config) (*Benchmark, error) {
+func New(reg prometheus.Registerer, cfg *Config) (*Benchmark, error) {
 	logger := log.With(cfg.Logger, "component", "benchmark")
 	b := Benchmark{
+		logger:      logger,
+		reg:         reg,
 		reconfigure: make(chan struct{}),
 		workers:     make([]*worker, cfg.Workers),
-		logger:      logger,
 	}
 
 	interval := cfg.Interval
@@ -131,10 +127,18 @@ func New(cfg *Config) (*Benchmark, error) {
 
 	for i := range b.workers {
 		w := &worker{
+			logger:   logger,
 			id:       uuid.Must(uuid.NewV4()).String(),
 			interval: interval,
 			to:       cfg.ToUpload,
-			logger:   logger,
+			forwardErrors: promauto.With(reg).NewCounter(prometheus.CounterOpts{
+				Name: "forward_errors",
+				Help: "The number of times forwarding federated metrics has failed",
+			}),
+			forwardedSamples: promauto.With(reg).NewCounter(prometheus.CounterOpts{
+				Name: "forwarded_samples",
+				Help: "The total number of forwarded samples for all time series",
+			}),
 		}
 
 		if _, err := f.Seek(0, 0); err != nil {
@@ -178,7 +182,7 @@ func New(cfg *Config) (*Benchmark, error) {
 			client.Transport = rt
 			transformer.With(metricfamily.NewLabel(nil, rt))
 		}
-		w.client = metricsclient.New(logger, client, LimitBytes, w.interval, "federate_to")
+		w.client = metricsclient.New(logger, metricsclient.NewMetrics(reg, "federate_to"), client, LimitBytes, w.interval)
 		w.transformer = transformer
 		b.workers[i] = w
 	}
@@ -243,9 +247,9 @@ func (b *Benchmark) Stop() {
 	}
 }
 
-// Reconfigure reconfigures an existing Benchmark instnace.
+// Reconfigure reconfigures an existing Benchmark instance.
 func (b *Benchmark) Reconfigure(cfg *Config) error {
-	benchmark, err := New(cfg)
+	benchmark, err := New(b.reg, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to reconfigure: %v", err)
 	}
@@ -266,7 +270,7 @@ func (w *worker) run(ctx context.Context) {
 		m := w.generate()
 		wait := w.interval
 		if err := w.forward(ctx, m); err != nil {
-			forwardErrors.Inc()
+			w.forwardErrors.Inc()
 			level.Error(w.logger).Log("msg", "unable to forward results", "worker", w.id, "err", err)
 			wait = time.Minute
 		}
@@ -274,7 +278,7 @@ func (w *worker) run(ctx context.Context) {
 		for i := range m {
 			n += len(m[i].Metric)
 		}
-		forwardedSamples.Add(float64(n))
+		w.forwardedSamples.Add(float64(n))
 		select {
 		// If the context is cancelled, then we're done.
 		case <-ctx.Done():

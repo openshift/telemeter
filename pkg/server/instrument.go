@@ -8,39 +8,69 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-var (
-	requestDuration = promauto.With(prometheus.DefaultRegisterer).NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name: "http_request_duration_seconds",
-			Help: "Tracks the latencies for HTTP requests.",
-		},
-		[]string{"code", "handler", "method"},
-	)
+// InstrumentationMiddleware holds necessary metrics to instrument an http.Server
+// and provides a middleware that monitors HTTP requests and responses.
+type InstrumentationMiddleware interface {
+	// NewHandler returns an HTTP middleware that monitors HTTP requests and responses.
+	NewHandler(handlerName string, handler http.Handler) http.HandlerFunc
+}
 
-	requestSize = promauto.With(prometheus.DefaultRegisterer).NewSummaryVec(
-		prometheus.SummaryOpts{
-			Name: "http_request_size_bytes",
-			Help: "Tracks the size of HTTP requests.",
-		},
-		[]string{"code", "handler", "method"},
-	)
+type nopInstrumentationMiddleware struct{}
 
-	requestsTotal = promauto.With(prometheus.DefaultRegisterer).NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "http_requests_total",
-			Help: "Tracks the number of HTTP requests.",
-		}, []string{"code", "handler", "method"},
-	)
-)
+func (ins nopInstrumentationMiddleware) NewHandler(handlerName string, handler http.Handler) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handler.ServeHTTP(w, r)
+	})
+}
 
-// InstrumentedHandler is an HTTP middleware that monitors HTTP requests and responses.
-func InstrumentedHandler(handlerName string, next http.Handler) http.Handler {
+// NewNopInstrumentationMiddleware provides a InstrumentationMiddleware which does nothing.
+func NewNopInstrumentationMiddleware() InstrumentationMiddleware {
+	return nopInstrumentationMiddleware{}
+}
+
+type defaultInstrumentationMiddleware struct {
+	requestDuration *prometheus.HistogramVec
+	requestSize     *prometheus.SummaryVec
+	requestsTotal   *prometheus.CounterVec
+}
+
+// NewInstrumentationMiddleware provides default InstrumentationMiddleware.
+func NewInstrumentationMiddleware(reg prometheus.Registerer) InstrumentationMiddleware {
+	ins := defaultInstrumentationMiddleware{
+		requestDuration: promauto.With(reg).NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name: "http_request_duration_seconds",
+				Help: "Tracks the latencies for HTTP requests.",
+			},
+			[]string{"code", "handler", "method"},
+		),
+
+		requestSize: promauto.With(reg).NewSummaryVec(
+			prometheus.SummaryOpts{
+				Name: "http_request_size_bytes",
+				Help: "Tracks the size of HTTP requests.",
+			},
+			[]string{"code", "handler", "method"},
+		),
+
+		requestsTotal: promauto.With(reg).NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "http_requests_total",
+				Help: "Tracks the number of HTTP requests.",
+			}, []string{"code", "handler", "method"},
+		),
+	}
+	return &ins
+}
+
+// NewHandler returns an HTTP middleware that monitors HTTP requests and responses.
+func (ins *defaultInstrumentationMiddleware) NewHandler(handlerName string, next http.Handler) http.HandlerFunc {
 	return promhttp.InstrumentHandlerDuration(
-		requestDuration.MustCurryWith(prometheus.Labels{"handler": handlerName}),
+		ins.requestDuration.MustCurryWith(prometheus.Labels{"handler": handlerName}),
 		promhttp.InstrumentHandlerRequestSize(
-			requestSize.MustCurryWith(prometheus.Labels{"handler": handlerName}),
+			ins.requestSize.MustCurryWith(prometheus.Labels{"handler": handlerName}),
 			promhttp.InstrumentHandlerCounter(
-				requestsTotal.MustCurryWith(prometheus.Labels{"handler": handlerName}),
+				ins.requestsTotal.MustCurryWith(prometheus.Labels{"handler": handlerName}),
 				next,
 			),
 		),

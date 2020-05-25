@@ -85,7 +85,7 @@ func TestReceiveValidateLabels(t *testing.T) {
 
 	var telemeterServer *httptest.Server
 	{
-		receiver := receive.NewHandler(log.NewNopLogger(), receiveServer.URL, prometheus.NewRegistry(), "default-tenant")
+		receiver := receive.NewHandler(log.NewNopLogger(), prometheus.NewRegistry(), receiveServer.URL, "default-tenant")
 
 		telemeterServer = httptest.NewServer(
 			fakeAuthorizeHandler(
@@ -135,7 +135,7 @@ func TestLimitBodySize(t *testing.T) {
 
 	var telemeterServer *httptest.Server
 	{
-		receiver := receive.NewHandler(log.NewNopLogger(), receiveServer.URL, prometheus.NewRegistry(), "default-tenant")
+		receiver := receive.NewHandler(log.NewNopLogger(), prometheus.NewRegistry(), receiveServer.URL, "default-tenant")
 
 		telemeterServer = httptest.NewServer(
 			fakeAuthorizeHandler(
