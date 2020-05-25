@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	client "github.com/prometheus/client_model/go"
 )
 
@@ -12,15 +13,11 @@ import (
 const driftRange = 5 * time.Minute
 
 var (
-	overwrittenMetrics = prometheus.NewCounterVec(prometheus.CounterOpts{
+	overwrittenMetrics = promauto.With(prometheus.DefaultRegisterer).NewCounterVec(prometheus.CounterOpts{
 		Name: "telemeter_overwritten_timestamps_total",
 		Help: "Number of timestamps that were in the past, present or future",
 	}, []string{"tense"})
 )
-
-func init() {
-	prometheus.MustRegister(overwrittenMetrics)
-}
 
 // OverwriteTimestamps sets all timestamps to the current time.
 // We essentially already do this in Telemeter v1 by dropping all timestamps on Telemeter Servers

@@ -3,13 +3,14 @@ package http
 import (
 	"net/http"
 
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 var (
-	inFlightGauge = prometheus.NewGaugeVec(
+	inFlightGauge = promauto.With(prometheus.DefaultRegisterer).NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "client_in_flight_requests",
 			Help: "A gauge of in-flight requests for the wrapped client.",
@@ -17,7 +18,7 @@ var (
 		[]string{"client"},
 	)
 
-	counter = prometheus.NewCounterVec(
+	counter = promauto.With(prometheus.DefaultRegisterer).NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "client_api_requests_total",
 			Help: "A counter for requests from the wrapped client.",
@@ -25,7 +26,7 @@ var (
 		[]string{"code", "method", "client"},
 	)
 
-	dnsLatencyVec = prometheus.NewHistogramVec(
+	dnsLatencyVec = promauto.With(prometheus.DefaultRegisterer).NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "dns_duration_seconds",
 			Help:    "Trace dns latency histogram.",
@@ -34,7 +35,7 @@ var (
 		[]string{"event", "client"},
 	)
 
-	tlsLatencyVec = prometheus.NewHistogramVec(
+	tlsLatencyVec = promauto.With(prometheus.DefaultRegisterer).NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "tls_duration_seconds",
 			Help:    "Trace tls latency histogram.",
@@ -43,7 +44,7 @@ var (
 		[]string{"event", "client"},
 	)
 
-	histVec = prometheus.NewHistogramVec(
+	histVec = promauto.With(prometheus.DefaultRegisterer).NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "request_duration_seconds",
 			Help:    "A histogram of request latencies.",
@@ -52,10 +53,6 @@ var (
 		[]string{"method", "client"},
 	)
 )
-
-func init() {
-	prometheus.MustRegister(counter, tlsLatencyVec, dnsLatencyVec, histVec, inFlightGauge)
-}
 
 func NewInstrumentedRoundTripper(clientName string, next http.RoundTripper) http.RoundTripper {
 	trace := &promhttp.InstrumentTrace{

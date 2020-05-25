@@ -17,6 +17,7 @@ import (
 	"github.com/go-kit/kit/log/level"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	clientmodel "github.com/prometheus/client_model/go"
 
 	"github.com/openshift/telemeter/pkg/authorize"
@@ -30,25 +31,19 @@ type RuleMatcher interface {
 }
 
 var (
-	gaugeFederateSamples = prometheus.NewGauge(prometheus.GaugeOpts{
+	gaugeFederateSamples = promauto.With(prometheus.DefaultRegisterer).NewGauge(prometheus.GaugeOpts{
 		Name: "federate_samples",
 		Help: "Tracks the number of samples per federation",
 	})
-	gaugeFederateFilteredSamples = prometheus.NewGauge(prometheus.GaugeOpts{
+	gaugeFederateFilteredSamples = promauto.With(prometheus.DefaultRegisterer).NewGauge(prometheus.GaugeOpts{
 		Name: "federate_filtered_samples",
 		Help: "Tracks the number of samples filtered per federation",
 	})
-	gaugeFederateErrors = prometheus.NewGauge(prometheus.GaugeOpts{
+	gaugeFederateErrors = promauto.With(prometheus.DefaultRegisterer).NewGauge(prometheus.GaugeOpts{
 		Name: "federate_errors",
 		Help: "The number of times forwarding federated metrics has failed",
 	})
 )
-
-func init() {
-	prometheus.MustRegister(
-		gaugeFederateErrors, gaugeFederateSamples, gaugeFederateFilteredSamples,
-	)
-}
 
 // Config defines the parameters that can be used to configure a worker.
 // The only required field is `From`.

@@ -4,11 +4,12 @@ import (
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
-	requestDuration = prometheus.NewHistogramVec(
+	requestDuration = promauto.With(prometheus.DefaultRegisterer).NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name: "http_request_duration_seconds",
 			Help: "Tracks the latencies for HTTP requests.",
@@ -16,7 +17,7 @@ var (
 		[]string{"code", "handler", "method"},
 	)
 
-	requestSize = prometheus.NewSummaryVec(
+	requestSize = promauto.With(prometheus.DefaultRegisterer).NewSummaryVec(
 		prometheus.SummaryOpts{
 			Name: "http_request_size_bytes",
 			Help: "Tracks the size of HTTP requests.",
@@ -24,17 +25,13 @@ var (
 		[]string{"code", "handler", "method"},
 	)
 
-	requestsTotal = prometheus.NewCounterVec(
+	requestsTotal = promauto.With(prometheus.DefaultRegisterer).NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "http_requests_total",
 			Help: "Tracks the number of HTTP requests.",
 		}, []string{"code", "handler", "method"},
 	)
 )
-
-func init() {
-	prometheus.MustRegister(requestDuration, requestSize, requestsTotal)
-}
 
 // InstrumentedHandler is an HTTP middleware that monitors HTTP requests and responses.
 func InstrumentedHandler(handlerName string, next http.Handler) http.Handler {

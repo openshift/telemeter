@@ -16,6 +16,7 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/golang/snappy"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 
@@ -23,21 +24,15 @@ import (
 )
 
 var (
-	gaugeRequestRetrieve = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	gaugeRequestRetrieve = promauto.With(prometheus.DefaultRegisterer).NewGaugeVec(prometheus.GaugeOpts{
 		Name: "metricsclient_request_retrieve",
 		Help: "Tracks the number of metrics retrievals",
 	}, []string{"client", "status_code"})
-	gaugeRequestSend = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	gaugeRequestSend = promauto.With(prometheus.DefaultRegisterer).NewGaugeVec(prometheus.GaugeOpts{
 		Name: "metricsclient_request_send",
 		Help: "Tracks the number of metrics sends",
 	}, []string{"client", "status_code"})
 )
-
-func init() {
-	prometheus.MustRegister(
-		gaugeRequestRetrieve, gaugeRequestSend,
-	)
-}
 
 type Client struct {
 	client      *http.Client

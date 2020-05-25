@@ -13,6 +13,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/prompb"
 )
 
@@ -46,16 +47,12 @@ func NewHandler(logger log.Logger, forwardURL string, reg prometheus.Registerer,
 			Timeout: forwardTimeout,
 		},
 		logger: log.With(logger, "component", "receive/handler"),
-		forwardRequestsTotal: prometheus.NewCounterVec(
+		forwardRequestsTotal: promauto.With(prometheus.DefaultRegisterer).NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "telemeter_forward_requests_total",
 				Help: "The number of forwarded remote-write requests.",
 			}, []string{"result"},
 		),
-	}
-
-	if reg != nil {
-		reg.MustRegister(h.forwardRequestsTotal)
 	}
 
 	return h

@@ -21,6 +21,7 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	uuid "github.com/satori/go.uuid"
@@ -36,22 +37,15 @@ const (
 )
 
 var (
-	forwardErrors = prometheus.NewCounter(prometheus.CounterOpts{
+	forwardErrors = promauto.With(prometheus.DefaultRegisterer).NewCounter(prometheus.CounterOpts{
 		Name: "forward_errors",
 		Help: "The number of times forwarding federated metrics has failed",
 	})
-	forwardedSamples = prometheus.NewCounter(prometheus.CounterOpts{
+	forwardedSamples = promauto.With(prometheus.DefaultRegisterer).NewCounter(prometheus.CounterOpts{
 		Name: "forwarded_samples",
 		Help: "The total number of forwarded samples for all time series",
 	})
 )
-
-func init() {
-	prometheus.MustRegister(
-		forwardErrors,
-		forwardedSamples,
-	)
-}
 
 type Benchmark struct {
 	cancel      context.CancelFunc

@@ -10,6 +10,7 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 // Cacher is able to get and set key value pairs.
@@ -82,22 +83,18 @@ func NewRoundTripper(c Cacher, key KeyFunc, next http.RoundTripper, l log.Logger
 		key:  key,
 		next: next,
 		l:    l,
-		cacheReadsTotal: prometheus.NewCounterVec(
+		cacheReadsTotal: promauto.With(reg).NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "cache_reads_total",
 				Help: "The number of read requests made to the cache.",
 			}, []string{"result"},
 		),
-		cacheWritesTotal: prometheus.NewCounterVec(
+		cacheWritesTotal: promauto.With(reg).NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "cache_writes_total",
 				Help: "The number of write requests made to the cache.",
 			}, []string{"result"},
 		),
-	}
-
-	if reg != nil {
-		reg.MustRegister(rt.cacheReadsTotal, rt.cacheWritesTotal)
 	}
 
 	return rt
