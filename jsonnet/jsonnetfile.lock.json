@@ -23,6 +23,17 @@
       "sum": "kyza6itqcvQHoKeJqsFjFQuMpj8RZsudC5/2vVxw5R0="
     },
     {
+      "name": "prometheus-operator",
+      "source": {
+        "git": {
+          "remote": "https://github.com/coreos/prometheus-operator",
+          "subdir": "jsonnet/prometheus-operator"
+        }
+      },
+      "version": "908ee0372a9ac2c6574d589fdc56a4f3cb5f12d1",
+      "sum": "L1ZFTEYXOqNH7UFnzYQ6b/0V909jq+A1twzfSwh8juE="
+    },
+    {
       "name": "telemeter",
       "source": {
         "local": {

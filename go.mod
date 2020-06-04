@@ -35,6 +35,5 @@ require (
 )
 
 // Mitigation for: https://github.com/Azure/go-autorest/issues/414
-replace github.com/Azure/go-autorest => github.com/Azure/go-autorest v12.3.0+incompatible
-
-replace k8s.io/client-go => k8s.io/client-go v0.17.0
+// replace github.com/Azure/go-autorest => github.com/Azure/go-autorest v12.3.0+incompatible
+// replace k8s.io/client-go => k8s.io/client-go v0.17.0

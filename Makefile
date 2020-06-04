@@ -1,28 +1,13 @@
+include .bingo/Variables.mk
+
 .PHONY: all build image check test-generate test-integration test-benchmark vendor dependencies manifests
 SHELL=/usr/bin/env bash -o pipefail
 
 GO_PKG=github.com/openshift/telemeter
 REPO?=quay.io/openshift/telemeter
 TAG?=$(shell git rev-parse --short HEAD)
-
-PKGS=$(shell go list ./... | grep -v -E '/vendor/|/test/(?!e2e)')
-GOLANG_FILES:=$(shell find . -name \*.go -print)
-FIRST_GOPATH:=$(firstword $(subst :, ,$(shell go env GOPATH)))
-BIN_DIR?=./_output/bin
-LIB_DIR?=./_output/lib
+PKGS=$(shell go list ./... | grep -v -E '/vendor/|/test/')
 METRICS_JSON=./_output/metrics.json
-GOLANGCI_LINT_BIN=$(BIN_DIR)/golangci-lint
-GOLANGCI_LINT_VERSION=v1.18.0
-EMBEDMD_BIN=$(BIN_DIR)/embedmd
-THANOS_BIN=$(BIN_DIR)/thanos
-UP_BIN=$(BIN_DIR)/up
-MEMCACHED_BIN=$(BIN_DIR)/memcached
-PROMETHEUS_BIN=$(BIN_DIR)/prometheus
-GOJSONTOYAML_BIN=$(BIN_DIR)/gojsontoyaml
-JSONNET_BIN?=$(BIN_DIR)/jsonnet
-# We need jsonnet on CI; here we default to the user's installed jsonnet binary; if nothing is installed, then install go-jsonnet.
-JSONNET_LOCAL_OR_INSTALLED=$(if $(shell which jsonnet 2>/dev/null),$(shell which jsonnet 2>/dev/null),$(JSONNET_BIN))
-JB_BIN=$(BIN_DIR)/jb
 JSONNET_SRC=$(shell find ./jsonnet -type f)
 BENCHMARK_RESULTS=$(shell find ./benchmark -type f -name '*.json')
 BENCHMARK_GOAL?=5000
@@ -38,6 +23,9 @@ CONTAINER_CMD:=docker run --rm \
 		-e GO111MODULE=on \
 		quay.io/coreos/jsonnet-ci
 
+BIN_DIR?=./_output/bin
+LIB_DIR?=./_output/lib
+MEMCACHED=$(BIN_DIR)/memcached
 
 .PHONY: all
 all: build manifests $(DOCS)
@@ -88,14 +76,14 @@ generate: $(DOCS) manifests
 generate-in-docker:
 	$(CONTAINER_CMD) $(MAKE) $(MFLAGS) generate
 
-$(JSONNET_VENDOR): jsonnet/jsonnetfile.json $(JB_BIN)
-	cd jsonnet && ../$(JB_BIN) install
+$(JSONNET_VENDOR): jsonnet/jsonnetfile.json $(JB)
+	cd jsonnet && $(JB) install
 
 # Can't add test/timeseries.txt as a dependency, otherwise
 # running make --always-make will try to regenerate the timeseries
 # on CI, which will fail because there is no OpenShift cluster.
-$(DOCS): $(JSONNET_SRC) $(EMBEDMD_BIN) docs/telemeter_query
-	$(EMBEDMD_BIN) -w $@
+$(DOCS): $(JSONNET_SRC) $(EMBEDMD) docs/telemeter_query
+	$(EMBEDMD) -w $@
 
 docs/telemeter_query: $(JSONNET_SRC)
 	query=""; \
@@ -107,15 +95,15 @@ docs/telemeter_query: $(JSONNET_SRC)
 
 $(METRICS_JSON):
 	curl -L https://raw.githubusercontent.com/openshift/cluster-monitoring-operator/844e7afabfcfa4162c716ea18cd8e2d010789de1/manifests/0000_50_cluster_monitoring_operator_04-config.yaml | \
-	    $(GOJSONTOYAML_BIN) --yamltojson | jq -r '.data."metrics.yaml"' | $(GOJSONTOYAML_BIN) --yamltojson | jq -r '.matches' > $@
+	    $(GOJSONTOYAML) --yamltojson | jq -r '.data."metrics.yaml"' | $(GOJSONTOYAML) --yamltojson | jq -r '.matches' > $@
 
-manifests: $(JSONNET_LOCAL_OR_INSTALLED) $(JSONNET_SRC) $(JSONNET_VENDOR) $(GOJSONTOYAML_BIN) $(METRICS_JSON)
+manifests: $(JSONNET) $(JSONNET_SRC) $(JSONNET_VENDOR) $(GOJSONTOYAML) $(METRICS_JSON)
 	rm -rf manifests
 	mkdir -p manifests/{benchmark,client}
-	$(JSONNET_LOCAL_OR_INSTALLED) jsonnet/benchmark.jsonnet -J jsonnet/vendor -m manifests/benchmark --tla-code metrics="$$(cat $(METRICS_JSON))"
-	$(JSONNET_LOCAL_OR_INSTALLED) jsonnet/client.jsonnet -J jsonnet/vendor -m manifests/client
+	$(JSONNET) jsonnet/benchmark.jsonnet -J jsonnet/vendor -m manifests/benchmark --tla-code metrics="$$(cat $(METRICS_JSON))"
+	$(JSONNET) jsonnet/client.jsonnet -J jsonnet/vendor -m manifests/client
 	@for f in $$(find manifests -type f); do\
-	    cat $$f | $(GOJSONTOYAML_BIN) > $$f.yaml && rm $$f;\
+	    cat $$f | $(GOJSONTOYAML) > $$f.yaml && rm $$f;\
 	done
 
 benchmark.pdf: $(BENCHMARK_RESULTS)
@@ -127,9 +115,9 @@ benchmark.pdf: $(BENCHMARK_RESULTS)
 ##############
 
 .PHONY: lint
-lint: $(GOLANGCI_LINT_BIN)
+lint: $(GOLANGCI_LINT)
 	# Check .golangci.yml for configuration
-	$(GOLANGCI_LINT_BIN) run -c .golangci.yml
+	$(GOLANGCI_LINT) run -c .golangci.yml
 
 .PHONY: format
 format: go-fmt shellcheck
@@ -157,14 +145,14 @@ test-unit:
 test-generate:
 	make --always-make && git diff --exit-code
 
-test-integration: build $(THANOS_BIN) $(UP_BIN) $(MEMCACHED_BIN) $(PROMETHEUS_BIN)
+test-integration: build $(THANOS) $(UP) $(MEMCACHED) $(PROMETHEUS)
 	PATH=$$PATH:$$(pwd)/$(BIN_DIR) ./test/integration.sh
 	PATH=$$PATH:$$(pwd)/$(BIN_DIR) LD_LIBRARY_PATH=$$LD_LIBRARY_PATH:$$(pwd)/$(LIB_DIR) ./test/integration-v2.sh
 
-test-benchmark: build $(GOJSONTOYAML_BIN)
+test-benchmark: build $(GOJSONTOYAML)
 	# Allow the image to be overridden when running in CI.
 	if [ -n "$$IMAGE_FORMAT" ]; then \
-	    f=$$(mktemp) && cat ./manifests/benchmark/statefulSetTelemeterServer.yaml | $(GOJSONTOYAML_BIN) --yamltojson | jq '.spec.template.spec.containers[].image="'"$${IMAGE_FORMAT//\$$\{component\}/telemeter}"'"' | $(GOJSONTOYAML_BIN) > $$f && mv $$f ./manifests/benchmark/statefulSetTelemeterServer.yaml; \
+	    f=$$(mktemp) && cat ./manifests/benchmark/statefulSetTelemeterServer.yaml | $(GOJSONTOYAML) --yamltojson | jq '.spec.template.spec.containers[].image="'"$${IMAGE_FORMAT//\$$\{component\}/telemeter}"'"' | $(GOJSONTOYAML) > $$f && mv $$f ./manifests/benchmark/statefulSetTelemeterServer.yaml; \
 	fi
 	./test/benchmark.sh "" "" $(BENCHMARK_GOAL) "" $(BENCHMARK_GOAL)
 
@@ -183,8 +171,8 @@ test/timeseries.txt:
 ############
 # Binaries #
 ############
-
-dependencies: $(JB_BIN) $(GOLANGCI_LINT_BIN) $(THANOS_BIN) $(UP_BIN) $(MEMCACHED_BIN) $(PROMETHEUS_BIN) $(EMBEDMD_BIN) $(GOJSONTOYAML_BIN)
+# For Go binaries https://github.com/bwplotka/bingo is used.
+dependencies: $(JB) $(GOLANGCI_LINT) $(THANOS) $(UP) $(MEMCACHED) $(PROMETHEUS) $(EMBEDMD) $(GOJSONTOYAML)
 
 $(BIN_DIR):
 	mkdir -p $@
@@ -192,35 +180,8 @@ $(BIN_DIR):
 $(LIB_DIR):
 	mkdir -p $@
 
-$(THANOS_BIN): $(BIN_DIR)
-	GO111MODULE=on go build -mod=vendor -o $@ github.com/thanos-io/thanos/cmd/thanos
-
-$(UP_BIN): $(BIN_DIR)
-	GO111MODULE=on go build -mod=vendor -o $@ github.com/observatorium/up
-
-$(MEMCACHED_BIN): $(BIN_DIR) $(LIB_DIR)
+$(MEMCACHED): | $(BIN_DIR) $(LIB_DIR)
 	@echo "Downloading Memcached"
 	curl -L https://www.archlinux.org/packages/core/x86_64/zstd/download/ | tar --strip-components=2 -xJf - -C $(LIB_DIR) usr/bin/zstd
 	curl -L https://www.archlinux.org/packages/core/x86_64/libevent/download/ | tar -I $(LIB_DIR)/zstd --strip-components=2 -xf - -C $(LIB_DIR) usr/lib
 	curl -L https://www.archlinux.org/packages/extra/x86_64/memcached/download/ | tar -I $(LIB_DIR)/zstd --strip-components=2 -xf - -C $(BIN_DIR) usr/bin/memcached
-
-$(PROMETHEUS_BIN): $(BIN_DIR)
-	@echo "Downloading Prometheus"
-	curl -L "https://github.com/prometheus/prometheus/releases/download/v2.3.2/prometheus-2.3.2.$$(go env GOOS)-$$(go env GOARCH).tar.gz" | tar --strip-components=1 -xzf - -C $(BIN_DIR)
-
-$(EMBEDMD_BIN): $(BIN_DIR)
-	GO111MODULE=on go build -mod=vendor -o $@ github.com/campoy/embedmd
-
-$(JSONNET_BIN): $(BIN_DIR)
-	GO111MODULE=on go build -mod=vendor -o $@ github.com/google/go-jsonnet/cmd/jsonnet
-
-$(JB_BIN): $(BIN_DIR)
-	GO111MODULE=on go build -mod=vendor -o $@ github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb
-
-$(GOJSONTOYAML_BIN): $(BIN_DIR)
-	GO111MODULE=on go build -mod=vendor -o $@ github.com/brancz/gojsontoyaml
-
-$(GOLANGCI_LINT_BIN): $(BIN_DIR)
-	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/$(GOLANGCI_LINT_VERSION)/install.sh \
-		| sed -e '/install -d/d' \
-		| sh -s -- -b $(BIN_DIR) $(GOLANGCI_LINT_VERSION)
