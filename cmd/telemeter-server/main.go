@@ -428,6 +428,35 @@ func (o *Options) Run() error {
 					auth,
 				).ServeHTTP)
 
+			forwardClient := http.Client{
+				Timeout: 5 * time.Second,
+				Transport: telemeter_http.NewInstrumentedRoundTripper("forward",
+					&http.Transport{
+						MaxIdleConnsPerHost: 10,
+						IdleConnTimeout:     30 * time.Second,
+						DialContext:         (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
+					},
+				),
+			}
+
+			if o.OIDCIssuer != "" {
+				provider, err := oidc.NewProvider(ctx, o.OIDCIssuer)
+				if err != nil {
+					return fmt.Errorf("OIDC provider initialization failed: %v", err)
+				}
+
+				cfg := clientcredentials.Config{
+					ClientID:     o.ClientID,
+					ClientSecret: o.ClientSecret,
+					TokenURL:     provider.Endpoint().TokenURL,
+				}
+
+				forwardClient.Transport = &oauth2.Transport{
+					Base:   forwardClient.Transport,
+					Source: cfg.TokenSource(ctx),
+				}
+			}
+
 			external.Post("/upload",
 				server.InstrumentedHandler("upload",
 					authorize.NewAuthorizeClientHandler(jwtAuthorizer,
@@ -435,7 +464,7 @@ func (o *Options) Run() error {
 							server.Ratelimit(o.Logger, o.Ratelimit, time.Now,
 								server.Snappy(
 									server.Validate(o.Logger, transforms, 24*time.Hour, o.LimitBytes, time.Now,
-										server.ForwardHandler(o.Logger, forwardURL, o.TenantID),
+										server.ForwardHandler(o.Logger, forwardURL, o.TenantID, forwardClient),
 									),
 								),
 							),
