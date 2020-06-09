@@ -200,7 +200,6 @@ $(UP_BIN): $(BIN_DIR)
 
 $(MEMCACHED_BIN): $(BIN_DIR) $(LIB_DIR)
 	@echo "Downloading Memcached"
-	curl -L https://www.archlinux.org/packages/core/x86_64/zstd/download/ | tar --strip-components=2 -xJf - -C $(LIB_DIR) usr/bin/zstd
 	curl -L https://www.archlinux.org/packages/core/x86_64/libevent/download/ | tar -I $(LIB_DIR)/zstd --strip-components=2 -xf - -C $(LIB_DIR) usr/lib
 	curl -L https://www.archlinux.org/packages/extra/x86_64/memcached/download/ | tar -I $(LIB_DIR)/zstd --strip-components=2 -xf - -C $(BIN_DIR) usr/bin/memcached
 
