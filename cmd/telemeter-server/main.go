@@ -26,11 +26,6 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/oklog/run"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/spf13/cobra"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/clientcredentials"
-
 	"github.com/openshift/telemeter/pkg/authorize"
 	"github.com/openshift/telemeter/pkg/authorize/jwt"
 	"github.com/openshift/telemeter/pkg/authorize/stub"
@@ -42,6 +37,10 @@ import (
 	"github.com/openshift/telemeter/pkg/metricfamily"
 	"github.com/openshift/telemeter/pkg/receive"
 	"github.com/openshift/telemeter/pkg/server"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/spf13/cobra"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/clientcredentials"
 )
 
 const desc = `
@@ -242,30 +241,45 @@ func (o *Options) Run() error {
 			Timeout:   20 * time.Second,
 			Transport: telemeter_http.NewInstrumentedRoundTripper("authorize", transport),
 		}
+	}
 
-		if o.OIDCIssuer != "" {
-			provider, err := oidc.NewProvider(ctx, o.OIDCIssuer)
-			if err != nil {
-				return fmt.Errorf("OIDC provider initialization failed: %v", err)
-			}
+	forwardClient := http.Client{
+		Timeout: 5 * time.Second,
+		Transport: telemeter_http.NewInstrumentedRoundTripper("forward",
+			&http.Transport{
+				MaxIdleConnsPerHost: 10,
+				IdleConnTimeout:     30 * time.Second,
+				DialContext:         (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
+			},
+		),
+	}
 
-			ctx = context.WithValue(ctx, oauth2.HTTPClient,
-				&http.Client{
-					Timeout:   20 * time.Second,
-					Transport: telemeter_http.NewInstrumentedRoundTripper("oauth", transport),
-				},
-			)
+	if o.OIDCIssuer != "" {
+		provider, err := oidc.NewProvider(ctx, o.OIDCIssuer)
+		if err != nil {
+			return fmt.Errorf("OIDC provider initialization failed: %v", err)
+		}
 
-			cfg := clientcredentials.Config{
-				ClientID:     o.ClientID,
-				ClientSecret: o.ClientSecret,
-				TokenURL:     provider.Endpoint().TokenURL,
-			}
+		ctx = context.WithValue(ctx, oauth2.HTTPClient,
+			&http.Client{
+				Timeout:   20 * time.Second,
+				Transport: telemeter_http.NewInstrumentedRoundTripper("oauth", authorizeClient.Transport),
+			},
+		)
 
-			authorizeClient.Transport = &oauth2.Transport{
-				Base:   authorizeClient.Transport,
-				Source: cfg.TokenSource(ctx),
-			}
+		cfg := clientcredentials.Config{
+			ClientID:     o.ClientID,
+			ClientSecret: o.ClientSecret,
+			TokenURL:     provider.Endpoint().TokenURL,
+		}
+
+		authorizeClient.Transport = &oauth2.Transport{
+			Base:   authorizeClient.Transport,
+			Source: cfg.TokenSource(ctx),
+		}
+		forwardClient.Transport = &oauth2.Transport{
+			Base:   authorizeClient.Transport,
+			Source: cfg.TokenSource(ctx),
 		}
 	}
 
@@ -427,35 +441,6 @@ func (o *Options) Run() error {
 				server.InstrumentedHandler("authorize",
 					auth,
 				).ServeHTTP)
-
-			forwardClient := http.Client{
-				Timeout: 5 * time.Second,
-				Transport: telemeter_http.NewInstrumentedRoundTripper("forward",
-					&http.Transport{
-						MaxIdleConnsPerHost: 10,
-						IdleConnTimeout:     30 * time.Second,
-						DialContext:         (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
-					},
-				),
-			}
-
-			if o.OIDCIssuer != "" {
-				provider, err := oidc.NewProvider(ctx, o.OIDCIssuer)
-				if err != nil {
-					return fmt.Errorf("OIDC provider initialization failed: %v", err)
-				}
-
-				cfg := clientcredentials.Config{
-					ClientID:     o.ClientID,
-					ClientSecret: o.ClientSecret,
-					TokenURL:     provider.Endpoint().TokenURL,
-				}
-
-				forwardClient.Transport = &oauth2.Transport{
-					Base:   forwardClient.Transport,
-					Source: cfg.TokenSource(ctx),
-				}
-			}
 
 			external.Post("/upload",
 				server.InstrumentedHandler("upload",
