@@ -26,6 +26,11 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/oklog/run"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/spf13/cobra"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/clientcredentials"
+
 	"github.com/openshift/telemeter/pkg/authorize"
 	"github.com/openshift/telemeter/pkg/authorize/jwt"
 	"github.com/openshift/telemeter/pkg/authorize/stub"
@@ -37,10 +42,6 @@ import (
 	"github.com/openshift/telemeter/pkg/metricfamily"
 	"github.com/openshift/telemeter/pkg/receive"
 	"github.com/openshift/telemeter/pkg/server"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/spf13/cobra"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/clientcredentials"
 )
 
 const desc = `
@@ -216,6 +217,16 @@ func (o *Options) Run() error {
 		o.RequiredLabels[values[0]] = values[1]
 	}
 
+	var transport http.RoundTripper = &http.Transport{
+		Dial:                (&net.Dialer{Timeout: 10 * time.Second}).Dial,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     30 * time.Second,
+	}
+
+	if o.Verbose {
+		transport = telemeter_http.NewDebugRoundTripper(o.Logger, transport)
+	}
+
 	// set up the upstream authorization
 	var authorizeURL *url.URL
 	var authorizeClient http.Client
@@ -227,16 +238,6 @@ func (o *Options) Run() error {
 		}
 		authorizeURL = u
 
-		var transport http.RoundTripper = &http.Transport{
-			Dial:                (&net.Dialer{Timeout: 10 * time.Second}).Dial,
-			MaxIdleConnsPerHost: 10,
-			IdleConnTimeout:     30 * time.Second,
-		}
-
-		if o.Verbose {
-			transport = telemeter_http.NewDebugRoundTripper(o.Logger, transport)
-		}
-
 		authorizeClient = http.Client{
 			Timeout:   20 * time.Second,
 			Transport: telemeter_http.NewInstrumentedRoundTripper("authorize", transport),
@@ -244,14 +245,8 @@ func (o *Options) Run() error {
 	}
 
 	forwardClient := http.Client{
-		Timeout: 5 * time.Second,
-		Transport: telemeter_http.NewInstrumentedRoundTripper("forward",
-			&http.Transport{
-				MaxIdleConnsPerHost: 10,
-				IdleConnTimeout:     30 * time.Second,
-				DialContext:         (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
-			},
-		),
+		Timeout:   5 * time.Second,
+		Transport: telemeter_http.NewInstrumentedRoundTripper("forward", transport),
 	}
 
 	if o.OIDCIssuer != "" {
@@ -263,7 +258,7 @@ func (o *Options) Run() error {
 		ctx = context.WithValue(ctx, oauth2.HTTPClient,
 			&http.Client{
 				Timeout:   20 * time.Second,
-				Transport: telemeter_http.NewInstrumentedRoundTripper("oauth", authorizeClient.Transport),
+				Transport: telemeter_http.NewInstrumentedRoundTripper("oauth", transport),
 			},
 		)
 
@@ -278,7 +273,7 @@ func (o *Options) Run() error {
 			Source: cfg.TokenSource(ctx),
 		}
 		forwardClient.Transport = &oauth2.Transport{
-			Base:   authorizeClient.Transport,
+			Base:   forwardClient.Transport,
 			Source: cfg.TokenSource(ctx),
 		}
 	}
