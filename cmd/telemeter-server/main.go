@@ -217,6 +217,16 @@ func (o *Options) Run() error {
 		o.RequiredLabels[values[0]] = values[1]
 	}
 
+	var transport http.RoundTripper = &http.Transport{
+		Dial:                (&net.Dialer{Timeout: 10 * time.Second}).Dial,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     30 * time.Second,
+	}
+
+	if o.Verbose {
+		transport = telemeter_http.NewDebugRoundTripper(o.Logger, transport)
+	}
+
 	// set up the upstream authorization
 	var authorizeURL *url.URL
 	var authorizeClient http.Client
@@ -228,44 +238,43 @@ func (o *Options) Run() error {
 		}
 		authorizeURL = u
 
-		var transport http.RoundTripper = &http.Transport{
-			Dial:                (&net.Dialer{Timeout: 10 * time.Second}).Dial,
-			MaxIdleConnsPerHost: 10,
-			IdleConnTimeout:     30 * time.Second,
-		}
-
-		if o.Verbose {
-			transport = telemeter_http.NewDebugRoundTripper(o.Logger, transport)
-		}
-
 		authorizeClient = http.Client{
 			Timeout:   20 * time.Second,
 			Transport: telemeter_http.NewInstrumentedRoundTripper("authorize", transport),
 		}
+	}
 
-		if o.OIDCIssuer != "" {
-			provider, err := oidc.NewProvider(ctx, o.OIDCIssuer)
-			if err != nil {
-				return fmt.Errorf("OIDC provider initialization failed: %v", err)
-			}
+	forwardClient := http.Client{
+		Timeout:   5 * time.Second,
+		Transport: telemeter_http.NewInstrumentedRoundTripper("forward", transport),
+	}
 
-			ctx = context.WithValue(ctx, oauth2.HTTPClient,
-				&http.Client{
-					Timeout:   20 * time.Second,
-					Transport: telemeter_http.NewInstrumentedRoundTripper("oauth", transport),
-				},
-			)
+	if o.OIDCIssuer != "" {
+		provider, err := oidc.NewProvider(ctx, o.OIDCIssuer)
+		if err != nil {
+			return fmt.Errorf("OIDC provider initialization failed: %v", err)
+		}
 
-			cfg := clientcredentials.Config{
-				ClientID:     o.ClientID,
-				ClientSecret: o.ClientSecret,
-				TokenURL:     provider.Endpoint().TokenURL,
-			}
+		ctx = context.WithValue(ctx, oauth2.HTTPClient,
+			&http.Client{
+				Timeout:   20 * time.Second,
+				Transport: telemeter_http.NewInstrumentedRoundTripper("oauth", transport),
+			},
+		)
 
-			authorizeClient.Transport = &oauth2.Transport{
-				Base:   authorizeClient.Transport,
-				Source: cfg.TokenSource(ctx),
-			}
+		cfg := clientcredentials.Config{
+			ClientID:     o.ClientID,
+			ClientSecret: o.ClientSecret,
+			TokenURL:     provider.Endpoint().TokenURL,
+		}
+
+		authorizeClient.Transport = &oauth2.Transport{
+			Base:   authorizeClient.Transport,
+			Source: cfg.TokenSource(ctx),
+		}
+		forwardClient.Transport = &oauth2.Transport{
+			Base:   forwardClient.Transport,
+			Source: cfg.TokenSource(ctx),
 		}
 	}
 
@@ -435,7 +444,7 @@ func (o *Options) Run() error {
 							server.Ratelimit(o.Logger, o.Ratelimit, time.Now,
 								server.Snappy(
 									server.Validate(o.Logger, transforms, 24*time.Hour, o.LimitBytes, time.Now,
-										server.ForwardHandler(o.Logger, forwardURL, o.TenantID),
+										server.ForwardHandler(o.Logger, forwardURL, o.TenantID, forwardClient),
 									),
 								),
 							),
