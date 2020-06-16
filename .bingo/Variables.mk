@@ -1,4 +1,4 @@
-# Auto generated binary variables helper managed by https://github.com/bwplotka/bingo v0.2.1. DO NOT EDIT.
+# Auto generated binary variables helper managed by https://github.com/bwplotka/bingo v0.2.2. DO NOT EDIT.
 # All tools are designed to be build inside $GOBIN.
 GOPATH ?= $(shell go env GOPATH)
 GOBIN  ?= $(firstword $(subst :, ,${GOPATH}))/bin
@@ -52,21 +52,8 @@ $(JSONNETFMT): .bingo/jsonnetfmt.mod
 	@echo "(re)installing $(GOBIN)/jsonnetfmt-v0.16.0"
 	@cd .bingo && $(GO) build -modfile=jsonnetfmt.mod -o=$(GOBIN)/jsonnetfmt-v0.16.0 "github.com/google/go-jsonnet/cmd/jsonnetfmt"
 
-PROMETHEUS := $(GOBIN)/prometheus-v2.3.2&#43;incompatible
-$(PROMETHEUS): .bingo/prometheus.mod
-	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/prometheus-v2.3.2&#43;incompatible"
-	@cd .bingo && $(GO) build -modfile=prometheus.mod -o=$(GOBIN)/prometheus-v2.3.2&#43;incompatible "github.com/prometheus/prometheus/cmd/prometheus"
-
-THANOS := $(GOBIN)/thanos-v0.11.0
-$(THANOS): .bingo/thanos.mod
-	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
-	@echo "(re)installing $(GOBIN)/thanos-v0.11.0"
-	@cd .bingo && $(GO) build -modfile=thanos.mod -o=$(GOBIN)/thanos-v0.11.0 "github.com/thanos-io/thanos/cmd/thanos"
-
 UP := $(GOBIN)/up-v0.0.0-20200603110215-8a20b4e48ac0
 $(UP): .bingo/up.mod
 	@# Install binary/ries using Go 1.14+ build command. This is using bwplotka/bingo-controlled, separate go module with pinned dependencies.
 	@echo "(re)installing $(GOBIN)/up-v0.0.0-20200603110215-8a20b4e48ac0"
 	@cd .bingo && $(GO) build -modfile=up.mod -o=$(GOBIN)/up-v0.0.0-20200603110215-8a20b4e48ac0 "github.com/observatorium/up/cmd/up"
-

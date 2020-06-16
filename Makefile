@@ -8,10 +8,10 @@ REPO?=quay.io/openshift/telemeter
 TAG?=$(shell git rev-parse --short HEAD)
 PKGS=$(shell go list ./... | grep -v -E '/vendor/|/test/')
 METRICS_JSON=./_output/metrics.json
-JSONNET_SRC=$(shell find ./jsonnet -type f)
 BENCHMARK_RESULTS=$(shell find ./benchmark -type f -name '*.json')
 BENCHMARK_GOAL?=5000
 JSONNET_VENDOR=jsonnet/jsonnetfile.lock.json jsonnet/vendor
+JSONNET_SRC=$(shell find ./jsonnet -type f)
 DOCS=$(shell grep -rlF [embedmd] docs)
 
 GO_BUILD_RECIPE=GOOS=linux CGO_ENABLED=0 go build
@@ -22,10 +22,6 @@ CONTAINER_CMD:=docker run --rm \
 		-w "/go/src/$(GO_PKG)" \
 		-e GO111MODULE=on \
 		quay.io/coreos/jsonnet-ci
-
-BIN_DIR?=./_output/bin
-LIB_DIR?=./_output/lib
-MEMCACHED=$(BIN_DIR)/memcached
 
 .PHONY: all
 all: build manifests $(DOCS)
@@ -109,7 +105,6 @@ manifests: $(JSONNET) $(JSONNET_SRC) $(JSONNET_VENDOR) $(GOJSONTOYAML) $(METRICS
 benchmark.pdf: $(BENCHMARK_RESULTS)
 	find ./benchmark -type f -name '*.json' -print0 | xargs -l -0 python3 test/plot.py && gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -sOutputFile=$@ benchmark/*.pdf
 
-
 ##############
 # Formatting #
 ##############
@@ -167,21 +162,34 @@ test/timeseries.txt:
 	$$query >> $@ ; \
 	jobs -p | xargs -r kill
 
-
 ############
 # Binaries #
 ############
-# For Go binaries https://github.com/bwplotka/bingo is used.
-dependencies: $(JB) $(GOLANGCI_LINT) $(THANOS) $(UP) $(MEMCACHED) $(PROMETHEUS) $(EMBEDMD) $(GOJSONTOYAML)
 
+BIN_DIR?=./_output/bin
 $(BIN_DIR):
 	mkdir -p $@
 
+LIB_DIR?=./_output/lib
 $(LIB_DIR):
 	mkdir -p $@
 
+PROMETHEUS := $(BIN_DIR)/prometheus-v2.3.2
+$(PROMETHEUS): | $(BIN_DIR)
+	@echo "Downloading Prometheus"
+	curl -L "https://github.com/prometheus/prometheus/releases/download/v2.3.2/prometheus-2.3.2.$$(go env GOOS)-$$(go env GOARCH).tar.gz" | tar --strip-components=1 -xzf - -C $(BIN_DIR)
+
+THANOS := $(BIN_DIR)/thanos-v0.11.0
+$(THANOS): | $(BIN_DIR)
+	@echo "Downloading Thanos"
+	curl -L "https://github.com/thanos-io/thanos/releases/download/v0.11.0/thanos-0.11.0.$$(go env GOOS)-$$(go env GOARCH).tar.gz" | tar --strip-components=1 -xzf - -C $(BIN_DIR)
+
+MEMCACHED := $(BIN_DIR)/memcached
 $(MEMCACHED): | $(BIN_DIR) $(LIB_DIR)
 	@echo "Downloading Memcached"
 	curl -L https://www.archlinux.org/packages/core/x86_64/zstd/download/ | tar --strip-components=2 -xJf - -C $(LIB_DIR) usr/bin/zstd
 	curl -L https://www.archlinux.org/packages/core/x86_64/libevent/download/ | tar -I $(LIB_DIR)/zstd --strip-components=2 -xf - -C $(LIB_DIR) usr/lib
 	curl -L https://www.archlinux.org/packages/extra/x86_64/memcached/download/ | tar -I $(LIB_DIR)/zstd --strip-components=2 -xf - -C $(BIN_DIR) usr/bin/memcached
+
+# For Go binaries https://github.com/bwplotka/bingo is used.
+dependencies: $(JB) $(GOLANGCI_LINT) $(UP) $(EMBEDMD) $(GOJSONTOYAML) $(PROMETHEUS) $(THANOS) $(MEMCACHED)
