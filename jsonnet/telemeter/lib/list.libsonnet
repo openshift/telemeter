@@ -136,7 +136,7 @@
       if object.kind == 'ServiceMonitor' then {
         spec+: {
           endpoints: [
-            e + if std.objectHas(e, 'tlsConfig') then {
+            e + if std.objectHas(e, 'tlsConfig') && !std.objectHas(e.tlsConfig, 'insecureSkipVerify') then {
               tlsConfig+: if std.length(std.split(super.tlsConfig.serverName, '.')) == 3 && std.split(super.tlsConfig.serverName, '.')[1] == _config.namespace && std.split(e.tlsConfig.serverName, '.')[2] == 'svc' then {
                 serverName: '%s.%s.svc' % [std.split(e.tlsConfig.serverName, '.')[0], '${NAMESPACE}'],
               } else {},
