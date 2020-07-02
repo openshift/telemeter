@@ -56,7 +56,7 @@ func init() {
 
 // ForwardHandler gets a request containing metric families and
 // converts it to a remote write request forwarding it to the upstream at fowardURL.
-func ForwardHandler(logger log.Logger, forwardURL *url.URL, tenantID string, client http.Client) http.HandlerFunc {
+func ForwardHandler(logger log.Logger, forwardURL *url.URL, tenantID string, client *http.Client) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		rlogger := log.With(logger, "request", middleware.GetReqID(r.Context()))
 
