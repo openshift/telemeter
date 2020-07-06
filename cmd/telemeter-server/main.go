@@ -218,7 +218,7 @@ func (o *Options) Run() error {
 	}
 
 	var transport http.RoundTripper = &http.Transport{
-		Dial:                (&net.Dialer{Timeout: 10 * time.Second}).Dial,
+		DialContext:         (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
 		MaxIdleConnsPerHost: 10,
 		IdleConnTimeout:     30 * time.Second,
 	}
@@ -244,9 +244,11 @@ func (o *Options) Run() error {
 		}
 	}
 
-	forwardClient := http.Client{
+	forwardClient := &http.Client{
 		Timeout:   5 * time.Second,
-		Transport: telemeter_http.NewInstrumentedRoundTripper("forward", transport),
+		Transport: transport,
+		// TODO: Uncomment if it turns out there's no memory leak here
+		//Transport: telemeter_http.NewInstrumentedRoundTripper("forward", transport),
 	}
 
 	if o.OIDCIssuer != "" {
@@ -272,10 +274,11 @@ func (o *Options) Run() error {
 			Base:   authorizeClient.Transport,
 			Source: cfg.TokenSource(ctx),
 		}
-		forwardClient.Transport = &oauth2.Transport{
-			Base:   forwardClient.Transport,
-			Source: cfg.TokenSource(ctx),
-		}
+		// TODO: Uncomment if it turns out there's no memory leak here
+		//forwardClient.Transport = &oauth2.Transport{
+		//	Base:   forwardClient.Transport,
+		//	Source: cfg.TokenSource(ctx),
+		//}
 	}
 
 	switch {
