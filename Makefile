@@ -8,7 +8,7 @@ TAG?=$(shell git rev-parse --short HEAD)
 PKGS=$(shell go list ./... | grep -v -E '/vendor/|/test/(?!e2e)')
 GOLANG_FILES:=$(shell find . -name \*.go -print)
 FIRST_GOPATH:=$(firstword $(subst :, ,$(shell go env GOPATH)))
-BIN_DIR?=./_output/bin
+BIN_DIR?=$(shell pwd)/_output/bin
 LIB_DIR?=./_output/lib
 METRICS_JSON=./_output/metrics.json
 GOLANGCI_LINT_BIN=$(BIN_DIR)/golangci-lint
@@ -29,6 +29,8 @@ BENCHMARK_GOAL?=5000
 JSONNET_VENDOR=jsonnet/jsonnetfile.lock.json jsonnet/vendor
 DOCS=$(shell grep -rlF [embedmd] docs)
 
+export PATH := $(BIN_DIR):$(PATH)
+
 GO_BUILD_RECIPE=GOOS=linux CGO_ENABLED=0 go build
 CONTAINER_CMD:=docker run --rm \
 		-u="$(shell id -u):$(shell id -g)" \
@@ -37,7 +39,6 @@ CONTAINER_CMD:=docker run --rm \
 		-w "/go/src/$(GO_PKG)" \
 		-e GO111MODULE=on \
 		quay.io/coreos/jsonnet-ci
-
 
 .PHONY: all
 all: build manifests $(DOCS)
@@ -88,8 +89,8 @@ generate: $(DOCS) manifests
 generate-in-docker:
 	$(CONTAINER_CMD) $(MAKE) $(MFLAGS) generate
 
-$(JSONNET_VENDOR): jsonnet/jsonnetfile.json $(JB_BIN)
-	cd jsonnet && ../$(JB_BIN) install
+$(JSONNET_VENDOR): $(JB_BIN) jsonnet/jsonnetfile.json
+	cd jsonnet && $(JB_BIN) install
 
 # Can't add test/timeseries.txt as a dependency, otherwise
 # running make --always-make will try to regenerate the timeseries
@@ -157,8 +158,10 @@ test-unit:
 test-generate:
 	make --always-make && git diff --exit-code
 
-test-integration: build $(THANOS_BIN) $(UP_BIN) $(MEMCACHED_BIN) $(PROMETHEUS_BIN)
+test-integration: build | $(THANOS_BIN) $(UP_BIN) $(MEMCACHED_BIN) $(PROMETHEUS_BIN)
+	@echo "Running integration tests: V1"
 	PATH=$$PATH:$$(pwd)/$(BIN_DIR) ./test/integration.sh
+	@echo "Running integration tests: V2"
 	PATH=$$PATH:$$(pwd)/$(BIN_DIR) LD_LIBRARY_PATH=$$LD_LIBRARY_PATH:$$(pwd)/$(LIB_DIR) ./test/integration-v2.sh
 
 test-benchmark: build $(GOJSONTOYAML_BIN)
@@ -184,7 +187,7 @@ test/timeseries.txt:
 # Binaries #
 ############
 
-dependencies: $(JB_BIN) $(GOLANGCI_LINT_BIN) $(THANOS_BIN) $(UP_BIN) $(MEMCACHED_BIN) $(PROMETHEUS_BIN) $(EMBEDMD_BIN) $(GOJSONTOYAML_BIN)
+dependencies: $(JB_BIN) $(THANOS_BIN) $(UP_BIN) $(EMBEDMD_BIN) $(GOJSONTOYAML_BIN) | $(PROMETHEUS_BIN) $(GOLANGCI_LINT_BIN) $(MEMCACHED_BIN)
 
 $(BIN_DIR):
 	mkdir -p $@
@@ -192,13 +195,7 @@ $(BIN_DIR):
 $(LIB_DIR):
 	mkdir -p $@
 
-$(THANOS_BIN): $(BIN_DIR)
-	GO111MODULE=on go build -mod=vendor -o $@ github.com/thanos-io/thanos/cmd/thanos
-
-$(UP_BIN): $(BIN_DIR)
-	GO111MODULE=on go build -mod=vendor -o $@ github.com/observatorium/up
-
-$(MEMCACHED_BIN): $(BIN_DIR) $(LIB_DIR)
+$(MEMCACHED_BIN): | $(BIN_DIR) $(LIB_DIR)
 	@echo "Downloading Memcached"
 	curl -L https://www.archlinux.org/packages/core/x86_64/libevent/download/ | tar -I $(LIB_DIR)/zstd --strip-components=2 -xf - -C $(LIB_DIR) usr/lib
 	curl -L https://www.archlinux.org/packages/extra/x86_64/memcached/download/ | tar -I $(LIB_DIR)/zstd --strip-components=2 -xf - -C $(BIN_DIR) usr/bin/memcached
@@ -207,19 +204,25 @@ $(PROMETHEUS_BIN): $(BIN_DIR)
 	@echo "Downloading Prometheus"
 	curl -L "https://github.com/prometheus/prometheus/releases/download/v2.3.2/prometheus-2.3.2.$$(go env GOOS)-$$(go env GOARCH).tar.gz" | tar --strip-components=1 -xzf - -C $(BIN_DIR)
 
-$(EMBEDMD_BIN): $(BIN_DIR)
-	GO111MODULE=on go build -mod=vendor -o $@ github.com/campoy/embedmd
-
-$(JSONNET_BIN): $(BIN_DIR)
-	GO111MODULE=on go build -mod=vendor -o $@ github.com/google/go-jsonnet/cmd/jsonnet
-
-$(JB_BIN): $(BIN_DIR)
-	GO111MODULE=on go build -mod=vendor -o $@ github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb
-
-$(GOJSONTOYAML_BIN): $(BIN_DIR)
-	GO111MODULE=on go build -mod=vendor -o $@ github.com/brancz/gojsontoyaml
-
 $(GOLANGCI_LINT_BIN): $(BIN_DIR)
 	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/$(GOLANGCI_LINT_VERSION)/install.sh \
 		| sed -e '/install -d/d' \
 		| sh -s -- -b $(BIN_DIR) $(GOLANGCI_LINT_VERSION)
+
+$(THANOS_BIN): $(BIN_DIR)
+	GOBIN=$(BIN_DIR) go install -mod=readonly -modfile=tools/go.mod github.com/thanos-io/thanos/cmd/thanos
+
+$(UP_BIN): $(BIN_DIR)
+	GOBIN=$(BIN_DIR) go install -mod=readonly -modfile=tools/go.mod github.com/observatorium/up/cmd/up
+
+$(EMBEDMD_BIN): $(BIN_DIR)
+	GOBIN=$(BIN_DIR) go install -mod=readonly -modfile=tools/go.mod github.com/campoy/embedmd
+
+$(JSONNET_BIN): $(BIN_DIR)
+	GOBIN=$(BIN_DIR) go install -mod=readonly -modfile=tools/go.mod github.com/google/go-jsonnet/cmd/jsonnet
+
+$(JB_BIN): $(BIN_DIR)
+	GOBIN=$(BIN_DIR) go install -mod=readonly -modfile=tools/go.mod github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb
+
+$(GOJSONTOYAML_BIN): $(BIN_DIR)
+	GOBIN=$(BIN_DIR) go install -mod=readonly -modfile=tools/go.mod github.com/brancz/gojsontoyaml

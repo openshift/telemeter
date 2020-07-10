@@ -1,21 +1,32 @@
 {
+  "version": 1,
   "dependencies": [
     {
-      "name": "ksonnet",
       "source": {
         "git": {
-          "remote": "https://github.com/ksonnet/ksonnet-lib",
+          "remote": "https://github.com/ksonnet/ksonnet-lib.git",
           "subdir": ""
         }
       },
       "version": "0d2f82676817bbf9e4acf6495b2090205f323b9f",
-      "sum": "h28BXZ7+vczxYJ2sCt8JuR9+yznRtU/iA6DCpQUrtEg="
+      "sum": "h28BXZ7+vczxYJ2sCt8JuR9+yznRtU/iA6DCpQUrtEg=",
+      "name": "ksonnet"
     },
     {
-      "name": "kube-thanos",
       "source": {
         "git": {
-          "remote": "https://github.com/thanos-io/kube-thanos",
+          "remote": "https://github.com/observatorium/thanos-receive-controller.git",
+          "subdir": "jsonnet/lib"
+        }
+      },
+      "version": "11e63ca1d3b9834e66ee85107df002bde29a4a59",
+      "sum": "iUbwzPZ/0QrozWTfoXlmRhd1CMAnkcCaWtATTlSnoMk=",
+      "name": "thanos-receive-controller"
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/thanos-io/kube-thanos.git",
           "subdir": "jsonnet/kube-thanos"
         }
       },
@@ -23,24 +34,13 @@
       "sum": "kyza6itqcvQHoKeJqsFjFQuMpj8RZsudC5/2vVxw5R0="
     },
     {
-      "name": "telemeter",
       "source": {
         "local": {
           "directory": "telemeter"
         }
       },
       "version": ""
-    },
-    {
-      "name": "thanos-receive-controller",
-      "source": {
-        "git": {
-          "remote": "https://github.com/observatorium/thanos-receive-controller",
-          "subdir": "jsonnet/lib"
-        }
-      },
-      "version": "11e63ca1d3b9834e66ee85107df002bde29a4a59",
-      "sum": "iUbwzPZ/0QrozWTfoXlmRhd1CMAnkcCaWtATTlSnoMk="
     }
-  ]
+  ],
+  "legacyImports": false
 }
