@@ -246,9 +246,7 @@ func (o *Options) Run() error {
 
 	forwardClient := &http.Client{
 		Timeout:   5 * time.Second,
-		Transport: transport,
-		// TODO: Uncomment if it turns out there's no memory leak here
-		//Transport: telemeter_http.NewInstrumentedRoundTripper("forward", transport),
+		Transport: telemeter_http.NewInstrumentedRoundTripper("forward", transport),
 	}
 
 	if o.OIDCIssuer != "" {
