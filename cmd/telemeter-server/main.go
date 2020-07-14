@@ -272,11 +272,10 @@ func (o *Options) Run() error {
 			Base:   authorizeClient.Transport,
 			Source: cfg.TokenSource(ctx),
 		}
-		// TODO: Uncomment if it turns out there's no memory leak here
-		//forwardClient.Transport = &oauth2.Transport{
-		//	Base:   forwardClient.Transport,
-		//	Source: cfg.TokenSource(ctx),
-		//}
+		forwardClient.Transport = &oauth2.Transport{
+			Base:   forwardClient.Transport,
+			Source: cfg.TokenSource(ctx),
+		}
 	}
 
 	switch {
