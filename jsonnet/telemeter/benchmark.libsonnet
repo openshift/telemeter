@@ -38,7 +38,7 @@
       version: defaultConfig.thanosVersion,
     },
     telemeterServer+: {
-      image: 'quay.io/openshift/origin-telemeter:4.7',
+      image: 'quay.io/openshift/origin-telemeter:4.5',
       replicas: 10,
       whitelist: [],
     },
