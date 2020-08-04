@@ -30,8 +30,12 @@ benchmark() {
     printf "Successfully handled %s clients\n" "$success"
     # Only return non-zero if we set a goal and didn't meet it.
     if [ "$goal" -gt 0 ] && [ "$success" -lt "$goal" ]; then
+        printf "FAIL: tests failed\n" 1>&2
+        result=1
         return 1
     fi
+    printf "SUCCESS: tests passed\n"
+    result=0
     return 0
 }
 
@@ -123,4 +127,9 @@ save() {
 
 benchmark "$CLIENTS" "$GOAL"
 
-exit $?
+if ! $?
+then
+    printf "FAIL: telemeter-server cleanup failed\n"
+fi
+
+exit $result
