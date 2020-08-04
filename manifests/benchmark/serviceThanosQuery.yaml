@@ -6,7 +6,7 @@ metadata:
     app.kubernetes.io/instance: benchmark-thanos-query
     app.kubernetes.io/name: thanos-query
     app.kubernetes.io/part-of: telemeter-benchmark
-    app.kubernetes.io/version: master-2020-02-13-adfef4b5
+    app.kubernetes.io/version: v0.14.0
   name: benchmark-thanos-query
   namespace: telemeter-benchmark
 spec:
