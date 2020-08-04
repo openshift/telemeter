@@ -42,6 +42,11 @@ until curl --output /dev/null --silent --fail http://localhost:9108/-/ready; do
   sleep 1
 done
 
+until echo version | nc 127.0.0.1 11211; do
+  printf '.'
+  sleep 1
+done
+
 (
   ./telemeter-server \
     --authorize http://localhost:9101 \
