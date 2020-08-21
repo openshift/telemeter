@@ -91,11 +91,30 @@ func NewInstrumentedRoundTripper(clientName string, next http.RoundTripper) http
 		"client": clientName,
 	})
 
-	return promhttp.InstrumentRoundTripperInFlight(inFlightGauge,
+	rt := promhttp.InstrumentRoundTripperInFlight(inFlightGauge,
 		promhttp.InstrumentRoundTripperCounter(counter,
 			promhttp.InstrumentRoundTripperTrace(trace,
 				promhttp.InstrumentRoundTripperDuration(histVec, next),
 			),
 		),
 	)
+
+	// promhttp does not pass idle connection closer properly, so let's do it on our own.
+	// TODO(bwplotka): Improve promhttp upstream
+	if ic, ok := next.(idleConnectionCloser); ok {
+		return &transportWithIdleConnectionCloser{
+			idleConnectionCloser: ic,
+			RoundTripper:         rt,
+		}
+	}
+	return rt
+}
+
+type idleConnectionCloser interface {
+	CloseIdleConnections()
+}
+
+type transportWithIdleConnectionCloser struct {
+	idleConnectionCloser
+	http.RoundTripper
 }

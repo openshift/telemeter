@@ -26,6 +26,7 @@ import (
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/oklog/run"
+	"github.com/openshift/telemeter/pkg/runutil"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
@@ -71,11 +72,8 @@ Clients are considered untrusted and so input data is validated, sorted, and
 normalized before processing continues.
 `
 
-func main() {
-	opt := &Options{
-		Listen:         "0.0.0.0:9003",
-		ListenInternal: "localhost:9004",
-
+func defaultOpts() *Options {
+	return &Options{
 		LimitBytes:         500 * 1024,
 		TokenExpireSeconds: 24 * 60 * 60,
 		clusterIDKey:       "_id",
@@ -84,18 +82,33 @@ func main() {
 		MemcachedInterval:  10,
 		TenantID:           "FB870BF3-9F3A-44FF-9BF7-D7A047A52F43",
 	}
+}
+
+func main() {
+	opt := defaultOpts()
+
+	var listen, listenInternal string
 	cmd := &cobra.Command{
 		Short:         "Aggregate federated metrics pushes",
 		Long:          desc,
 		SilenceErrors: true,
 		SilenceUsage:  true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return opt.Run()
+			listener, err := net.Listen("tcp", listen)
+			if err != nil {
+				return err
+			}
+			internalListener, err := net.Listen("tcp", listenInternal)
+			if err != nil {
+				return err
+			}
+
+			return opt.Run(context.Background(), listener, internalListener)
 		},
 	}
 
-	cmd.Flags().StringVar(&opt.Listen, "listen", opt.Listen, "A host:port to listen on for upload traffic.")
-	cmd.Flags().StringVar(&opt.ListenInternal, "listen-internal", opt.ListenInternal, "A host:port to listen on for health and metrics.")
+	cmd.Flags().StringVar(&listen, "listen", "0.0.0.0:9003", "A host:port to listen on for upload traffic.")
+	cmd.Flags().StringVar(&listenInternal, "listen-internal", "localhost:9004", "A host:port to listen on for health and metrics.")
 
 	cmd.Flags().StringVar(&opt.TLSKeyPath, "tls-key", opt.TLSKeyPath, "Path to a private key to serve TLS for external traffic.")
 	cmd.Flags().StringVar(&opt.TLSCertificatePath, "tls-crt", opt.TLSCertificatePath, "Path to a certificate to serve TLS for external traffic.")
@@ -112,8 +125,8 @@ func main() {
 	cmd.Flags().StringVar(&opt.AuthorizeEndpoint, "authorize", opt.AuthorizeEndpoint, "A URL against which to authorize client requests.")
 
 	cmd.Flags().StringVar(&opt.OIDCIssuer, "oidc-issuer", opt.OIDCIssuer, "The OIDC issuer URL, see https://openid.net/specs/openid-connect-discovery-1_0.html#IssuerDiscovery.")
-	cmd.Flags().StringVar(&opt.ClientSecret, "client-secret", opt.ClientSecret, "The OIDC client secret, see https://tools.ietf.org/html/rfc6749#section-2.3.")
-	cmd.Flags().StringVar(&opt.ClientID, "client-id", opt.ClientID, "The OIDC client ID, see https://tools.ietf.org/html/rfc6749#section-2.3.")
+	cmd.Flags().StringVar(&opt.OIDCClientSecret, "client-secret", opt.OIDCClientSecret, "The OIDC client secret, see https://tools.ietf.org/html/rfc6749#section-2.3.")
+	cmd.Flags().StringVar(&opt.OIDCClientID, "client-id", opt.OIDCClientID, "The OIDC client ID, see https://tools.ietf.org/html/rfc6749#section-2.3.")
 	cmd.Flags().StringVar(&opt.TenantKey, "tenant-key", opt.TenantKey, "The JSON key in the bearer token whose value to use as the tenant ID.")
 	cmd.Flags().StringSliceVar(&opt.Memcacheds, "memcached", opt.Memcacheds, "One or more Memcached server addresses.")
 	cmd.Flags().Int32Var(&opt.MemcachedExpire, "memcached-expire", opt.MemcachedExpire, "Time after which keys stored in Memcached should expire, given in seconds.")
@@ -148,9 +161,6 @@ func main() {
 }
 
 type Options struct {
-	Listen         string
-	ListenInternal string
-
 	TLSKeyPath         string
 	TLSCertificatePath string
 
@@ -162,9 +172,11 @@ type Options struct {
 
 	AuthorizeEndpoint string
 
-	OIDCIssuer        string
-	ClientID          string
-	ClientSecret      string
+	OIDCIssuer           string
+	OIDCClientID         string
+	OIDCClientSecret     string
+	OIDCAudienceEndpoint string
+
 	TenantKey         string
 	TenantID          string
 	Memcacheds        []string
@@ -194,7 +206,7 @@ type Paths struct {
 	Paths []string `json:"paths"`
 }
 
-func (o *Options) Run() error {
+func (o *Options) Run(ctx context.Context, externalListener, internalListener net.Listener) error {
 	for _, flag := range o.LabelFlag {
 		values := strings.SplitN(flag, "=", 2)
 		if len(values) != 2 {
@@ -227,10 +239,9 @@ func (o *Options) Run() error {
 		transport = telemeter_http.NewDebugRoundTripper(o.Logger, transport)
 	}
 
-	// set up the upstream authorization
+	// Set up the upstream authorization.
 	var authorizeURL *url.URL
 	var authorizeClient http.Client
-	ctx := context.Background()
 	if len(o.AuthorizeEndpoint) > 0 {
 		u, err := url.Parse(o.AuthorizeEndpoint)
 		if err != nil {
@@ -242,10 +253,11 @@ func (o *Options) Run() error {
 			Timeout:   20 * time.Second,
 			Transport: telemeter_http.NewInstrumentedRoundTripper("authorize", transport),
 		}
+	} else {
+		level.Warn(o.Logger).Log("msg", "no AuthorizeEndpoint specified, server /authorize will be exposed without any auth")
 	}
 
 	forwardClient := &http.Client{
-		Timeout:   5 * time.Second,
 		Transport: telemeter_http.NewInstrumentedRoundTripper("forward", transport),
 	}
 
@@ -257,24 +269,32 @@ func (o *Options) Run() error {
 
 		ctx = context.WithValue(ctx, oauth2.HTTPClient,
 			&http.Client{
+				// Note, that e.g forward timeouts after 5s.
 				Timeout:   20 * time.Second,
 				Transport: telemeter_http.NewInstrumentedRoundTripper("oauth", transport),
 			},
 		)
 
 		cfg := clientcredentials.Config{
-			ClientID:     o.ClientID,
-			ClientSecret: o.ClientSecret,
+			ClientID:     o.OIDCClientID,
+			ClientSecret: o.OIDCClientSecret,
 			TokenURL:     provider.Endpoint().TokenURL,
 		}
 
+		if o.OIDCAudienceEndpoint != "" {
+			cfg.EndpointParams = url.Values{"audience": []string{o.OIDCAudienceEndpoint}}
+		}
+
+		s := cfg.TokenSource(ctx)
+
+		// Wrap authorise and forward clients in order to retrieve and inject OIDC Token to the request.
 		authorizeClient.Transport = &oauth2.Transport{
 			Base:   authorizeClient.Transport,
-			Source: cfg.TokenSource(ctx),
+			Source: s,
 		}
 		forwardClient.Transport = &oauth2.Transport{
 			Base:   forwardClient.Transport,
-			Source: cfg.TokenSource(ctx),
+			Source: s,
 		}
 	}
 
@@ -308,11 +328,6 @@ func (o *Options) Run() error {
 
 		s := &http.Server{
 			Handler: r,
-		}
-
-		internalListener, err := net.Listen("tcp", o.ListenInternal)
-		if err != nil {
-			return err
 		}
 
 		// Run the internal server.
@@ -413,9 +428,11 @@ func (o *Options) Run() error {
 			signer := jwt.NewSigner(issuer, privateKey)
 
 			// configure the authenticator and incoming data validator
-			var clusterAuth authorize.ClusterAuthorizer = authorize.ClusterAuthorizerFunc(stub.Authorize)
+			var clusterAuth authorize.ClusterAuthorizer = authorize.ClusterAuthorizerFunc(stub.AuthorizeFn(o.Logger))
 			if authorizeURL != nil {
 				clusterAuth = tollbooth.NewAuthorizer(o.Logger, &authorizeClient, authorizeURL)
+			} else {
+				level.Warn(o.Logger).Log("msg", "no cluster authorizer specified. /authenticate endpoint is without any auth")
 			}
 
 			auth := jwt.NewAuthorizeClusterHandler(o.Logger, o.clusterIDKey, o.TokenExpireSeconds, signer, o.RequiredLabels, clusterAuth)
@@ -433,18 +450,22 @@ func (o *Options) Run() error {
 			transforms.With(metricfamily.NewElide(o.ElideLabels...))
 
 			external.Post("/authorize",
-				server.InstrumentedHandler("authorize",
-					auth,
+				runutil.ExhaustCloseRequestBodyHandler(o.Logger,
+					server.InstrumentedHandler("authorize",
+						auth,
+					),
 				).ServeHTTP)
 
 			external.Post("/upload",
-				server.InstrumentedHandler("upload",
-					authorize.NewAuthorizeClientHandler(jwtAuthorizer,
-						server.ClusterID(o.Logger, o.clusterIDKey,
-							server.Ratelimit(o.Logger, o.Ratelimit, time.Now,
-								server.Snappy(
-									server.Validate(o.Logger, transforms, 24*time.Hour, o.LimitBytes, time.Now,
-										server.ForwardHandler(o.Logger, forwardURL, o.TenantID, forwardClient),
+				runutil.ExhaustCloseRequestBodyHandler(o.Logger,
+					server.InstrumentedHandler("upload",
+						authorize.NewAuthorizeClientHandler(jwtAuthorizer,
+							server.ClusterID(o.Logger, o.clusterIDKey,
+								server.Ratelimit(o.Logger, o.Ratelimit, time.Now,
+									server.Snappy(
+										server.Validate(o.Logger, transforms, 24*time.Hour, o.LimitBytes, time.Now,
+											server.ForwardHandler(o.Logger, forwardURL, o.TenantID, forwardClient),
+										),
 									),
 								),
 							),
@@ -467,13 +488,15 @@ func (o *Options) Run() error {
 			receiver := receive.NewHandler(o.Logger, o.ForwardURL, prometheus.DefaultRegisterer, o.TenantID)
 
 			external.Handle("/metrics/v1/receive",
-				server.InstrumentedHandler("receive",
-					authorize.NewHandler(o.Logger, &v2AuthorizeClient, authorizeURL, o.TenantKey,
-						receive.LimitBodySize(receive.DefaultRequestLimit,
-							receive.ValidateLabels(
-								o.Logger,
-								http.HandlerFunc(receiver.Receive),
-								o.clusterIDKey, // TODO: Enforce the same labels for v1 and v2
+				runutil.ExhaustCloseRequestBodyHandler(o.Logger,
+					server.InstrumentedHandler("receive",
+						authorize.NewHandler(o.Logger, &v2AuthorizeClient, authorizeURL, o.TenantKey,
+							receive.LimitBodySize(receive.DefaultRequestLimit,
+								receive.ValidateLabels(
+									o.Logger,
+									http.HandlerFunc(receiver.Receive),
+									o.clusterIDKey, // TODO: Enforce the same labels for v1 and v2
+								),
 							),
 						),
 					),
@@ -494,11 +517,6 @@ func (o *Options) Run() error {
 			Handler: external,
 		}
 
-		externalListener, err := net.Listen("tcp", o.Listen)
-		if err != nil {
-			return err
-		}
-
 		// Run the external server.
 		g.Add(func() error {
 			if len(o.TLSCertificatePath) > 0 {
@@ -516,10 +534,26 @@ func (o *Options) Run() error {
 		}, func(error) {
 			_ = s.Shutdown(context.TODO())
 			externalListener.Close()
+
+			// Close clients in order to check for leaks properly.
+			forwardClient.CloseIdleConnections()
+			authorizeClient.CloseIdleConnections()
+			if c, ok := ctx.Value(oauth2.HTTPClient).(*http.Client); ok {
+				c.CloseIdleConnections()
+			}
 		})
 	}
 
-	level.Info(o.Logger).Log("msg", "starting telemeter-server", "listen", o.Listen, "internal", o.ListenInternal)
+	// Kill all when caller requests to.
+	gctx, gcancel := context.WithCancel(ctx)
+	g.Add(func() error {
+		<-gctx.Done()
+		return gctx.Err()
+	}, func(err error) {
+		gcancel()
+	})
+
+	level.Info(o.Logger).Log("msg", "starting telemeter-server", "external", externalListener.Addr().String(), "internal", internalListener.Addr().String())
 
 	return g.Run()
 }

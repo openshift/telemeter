@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"bytes"
+	"context"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
 )
+
+// TODO(bwplotka): Move this to main_e2e_test.go with properly mocked auth.
 
 func TestReceiveValidateLabels(t *testing.T) {
 	testcases := []struct {
@@ -144,61 +147,12 @@ func TestLimitBodySize(t *testing.T) {
 		)
 		defer telemeterServer.Close()
 	}
+}
 
-	// Test if request within limit is fine
-	{
-		ts := []prompb.TimeSeries{{
-			Labels: []prompb.Label{{Name: "__name__", Value: "foo"}},
-		}}
-
-		wreq := &prompb.WriteRequest{Timeseries: ts}
-		data, err := proto.Marshal(wreq)
-		if err != nil {
-			t.Error("failed to marshal proto message")
-		}
-		compressed := snappy.Encode(nil, data)
-
-		resp, err := http.Post(telemeterServer.URL+"/metrics/v1/receive", "", bytes.NewBuffer(compressed))
-		if err != nil {
-			t.Error("failed to send the receive request: %w", err)
-		}
-		defer resp.Body.Close()
-
-		body, _ := ioutil.ReadAll(resp.Body)
-		if resp.StatusCode != http.StatusOK {
-			t.Errorf("request did not return 200, but %s: %s", resp.Status, string(body))
-		}
-	}
-	// Test if too large request is rejected
-	{
-		var timeSeries []prompb.TimeSeries
-		for i := 0; i < 1000; i++ {
-			ts := prompb.TimeSeries{Labels: []prompb.Label{{Name: "__name__", Value: "foo" + string(i)}}}
-			for j := 0; j < i; j++ {
-				ts.Samples = append(ts.Samples, prompb.Sample{
-					Value:     float64(j),
-					Timestamp: int64(j),
-				})
-			}
-			timeSeries = append(timeSeries, ts)
-		}
-
-		wreq := &prompb.WriteRequest{Timeseries: timeSeries}
-		data, err := proto.Marshal(wreq)
-		if err != nil {
-			t.Error("failed to marshal proto message")
-		}
-		compressed := snappy.Encode(nil, data)
-
-		resp, err := http.Post(telemeterServer.URL+"/metrics/v1/receive", "", bytes.NewBuffer(compressed))
-		if err != nil {
-			t.Error("failed to send the receive request: %w", err)
-		}
-		defer resp.Body.Close()
-
-		body, _ := ioutil.ReadAll(resp.Body)
-		if resp.StatusCode != http.StatusRequestEntityTooLarge {
-			t.Errorf("request did not return 413, but %s: %s", resp.Status, string(body))
-		}
-	}
+func fakeAuthorizeHandler(h http.Handler, client *authorize.Client) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		req = req.WithContext(context.WithValue(req.Context(), authorize.TenantKey, client.ID))
+		req = req.WithContext(authorize.WithClient(req.Context(), client))
+		h.ServeHTTP(w, req)
+	})
 }

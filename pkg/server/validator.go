@@ -92,14 +92,13 @@ func Validate(logger log.Logger, baseTransforms metricfamily.Transformer, maxAge
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
-		defer r.Body.Close()
 
 		var transforms metricfamily.MultiTransformer
 		transforms.With(metricfamily.NewErrorOnUnsorted(true))
 		transforms.With(metricfamily.NewRequiredLabels(client.Labels))
 		transforms.With(metricfamily.TransformerFunc(metricfamily.DropEmptyFamilies))
 
-		// these transformers need to be created for every request
+		// These transformers need to be created for every request.
 		if maxAge > 0 {
 			transforms.With(metricfamily.NewErrorInvalidFederateSamples(now().Add(-maxAge)))
 		}
