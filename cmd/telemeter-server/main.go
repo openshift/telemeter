@@ -127,6 +127,7 @@ func main() {
 	cmd.Flags().StringVar(&opt.OIDCIssuer, "oidc-issuer", opt.OIDCIssuer, "The OIDC issuer URL, see https://openid.net/specs/openid-connect-discovery-1_0.html#IssuerDiscovery.")
 	cmd.Flags().StringVar(&opt.OIDCClientSecret, "client-secret", opt.OIDCClientSecret, "The OIDC client secret, see https://tools.ietf.org/html/rfc6749#section-2.3.")
 	cmd.Flags().StringVar(&opt.OIDCClientID, "client-id", opt.OIDCClientID, "The OIDC client ID, see https://tools.ietf.org/html/rfc6749#section-2.3.")
+	cmd.Flags().StringVar(&opt.OIDCAudienceEndpoint, "oidc-audience", opt.OIDCAudienceEndpoint, "The OIDC audience some providers like Auth0 need.")
 	cmd.Flags().StringVar(&opt.TenantKey, "tenant-key", opt.TenantKey, "The JSON key in the bearer token whose value to use as the tenant ID.")
 	cmd.Flags().StringSliceVar(&opt.Memcacheds, "memcached", opt.Memcacheds, "One or more Memcached server addresses.")
 	cmd.Flags().Int32Var(&opt.MemcachedExpire, "memcached-expire", opt.MemcachedExpire, "Time after which keys stored in Memcached should expire, given in seconds.")
