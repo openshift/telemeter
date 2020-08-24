@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
-	"github.com/thanos-io/thanos/pkg/testutil"
+	"github.com/prometheus/prometheus/util/testutil"
 )
 
 type testCloser struct {
@@ -117,7 +117,7 @@ func TestCloseMoreThanOnce(t *testing.T) {
 
 	CloseWithLogOnErr(lc, r, "should not be called")
 	CloseWithLogOnErr(lc, r, "should not be called")
-	testutil.Equals(t, false, lc.WasCalled)
+	testutil.Equals(t, true, lc.WasCalled)
 
 	CloseWithLogOnErr(lc, r, "should be called")
 	testutil.Equals(t, true, lc.WasCalled)
