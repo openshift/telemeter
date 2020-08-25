@@ -459,8 +459,18 @@ func (o *Options) Run() error {
 			v2AuthorizeClient := authorizeClient
 
 			if len(o.Memcacheds) > 0 {
-				mc := memcached.New(context.Background(), o.MemcachedInterval, o.MemcachedExpire, o.Memcacheds...)
 				l := log.With(o.Logger, "component", "cache")
+
+				mc := memcached.New(context.Background(), o.MemcachedInterval, o.MemcachedExpire, o.Memcacheds...)
+				if err := mc.Set("test", []byte("test")); err != nil {
+					level.Warn(l).Log("msg", "failed to set a testing value in memcached")
+				}
+				bytes, ok, err := mc.Get("test")
+				if err != nil {
+					level.Warn(l).Log("msg", "failed to get a testing value from memcached")
+				}
+				level.Debug(l).Log("msg", "got something from memcached", "bytes", string(bytes), "ok", ok)
+
 				v2AuthorizeClient.Transport = cache.NewRoundTripper(mc, tollbooth.ExtractToken, v2AuthorizeClient.Transport, l, prometheus.DefaultRegisterer)
 			}
 
