@@ -1,5 +1,6 @@
 .PHONY: all build image check test-generate test-integration test-benchmark vendor dependencies manifests
 SHELL=/usr/bin/env bash -o pipefail
+LD_LIBRARY_PATH?=/usr/lib64
 
 GO_PKG=github.com/openshift/telemeter
 REPO?=quay.io/openshift/telemeter
@@ -162,7 +163,7 @@ test-integration: build | $(THANOS_BIN) $(UP_BIN) $(MEMCACHED_BIN) $(PROMETHEUS_
 	@echo "Running integration tests: V1"
 	PATH=$$PATH:$$(pwd)/$(BIN_DIR) ./test/integration.sh
 	@echo "Running integration tests: V2"
-	PATH=$$PATH:$$(pwd)/$(BIN_DIR) LD_LIBRARY_PATH=$$LD_LIBRARY_PATH:$$(pwd)/$(LIB_DIR) ./test/integration-v2.sh
+	PATH=$$PATH:$$(pwd)/$(BIN_DIR) LD_LIBRARY_PATH=$(LD_LIBRARY_PATH):$$(pwd)/$(LIB_DIR) ./test/integration-v2.sh
 
 test-benchmark: build $(GOJSONTOYAML_BIN)
 	# Allow the image to be overridden when running in CI.
