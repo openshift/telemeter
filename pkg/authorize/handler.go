@@ -112,7 +112,7 @@ func AgainstEndpoint(logger log.Logger, client *http.Client, endpoint *url.URL, 
 		return body, nil
 	default:
 		level.Warn(logger).Log("msg", "upstream server rejected request", "cluster", cluster, "body", string(body))
-		return body, NewErrorWithCode(fmt.Errorf("upstream rejected request with code %d", res.StatusCode), http.StatusInternalServerError)
+		return body, NewErrorWithCode(fmt.Errorf("upstream rejected request with code %d", res.StatusCode), res.StatusCode)
 	}
 }
 
