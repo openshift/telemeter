@@ -15,6 +15,7 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
+	"github.com/openshift/telemeter/pkg/runutil"
 	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -69,8 +70,6 @@ func ForwardHandler(logger log.Logger, forwardURL *url.URL, tenantID string, cli
 		}
 
 		decoder := expfmt.NewDecoder(r.Body, expfmt.ResponseFormat(r.Header))
-		defer r.Body.Close()
-
 		families := make([]*clientmodel.MetricFamily, 0, 100)
 		for {
 			family := &clientmodel.MetricFamily{}
@@ -120,25 +119,23 @@ func ForwardHandler(logger log.Logger, forwardURL *url.URL, tenantID string, cli
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
+		// TODO: Parametrize that.
 		req.Header.Add("THANOS-TENANT", tenantID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		clientCtx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 
-		req = req.WithContext(ctx)
-
 		begin := time.Now()
-		resp, err := client.Do(req)
+		resp, err := client.Do(req.WithContext(clientCtx))
 		if err != nil {
 			msg := "failed to forward request"
 			level.Warn(rlogger).Log("msg", msg, "err", err)
 			http.Error(w, msg, http.StatusBadGateway)
 			return
 		}
+		defer runutil.ExhaustCloseWithLogOnErr(rlogger, resp.Body, "close forward resp body")
 
-		forwardDuration.
-			WithLabelValues(fmt.Sprintf("%d", resp.StatusCode)).
-			Observe(time.Since(begin).Seconds())
+		forwardDuration.WithLabelValues(fmt.Sprintf("%d", resp.StatusCode)).Observe(time.Since(begin).Seconds())
 
 		meanDrift := timeseriesMeanDrift(timeseries, time.Now().Unix())
 		if math.Abs(meanDrift) > 10 {

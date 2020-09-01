@@ -2,16 +2,19 @@ package stub
 
 import (
 	"fmt"
-	"log"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/openshift/telemeter/pkg/fnv"
 )
 
-func Authorize(token, cluster string) (string, error) {
-	subject, err := fnv.Hash(token)
-	if err != nil {
-		return "", fmt.Errorf("hashing token failed: %v", err)
+func AuthorizeFn(logger log.Logger) func(token, cluster string) (string, error) {
+	return func(token, cluster string) (string, error) {
+		subject, err := fnv.Hash(token)
+		if err != nil {
+			return "", fmt.Errorf("hashing token failed: %v", err)
+		}
+		level.Warn(logger).Log("msg", "performing no-op authentication", "subject", subject, "cluster", cluster)
+		return subject, nil
 	}
-	log.Printf("warning: Performing no-op authentication, subject will be %s with cluster %s", subject, cluster)
-	return subject, nil
 }
