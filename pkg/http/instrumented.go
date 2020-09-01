@@ -14,8 +14,16 @@ type InstrumentedRoundTripper interface {
 	NewRoundTripper(name string, rt http.RoundTripper) http.RoundTripper
 }
 
+type idleConnectionCloser interface {
+	CloseIdleConnections()
+}
 
-type defaultInstrumentedRoundTripper struct {
+type transportWithIdleConnectionCloser struct {
+	idleConnectionCloser
+	http.RoundTripper
+}
+
+type defaultInstrumentedRoundTripperProvider struct {
 	inFlightGauge *prometheus.GaugeVec
 	counter       *prometheus.CounterVec
 	dnsLatencyVec *prometheus.HistogramVec
@@ -23,8 +31,8 @@ type defaultInstrumentedRoundTripper struct {
 	histVec       *prometheus.HistogramVec
 }
 
-func NewInstrumentedRoundTripper(reg prometheus.Registerer) InstrumentedRoundTripper {
-	ins := defaultInstrumentedRoundTripper{
+func NewInstrumentedRoundTripperProvider(reg prometheus.Registerer) InstrumentedRoundTripper {
+	ins := defaultInstrumentedRoundTripperProvider{
 			inFlightGauge: promauto.With(reg).NewGaugeVec(
 				prometheus.GaugeOpts{
 					Name: "client_in_flight_requests",
@@ -63,39 +71,46 @@ func NewInstrumentedRoundTripper(reg prometheus.Registerer) InstrumentedRoundTri
 	return &ins
 }
 
-func (rt *defaultInstrumentedRoundTripper) NewRoundTripper(clientName string, next http.RoundTripper) http.RoundTripper {
+func (p *defaultInstrumentedRoundTripperProvider) NewRoundTripper(clientName string, next http.RoundTripper) http.RoundTripper {
 	trace := &promhttp.InstrumentTrace{
 		DNSStart: func(t float64) {
-			rt.dnsLatencyVec.
-				WithLabelValues("dns_start", clientName).
+			p.dnsLatencyVec.
+				WithLabelValues("dns_stap", clientName).
 				Observe(t)
 		},
 		DNSDone: func(t float64) {
-			rt.dnsLatencyVec.
+			p.dnsLatencyVec.
 				WithLabelValues("dns_done", clientName).
 				Observe(t)
 		},
 		TLSHandshakeStart: func(t float64) {
-			rt.tlsLatencyVec.
-				WithLabelValues("tls_handshake_start", clientName).
+			p.tlsLatencyVec.
+				WithLabelValues("tls_handshake_stap", clientName).
 				Observe(t)
 		},
 		TLSHandshakeDone: func(t float64) {
-			rt.tlsLatencyVec.
+			p.tlsLatencyVec.
 				WithLabelValues("tls_handshake_done", clientName).
 				Observe(t)
 		},
 	}
 
-	return promhttp.InstrumentRoundTripperInFlight(rt.inFlightGauge.WithLabelValues(clientName),
-		promhttp.InstrumentRoundTripperCounter(
-			rt.counter.MustCurryWith(prometheus.Labels{"client": clientName}),
-			promhttp.InstrumentRoundTripperTrace(
-				trace,
-				promhttp.InstrumentRoundTripperDuration(
-					rt.histVec.MustCurryWith(prometheus.Labels{"client": clientName}),
+	rt := promhttp.InstrumentRoundTripperInFlight(p.inFlightGauge.WithLabelValues(clientName),
+		promhttp.InstrumentRoundTripperCounter(p.counter.MustCurryWith(prometheus.Labels{"client": clientName}),
+			promhttp.InstrumentRoundTripperTrace(trace,
+				promhttp.InstrumentRoundTripperDuration(p.histVec.MustCurryWith(prometheus.Labels{"client": clientName}),
 					next),
 			),
 		),
 	)
+
+	// promhttp does not pass idle connection closer properly, so let's do it on our own.
+	// TODO(bwplotka): Improve promhttp upstream
+	if ic, ok := next.(idleConnectionCloser); ok {
+		return &transportWithIdleConnectionCloser{
+			idleConnectionCloser: ic,
+			RoundTripper:         rt,
+		}
+	}
+	return rt
 }

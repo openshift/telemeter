@@ -251,7 +251,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 	if o.Verbose {
 		transport = telemeter_http.NewDebugRoundTripper(o.Logger, transport)
 	}
-	ins := telemeter_http.NewInstrumentedRoundTripper(reg)
+	ins := telemeter_http.NewInstrumentedRoundTripperProvider(reg)
 
 	// Set up the upstream authorization.
 	var authorizeURL *url.URL
@@ -272,7 +272,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 	}
 
 	forwardClient := &http.Client{
-		Transport: telemeter_http.NewInstrumentedRoundTripper(reg, "forward", transport),
+		Transport: ins.NewRoundTripper("forward", transport),
 	}
 
 	if o.OIDCIssuer != "" {
@@ -470,16 +470,15 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 			transforms.With(metricfamily.NewElide(o.ElideLabels...))
 
 			external.Post("/authorize",
-<<<<<<< HEAD
 				runutil.ExhaustCloseRequestBodyHandler(o.Logger,
-					ins.NewHandler("authorize",
+					insMiddleware.NewHandler("authorize",
 						auth,
 					),
 				).ServeHTTP)
 
 			external.Post("/upload",
 				runutil.ExhaustCloseRequestBodyHandler(o.Logger,
-					ins.NewHandler("upload",
+					insMiddleware.NewHandler("upload",
 						authorize.NewAuthorizeClientHandler(jwtAuthorizer,
 							server.ClusterID(o.Logger, o.clusterIDKey,
 								server.Ratelimit(o.Logger, o.Ratelimit, time.Now,
@@ -487,20 +486,6 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 										server.Validate(o.Logger, reg, transforms, 24*time.Hour, o.LimitBytes, time.Now,
 											server.ForwardHandler(o.Logger, reg, forwardClient, forwardURL, o.TenantID),
 										),
-=======
-				insMiddleware.NewHandler("authorize",
-					auth,
-				).ServeHTTP)
-
-			external.Post("/upload",
-				insMiddleware.NewHandler("upload",
-					authorize.NewAuthorizeClientHandler(jwtAuthorizer,
-						server.ClusterID(o.Logger, o.clusterIDKey,
-							server.Ratelimit(o.Logger, o.Ratelimit, time.Now,
-								server.Snappy(
-									server.Validate(o.Logger, reg, transforms, 24*time.Hour, o.LimitBytes, time.Now,
-										server.ForwardHandler(o.Logger, reg, forwardClient, forwardURL, o.TenantID),
->>>>>>> b51d5f3f... Refactor InstrumentedRoundTripper
 									),
 								),
 							),
@@ -523,9 +508,8 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 			receiver := receive.NewHandler(o.Logger, reg, o.ForwardURL, o.TenantID)
 
 			external.Handle("/metrics/v1/receive",
-<<<<<<< HEAD
 				runutil.ExhaustCloseRequestBodyHandler(o.Logger,
-					ins.NewHandler("receive",
+					insMiddleware.NewHandler("receive",
 						authorize.NewHandler(o.Logger, &v2AuthorizeClient, authorizeURL, o.TenantKey,
 							receive.LimitBodySize(receive.DefaultRequestLimit,
 								receive.ValidateLabels(
@@ -533,15 +517,6 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 									http.HandlerFunc(receiver.Receive),
 									o.clusterIDKey, // TODO: Enforce the same labels for v1 and v2
 								),
-=======
-				insMiddleware.NewHandler("receive",
-					authorize.NewHandler(o.Logger, &v2AuthorizeClient, authorizeURL, o.TenantKey,
-						receive.LimitBodySize(receive.DefaultRequestLimit,
-							receive.ValidateLabels(
-								o.Logger,
-								http.HandlerFunc(receiver.Receive),
-								o.clusterIDKey, // TODO: Enforce the same labels for v1 and v2
->>>>>>> b51d5f3f... Refactor InstrumentedRoundTripper
 							),
 						),
 					),
