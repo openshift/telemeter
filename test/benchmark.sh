@@ -10,7 +10,9 @@ TSN=$(grep -v '^#' -c "$TS")
 echo "Running benchmarking test"
 
 rc=
-trap 'rc=$?; printf "cleaning up...\n" && oc delete -f ./manifests/benchmark/ --ignore-not-found=true && oc delete namespace telemeter-benchmark --ignore-not-found=true && jobs -p | xargs -r kill; exit $rc' EXIT
+trap 'rc=$?; printf "cleaning up...\n" && oc delete -f ./manifests/benchmark/ --ignore-not-found=true && oc delete namespace telemeter-benchmark --ignore-not-found=true && jobs -p | xargs -r kill >/dev/null 2>&1 || true; exit $rc' EXIT
+
+result=1
 
 benchmark() {
     local current=$1
@@ -23,7 +25,7 @@ benchmark() {
         if ! check "$current" https://"$(route benchmark-thanos-query)"; then
             break
         fi
-        jobs -p | xargs -r kill
+        jobs -p | xargs -r sh -c 'kill >/dev/null 2>&1 || true'
         success=$current
         current=$((current+500))
     done
@@ -79,7 +81,7 @@ create() {
 }
 
 client() {
-    trap 'jobs -p | xargs -r kill' EXIT
+    trap 'jobs -p | xargs -r kill >/dev/null 2>&1 || true' EXIT
     local n=$1
     local url=$2
     ./telemeter-benchmark --workers="$n" --metrics-file="$TS" --to="$url" --to-token=benchmark --listen=localhost:8888 > /dev/null 2>&1 &
