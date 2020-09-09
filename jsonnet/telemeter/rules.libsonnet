@@ -54,6 +54,12 @@
                 0 * (max by (_id,version) (cluster_version{type="current"}) or on(_id) label_replace(max by (_id) (cluster:node_instance_type_count:sum*0), "version", "", "unknown", ""))
               |||,
             },
+            {
+              record: 'id_install_type',
+              expr: |||
+                0 * (count by (_id, install_type) (label_replace(label_replace(label_replace(label_replace(cluster_installer, "install_type", "upi", "type", "other"), "install_type", "ipi", "type", "openshift-install"), "install_type", "hive", "invoker", "hive"), "install_type", "assisted-installer", "invoker", "assisted-installer")) or on(_id) (label_replace(count by (_id) (cluster:virt_platform_nodes:sum), "install_type", "hypershift-unknown", "install_type", ""))*0)
+              |||,
+            },
           ],
         },
       ],
