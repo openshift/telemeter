@@ -36,6 +36,12 @@
                 topk by (_id) (1, max by (_id, managed, ebs_account, internal) (label_replace(label_replace((subscription_labels{support=~"Standard|Premium|Layered"} * 0 + 1) or subscription_labels * 0, "internal", "true", "email_domain", "redhat.com|(.*\\.|^)ibm.com"), "managed", "", "managed", "false")) + on(_id) group_left(version) (topk by (_id) (1, 0*cluster_version{type="current"})))
               |||,
             },
+            {
+              record: 'id_primary_host_type',
+              expr: |||
+                0 * (max by (_id,host_type) (topk by (_id) (1, label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(cluster:virt_platform_nodes:sum, "host_type", "$1", "type", "(aws|ibm_.*|ovirt|none|rhev|gcp|openstack|hyperv|vmware)"), "host_type", "virt-unknown", "host_type", ""), "host_type", "kvm-unknown", "type", "kvm"), "host_type", "xen-unknown", "type", "xen.*"), "host_type", "metal", "host_type", "none"), "host_type", "ibm-$1", "host_type", "ibm[_-](power|systemz).*"))) or on(_id) label_replace(max by (_id) (cluster_version{type="current"}), "host_type", "", "host_type", ""))
+              |||,
+            },
           ],
         },
       ],
