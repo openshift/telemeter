@@ -48,6 +48,12 @@
                 0 * topk by (_id) (1, count by (_id, provider) (label_replace(cluster_infrastructure_provider * 0 + 2, "provider", "$1", "type", "(.*)")) or on(_id) label_replace(max by (_id) (cluster_version{type="current"}*0+1), "provider", "", "provider", "") or on(_id) label_replace(max by (_id) (cluster:node_instance_type_count:sum*0), "provider", "hypershift-unknown", "provider", ""))
               |||,
             },
+            {
+              record: 'id_version',
+              expr: |||
+                0 * (max by (_id,version) (cluster_version{type="current"}) or on(_id) label_replace(max by (_id) (cluster:node_instance_type_count:sum*0), "version", "", "unknown", ""))
+              |||,
+            },
           ],
         },
       ],
