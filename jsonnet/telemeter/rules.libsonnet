@@ -33,7 +33,7 @@
             {
               record: 'id_version_ebs_account_internal:cluster_subscribed',
               expr: |||
-                topk by (_id) (1, max by (_id, managed, ebs_account, internal) (label_replace(label_replace((subscription_labels{support=~"Standard|Premium|Layered"} * 0 + 1) or subscription_labels * 0, "internal", "true", "email_domain", "redhat.com|(.*\\.|^)ibm.com"), "managed", "", "managed", "false")) + on(_id) group_left(version) (id_version*0) + on(_id) group_left(install_type) (id_install_type*0) + on(_id) group_left(primary_host_type) (id_primary_host_type*0) + on(_id) group_left(provider) (provider*0))
+                topk by (_id) (1, max by (_id, managed, ebs_account, internal) (label_replace(label_replace((subscription_labels{support=~"Standard|Premium|Layered"} * 0 + 1) or subscription_labels * 0, "internal", "true", "email_domain", "redhat.com|(.*\\.|^)ibm.com"), "managed", "", "managed", "false")) + on(_id) group_left(version) (topk by (_id) (1, id_version*0)) + on(_id) group_left(install_type) (topk by (_id) (1, id_install_type*0)) + on(_id) group_left(primary_host_type) (topk by (_id) (1, id_primary_host_type*0)) + on(_id) group_left(provider) (topk by (_id) (1, id_provider*0)))
               |||,
             },
             {
@@ -51,13 +51,13 @@
             {
               record: 'id_version',
               expr: |||
-                0 * (max by (_id,version) (cluster_version{type="current"}) or on(_id) label_replace(max by (_id) (cluster:node_instance_type_count:sum*0), "version", "", "unknown", ""))
+                0 * (max by (_id,version) (topk by (_id) (1, cluster_version{type="current"})) or on(_id) label_replace(max by (_id) (cluster:node_instance_type_count:sum*0), "version", "", "unknown", ""))
               |||,
             },
             {
               record: 'id_install_type',
               expr: |||
-                0 * (count by (_id, install_type) (label_replace(label_replace(label_replace(label_replace(cluster_installer, "install_type", "upi", "type", "other"), "install_type", "ipi", "type", "openshift-install"), "install_type", "hive", "invoker", "hive"), "install_type", "assisted-installer", "invoker", "assisted-installer")) or on(_id) (label_replace(count by (_id) (cluster:virt_platform_nodes:sum), "install_type", "hypershift-unknown", "install_type", ""))*0)
+                0 * (count by (_id, install_type) (label_replace(label_replace(label_replace(label_replace(topk by (_id) (1, cluster_installer), "install_type", "upi", "type", "other"), "install_type", "ipi", "type", "openshift-install"), "install_type", "hive", "invoker", "hive"), "install_type", "assisted-installer", "invoker", "assisted-installer")) or on(_id) (label_replace(count by (_id) (cluster:virt_platform_nodes:sum), "install_type", "hypershift-unknown", "install_type", ""))*0)
               |||,
             },
           ],
