@@ -1,4 +1,4 @@
-FROM registry.svc.ci.openshift.org/ocp/builder:rhel-8-golang-1.15-openshift-4.6
+FROM registry.svc.ci.openshift.org/ocp/builder:rhel-8-golang-1.15-openshift-4.7
 ENV GOFLAGS="-mod=vendor"
 COPY . /go/src/github.com/openshift/telemeter
 RUN cd /go/src/github.com/openshift/telemeter && \
@@ -6,7 +6,7 @@ RUN cd /go/src/github.com/openshift/telemeter && \
     go build ./cmd/telemeter-server && \
     go build ./cmd/authorization-server
 
-FROM registry.svc.ci.openshift.org/ocp/4.6:base
+FROM registry.svc.ci.openshift.org/ocp/4.7:base
 LABEL io.k8s.display-name="OpenShift Telemeter" \
       io.k8s.description="" \
       io.openshift.tags="openshift,monitoring" \
