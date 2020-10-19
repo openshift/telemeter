@@ -32,15 +32,12 @@ func TestNew(t *testing.T) {
 	}{
 		{
 			// Empty configuration should error.
-			c:   Config{Logger: log.NewNopLogger()},
+			c:   Config{},
 			err: true,
 		},
 		{
 			// Only providing a `From` should not error.
-			c: Config{
-				From:   from,
-				Logger: log.NewNopLogger(),
-			},
+			c:   Config{From: from},
 			err: false,
 		},
 		{
@@ -48,7 +45,6 @@ func TestNew(t *testing.T) {
 			c: Config{
 				From:     from,
 				ToUpload: toUpload,
-				Logger:   log.NewNopLogger(),
 			},
 			err: false,
 		},
@@ -57,7 +53,6 @@ func TestNew(t *testing.T) {
 			c: Config{
 				From:        from,
 				ToAuthorize: toAuthorize,
-				Logger:      log.NewNopLogger(),
 			},
 			err: true,
 		},
@@ -66,7 +61,6 @@ func TestNew(t *testing.T) {
 			c: Config{
 				From:    from,
 				ToToken: "foo",
-				Logger:  log.NewNopLogger(),
 			},
 			err: true,
 		},
@@ -76,7 +70,6 @@ func TestNew(t *testing.T) {
 				From:        from,
 				ToAuthorize: toAuthorize,
 				ToToken:     "foo",
-				Logger:      log.NewNopLogger(),
 			},
 			err: false,
 		},
@@ -85,7 +78,6 @@ func TestNew(t *testing.T) {
 			c: Config{
 				From:          from,
 				FromTokenFile: "/this/path/does/not/exist",
-				Logger:        log.NewNopLogger(),
 			},
 			err: true,
 		},
@@ -94,7 +86,6 @@ func TestNew(t *testing.T) {
 			c: Config{
 				From:        from,
 				ToTokenFile: "/this/path/does/not/exist",
-				Logger:      log.NewNopLogger(),
 			},
 			err: true,
 		},
@@ -103,7 +94,6 @@ func TestNew(t *testing.T) {
 			c: Config{
 				From:          from,
 				AnonymizeSalt: "1",
-				Logger:        log.NewNopLogger(),
 			},
 			err: false,
 		},
@@ -112,7 +102,6 @@ func TestNew(t *testing.T) {
 			c: Config{
 				From:            from,
 				AnonymizeLabels: []string{"foo"},
-				Logger:          log.NewNopLogger(),
 			},
 			err: true,
 		},
@@ -122,7 +111,6 @@ func TestNew(t *testing.T) {
 				From:            from,
 				AnonymizeLabels: []string{"foo"},
 				AnonymizeSalt:   "1",
-				Logger:          log.NewNopLogger(),
 			},
 			err: false,
 		},
@@ -132,7 +120,6 @@ func TestNew(t *testing.T) {
 				From:              from,
 				AnonymizeLabels:   []string{"foo"},
 				AnonymizeSaltFile: "/this/path/does/not/exist",
-				Logger:            log.NewNopLogger(),
 			},
 			err: true,
 		},
@@ -143,7 +130,6 @@ func TestNew(t *testing.T) {
 				AnonymizeLabels:   []string{"foo"},
 				AnonymizeSalt:     "1",
 				AnonymizeSaltFile: "/this/path/does/not/exist",
-				Logger:            log.NewNopLogger(),
 			},
 			err: false,
 		},
@@ -152,14 +138,13 @@ func TestNew(t *testing.T) {
 			c: Config{
 				From:       from,
 				FromCAFile: "/this/path/does/not/exist",
-				Logger:     log.NewNopLogger(),
 			},
 			err: true,
 		},
 	}
 
 	for i := range tc {
-		if _, err := New(NewMetrics(prometheus.NewRegistry()), tc[i].c); (err != nil) != tc[i].err {
+		if _, err := New(log.NewNopLogger(), prometheus.NewRegistry(), tc[i].c); (err != nil) != tc[i].err {
 			no := "no"
 			if tc[i].err {
 				no = "an"
@@ -174,11 +159,8 @@ func TestReconfigure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to parse `from` URL: %v", err)
 	}
-	c := Config{
-		From:   from,
-		Logger: log.NewNopLogger(),
-	}
-	w, err := New(NewMetrics(prometheus.NewRegistry()), c)
+	c := Config{From: from}
+	w, err := New(log.NewNopLogger(), prometheus.NewRegistry(), c)
 	if err != nil {
 		t.Fatalf("failed to create new worker: %v", err)
 	}
@@ -194,15 +176,12 @@ func TestReconfigure(t *testing.T) {
 	}{
 		{
 			// Empty configuration should error.
-			c:   Config{Logger: log.NewNopLogger()},
+			c:   Config{},
 			err: true,
 		},
 		{
 			// Configuration with new `From` should not error.
-			c: Config{
-				From:   from2,
-				Logger: log.NewNopLogger(),
-			},
+			c:   Config{From: from2},
 			err: false,
 		},
 		{
@@ -210,7 +189,6 @@ func TestReconfigure(t *testing.T) {
 			c: Config{
 				From:          from,
 				FromTokenFile: "/this/path/does/not/exist",
-				Logger:        log.NewNopLogger(),
 			},
 			err: true,
 		},
@@ -238,10 +216,9 @@ func TestReconfigure(t *testing.T) {
 func TestRun(t *testing.T) {
 	c := Config{
 		// Use a dummy URL.
-		From:   &url.URL{},
-		Logger: log.NewNopLogger(),
+		From: &url.URL{},
 	}
-	w, err := New(NewMetrics(prometheus.NewRegistry()), c)
+	w, err := New(log.NewNopLogger(), prometheus.NewRegistry(), c)
 	if err != nil {
 		t.Fatalf("failed to create new worker: %v", err)
 	}
@@ -269,7 +246,7 @@ func TestRun(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to parse second test server URL: %v", err)
 			}
-			if err := w.Reconfigure(Config{From: from, Logger: log.NewNopLogger()}); err != nil {
+			if err := w.Reconfigure(Config{From: from}); err != nil {
 				t.Fatalf("failed to reconfigure worker with second test server url: %v", err)
 			}
 		}()
@@ -280,7 +257,7 @@ func TestRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to parse first test server URL: %v", err)
 	}
-	if err := w.Reconfigure(Config{From: from, Logger: log.NewNopLogger()}); err != nil {
+	if err := w.Reconfigure(Config{From: from}); err != nil {
 		t.Fatalf("failed to reconfigure worker with first test server url: %v", err)
 	}
 

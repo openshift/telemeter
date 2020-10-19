@@ -182,7 +182,7 @@ func New(reg prometheus.Registerer, cfg *Config) (*Benchmark, error) {
 			client.Transport = rt
 			transformer.With(metricfamily.NewLabel(nil, rt))
 		}
-		w.client = metricsclient.New(logger, metricsclient.NewMetrics(reg, "federate_to"), client, LimitBytes, w.interval)
+		w.client = metricsclient.New(logger, reg, client, LimitBytes, w.interval, "federate_to")
 		w.transformer = transformer
 		b.workers[i] = w
 	}

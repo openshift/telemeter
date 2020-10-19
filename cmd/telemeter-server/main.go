@@ -364,11 +364,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 		})
 	}
 
-	insMiddleware := server.NewNopInstrumentationMiddleware()
-	if reg != nil {
-		insMiddleware = server.NewInstrumentationMiddleware(reg)
-	}
-
+	insMiddleware := server.NewInstrumentationMiddleware(reg)
 	{
 		external := chi.NewRouter()
 		external.Use(middleware.RequestID)

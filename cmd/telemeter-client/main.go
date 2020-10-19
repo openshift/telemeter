@@ -259,11 +259,9 @@ func (o *Options) Run() error {
 		Rules:             o.Rules,
 		RulesFile:         o.RulesFile,
 		Transformer:       transformer,
-
-		Logger: o.Logger,
 	}
 
-	worker, err := forwarder.New(forwarder.NewMetrics(reg), cfg)
+	worker, err := forwarder.New(o.Logger, reg, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to configure Telemeter client: %v", err)
 	}

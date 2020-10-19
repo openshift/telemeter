@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-kit/kit/log"
@@ -24,14 +25,26 @@ import (
 	"github.com/openshift/telemeter/pkg/reader"
 )
 
+var (
+	metricsCache = map[string]*Metrics{}
+	mu           = sync.RWMutex{}
+)
+
 type Metrics struct {
 	gaugeRequestRetrieve *prometheus.GaugeVec
 	gaugeRequestSend     *prometheus.GaugeVec
 }
 
-func NewMetrics(reg prometheus.Registerer, metricsName string) *Metrics {
-	reg = prom.WrapRegistererWith(prometheus.Labels{"client": metricsName}, reg)
-	return &Metrics{
+func newMetrics(reg prometheus.Registerer, client string) *Metrics {
+	mu.RLock()
+	if m, ok := metricsCache[client]; ok {
+		mu.RUnlock()
+		return m
+	}
+	mu.RUnlock()
+
+	reg = prom.WrapRegistererWith(prometheus.Labels{"client": client}, reg)
+	m := &Metrics{
 		gaugeRequestRetrieve: promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{
 			Name: "metricsclient_request_retrieve",
 			Help: "Tracks the number of metrics retrievals",
@@ -41,6 +54,10 @@ func NewMetrics(reg prometheus.Registerer, metricsName string) *Metrics {
 			Help: "Tracks the number of metrics sends",
 		}, []string{"status_code"}),
 	}
+	mu.Lock()
+	metricsCache[client] = m
+	mu.Unlock()
+	return m
 }
 
 type Client struct {
@@ -52,11 +69,10 @@ type Client struct {
 	timeout  time.Duration
 }
 
-func New(logger log.Logger, metrics *Metrics, client *http.Client, maxBytes int64, timeout time.Duration) *Client {
-
+func New(logger log.Logger, reg prometheus.Registerer, client *http.Client, maxBytes int64, timeout time.Duration, clientName string) *Client {
 	return &Client{
 		logger:  log.With(logger, "component", "metricsclient"),
-		metrics: metrics,
+		metrics: newMetrics(reg, clientName),
 
 		client:   client,
 		maxBytes: maxBytes,
