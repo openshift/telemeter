@@ -42,7 +42,7 @@ spec:
           value: ""
         - name: NO_PROXY
           value: ""
-        image: quay.io/openshift/origin-telemeter:4.5
+        image: quay.io/openshift/origin-telemeter:v4.0
         name: telemeter-client
         ports:
         - containerPort: 8080

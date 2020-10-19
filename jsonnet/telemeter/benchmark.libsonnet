@@ -4,7 +4,7 @@
     local defaultConfig = self,
     namespace: 'telemeter-benchmark',
     name: 'benchmark',
-    thanosVersion: 'v0.14.0',
+    thanosVersion: 'master-2020-02-13-adfef4b5',
     thanosImage: 'quay.io/thanos/thanos:' + defaultConfig.thanosVersion,
     hashrings: [
       {
@@ -38,7 +38,7 @@
       version: defaultConfig.thanosVersion,
     },
     telemeterServer+: {
-      image: 'quay.io/openshift/origin-telemeter:4.5',
+      image: 'quay.io/openshift/origin-telemeter:v4.0',
       replicas: 10,
       whitelist: [],
     },

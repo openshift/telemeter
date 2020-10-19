@@ -31,7 +31,7 @@ local securePort = 8443;
       // TODO(squat): change this to v4.0 once that image is built
       configmapReload: 'v3.11',
       kubeRbacProxy: 'v0.3.1',
-      telemeterClient: '4.5',
+      telemeterClient: 'v4.0',
     },
 
     imageRepos+:: {
