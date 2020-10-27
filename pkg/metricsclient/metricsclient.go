@@ -26,16 +26,16 @@ import (
 )
 
 var (
-	metricsCache = map[string]*Metrics{}
+	metricsCache = map[string]*metrics{}
 	mu           = sync.RWMutex{}
 )
 
-type Metrics struct {
+type metrics struct {
 	gaugeRequestRetrieve *prometheus.GaugeVec
 	gaugeRequestSend     *prometheus.GaugeVec
 }
 
-func newMetrics(reg prometheus.Registerer, client string) *Metrics {
+func newMetrics(reg prometheus.Registerer, client string) *metrics {
 	mu.RLock()
 	if m, ok := metricsCache[client]; ok {
 		mu.RUnlock()
@@ -44,7 +44,7 @@ func newMetrics(reg prometheus.Registerer, client string) *Metrics {
 	mu.RUnlock()
 
 	reg = prom.WrapRegistererWith(prometheus.Labels{"client": client}, reg)
-	m := &Metrics{
+	m := &metrics{
 		gaugeRequestRetrieve: promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{
 			Name: "metricsclient_request_retrieve",
 			Help: "Tracks the number of metrics retrievals",
@@ -62,7 +62,7 @@ func newMetrics(reg prometheus.Registerer, client string) *Metrics {
 
 type Client struct {
 	logger  log.Logger
-	metrics *Metrics
+	metrics *metrics
 
 	client   *http.Client
 	maxBytes int64

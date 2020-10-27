@@ -53,14 +53,14 @@ type Config struct {
 	Transformer       metricfamily.Transformer
 }
 
-type Metrics struct {
+type metrics struct {
 	gaugeFederateSamples         prometheus.Gauge
 	gaugeFederateFilteredSamples prometheus.Gauge
 	gaugeFederateErrors          prometheus.Gauge
 }
 
-func newMetrics(reg prometheus.Registerer) *Metrics {
-	return &Metrics{
+func newMetrics(reg prometheus.Registerer) *metrics {
+	return &metrics{
 		gaugeFederateSamples: promauto.With(reg).NewGauge(prometheus.GaugeOpts{
 			Name: "federate_samples",
 			Help: "Tracks the number of samples per federation",
@@ -82,7 +82,7 @@ func newMetrics(reg prometheus.Registerer) *Metrics {
 type Worker struct {
 	logger  log.Logger
 	reg     prometheus.Registerer
-	metrics *Metrics
+	metrics *metrics
 
 	fromClient *metricsclient.Client
 	toClient   *metricsclient.Client
