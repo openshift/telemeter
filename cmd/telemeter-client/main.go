@@ -306,7 +306,7 @@ func (o *Options) Run() error {
 		handlers := http.NewServeMux()
 		telemeterhttp.DebugRoutes(handlers)
 		telemeterhttp.HealthRoutes(handlers)
-		telemeterhttp.MetricRoutes(handlers)
+		telemeterhttp.MetricRoutes(handlers, reg)
 		telemeterhttp.ReloadRoutes(handlers, func() error {
 			return worker.Reconfigure(cfg)
 		})

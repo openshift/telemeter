@@ -207,7 +207,7 @@ func runCmd() error {
 		handlers := http.NewServeMux()
 		telemeterhttp.DebugRoutes(handlers)
 		telemeterhttp.HealthRoutes(handlers)
-		telemeterhttp.MetricRoutes(handlers)
+		telemeterhttp.MetricRoutes(handlers, reg)
 		telemeterhttp.ReloadRoutes(handlers, func() error {
 			return b.Reconfigure(cfg)
 		})
