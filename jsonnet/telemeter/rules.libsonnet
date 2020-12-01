@@ -65,7 +65,24 @@
               expr: |||
                 0 * (max by (_id,cloudpak_type) (topk by (_id) (1, count by (_id,cloudpak_type) (label_replace(subscription_sync_total{installed=~"ibm-((licensing|common-service)-operator).*"}, "cloudpak_type", "unknown", "", ".*")))))
               |||,
-            }
+            },
+            {,
+              // Identifies ebs_accounts into account_type by their likely status - Partner, Evaluation, Customer, or Internal. Sets the internal
+              // label on any redhat.com or .ibm.com email domain. The account_type="Internal" selector should be preferred over internal="true"
+              // since ibm.com accounts may be customers or running clusters on customer's behalf. account_type is mostly determined by whether
+              // the account carries any product subscriptions and as such a partner with valid subscriptions will be labelled Customer.
+              //
+              // account_type:
+              // * Internal - any redhat.com user, or any ibm.com ebs_account without any commercial subs
+              // * Customer - an ebs_account with commercial subs
+              // * Partner - an ebs_account flagged as a partner
+              // * Evaluation - an ebs_account with only eval subs
+              // * <empty> - is none of the categories above (does not have a relationships with RH around subs or partnership)
+              record: 'ebs_account_account_type_email_domain_internal',
+              expr: |||
+                0 * topk by (ebs_account) (1, max by (ebs_account,account_type,internal,email_domain) (label_replace(label_replace(label_replace(subscription_labels{email_domain="redhat.com"}*0+5, "class", "Internal", "class", ".*") or label_replace(subscription_labels{class!="Customer",email_domain=~"(.*\\.|^)ibm.com"}*0+4, "class", "Internal", "class", ".*") or (subscription_labels{class="Customer"}*0+3) or (subscription_labels{class="Partner"}*0+2) or (subscription_labels{class="Evaluation"}*0+1) or label_replace(subscription_labels{class!~"Evaluation|Customer|Partner"}*0+0, "class", "", "class", ".*"), "account_type", "$1", "class", "(.+)"), "internal", "true", "email_domain", "redhat.com|(.*\\.|^)ibm.com") ))
+              |||,
+            },
           ],
         },
       ],
