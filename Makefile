@@ -20,10 +20,12 @@ MEMCACHED_BIN=$(BIN_DIR)/memcached
 PROMETHEUS_BIN=$(BIN_DIR)/prometheus
 GOJSONTOYAML_BIN=$(BIN_DIR)/gojsontoyaml
 JSONNET_BIN?=$(BIN_DIR)/jsonnet
+JSONNETFMT_BIN?=$(BIN_DIR)/jsonnetfmt
 # We need jsonnet on CI; here we default to the user's installed jsonnet binary; if nothing is installed, then install go-jsonnet.
 JSONNET_LOCAL_OR_INSTALLED=$(if $(shell which jsonnet 2>/dev/null),$(shell which jsonnet 2>/dev/null),$(JSONNET_BIN))
+JSONNETFMT_LOCAL_OR_INSTALLED=$(if $(shell which jsonnetfmt 2>/dev/null),$(shell which jsonnetfmt 2>/dev/null),$(JSONNETFMT_BIN))
 JB_BIN=$(BIN_DIR)/jb
-JSONNET_SRC=$(shell find ./jsonnet -type f)
+JSONNET_SRC=$(shell find ./jsonnet -path ./jsonnet/vendor -prune -false -o -type f \( -name "*.jsonnet" -o -name "*.libsonnet" \))
 BENCHMARK_RESULTS=$(shell find ./benchmark -type f -name '*.json')
 BENCHMARK_GOAL?=5000
 JSONNET_VENDOR=jsonnet/jsonnetfile.lock.json jsonnet/vendor
@@ -133,11 +135,15 @@ lint: $(GOLANGCI_LINT_BIN)
 	$(GOLANGCI_LINT_BIN) run -c .golangci.yml
 
 .PHONY: format
-format: go-fmt shellcheck
+format: go-fmt jsonnet-fmt
 
 .PHONY: go-fmt
 go-fmt:
 	go fmt $(PKGS)
+
+.PHONY: jsonnet-fmt
+jsonnet-fmt: $(JSONNETFMT_LOCAL_OR_INSTALLED)
+	$(JSONNETFMT_LOCAL_OR_INSTALLED) $(JSONNET_SRC) -i
 
 .PHONY: shellcheck
 shellcheck:
@@ -157,6 +163,9 @@ test-unit:
 # TODO(paulfantom): remove this target after removing it from Prow.
 test-generate:
 	make --always-make && git diff --exit-code
+
+test-format:
+	make --always-make format && git diff --exit-code
 
 test-integration: build | $(THANOS_BIN) $(UP_BIN) $(MEMCACHED_BIN) $(PROMETHEUS_BIN)
 	@echo "Running integration tests: V1"
@@ -220,6 +229,9 @@ $(EMBEDMD_BIN): $(BIN_DIR)
 
 $(JSONNET_BIN): $(BIN_DIR)
 	GOBIN=$(BIN_DIR) go install -mod=readonly -modfile=tools/go.mod github.com/google/go-jsonnet/cmd/jsonnet
+
+$(JSONNETFMT_BIN): $(BIN_DIR)
+	GOBIN=$(BIN_DIR) go install -mod=readonly -modfile=tools/go.mod github.com/google/go-jsonnet/cmd/jsonnetfmt
 
 $(JB_BIN): $(BIN_DIR)
 	GOBIN=$(BIN_DIR) go install -mod=readonly -modfile=tools/go.mod github.com/jsonnet-bundler/jsonnet-bundler/cmd/jb
