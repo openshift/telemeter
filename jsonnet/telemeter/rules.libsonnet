@@ -66,7 +66,7 @@
                 0 * (max by (_id,cloudpak_type) (topk by (_id) (1, count by (_id,cloudpak_type) (label_replace(subscription_sync_total{installed=~"ibm-((licensing|common-service)-operator).*"}, "cloudpak_type", "unknown", "", ".*")))))
               |||,
             },
-            {,
+            {
               // Identifies ebs_accounts into account_type by their likely status - Partner, Evaluation, Customer, or Internal. Sets the internal
               // label on any redhat.com or .ibm.com email domain. The account_type="Internal" selector should be preferred over internal="true"
               // since ibm.com accounts may be customers or running clusters on customer's behalf. account_type is mostly determined by whether
