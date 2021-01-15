@@ -129,7 +129,7 @@ local securePort = 8443;
         container.withPorts(containerPort.newNamed(insecurePort, 'http')) +
         container.withVolumeMounts([sccabMount, secretMount]) +
         container.withEnv([anonymize, from, id, to, httpProxy, httpsProxy, noProxy]) +
-        container.mixin.resources.withRequests({ cpu: '1m' });
+        container.mixin.resources.withRequests({ cpu: '1m', memory: '40Mi' });
 
       local reload =
         container.new('reload', $._config.imageRepos.configmapReload + ':' + $._config.versions.configmapReload) +
@@ -138,7 +138,7 @@ local securePort = 8443;
           '--volume-dir=' + servingCertsCABundleMountPath,
         ]) +
         container.withVolumeMounts([sccabMount]) +
-        container.mixin.resources.withRequests({ cpu: '1m' });
+        container.mixin.resources.withRequests({ cpu: '1m', memory: '10Mi' });
 
       local proxy =
         container.new('kube-rbac-proxy', $._config.imageRepos.kubeRbacProxy + ':' + $._config.versions.kubeRbacProxy) +
