@@ -87,7 +87,7 @@
               // ACM managed cluster limited to 500 records
               record: 'acm_top500_mcs:acm_managed_cluster_info',
               expr: |||
-                topk(500, sum by (cluster_id, cloud, created_via, endpoint, instance, job, namespace, pod, service, vendor, version(acm_managed_cluster_info))
+                topk(500, sum (acm_managed_cluster_info) by (cluster_id, cloud, created_via, endpoint, instance, job, namespace, pod, service, vendor, version))
               |||,
             },
           ],
