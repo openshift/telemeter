@@ -36,6 +36,13 @@
                 topk by (_id) (1, max by (_id, managed, ebs_account, internal) (label_replace(label_replace((subscription_labels{support=~"Standard|Premium|Layered"} * 0 + 1) or subscription_labels * 0, "internal", "true", "email_domain", "redhat.com|(.*\\.|^)ibm.com"), "managed", "", "managed", "false")) + on(_id) group_left(version) (topk by (_id) (1, 0*cluster_version{type="current"})))
               |||,
             },
+            {
+              // ACM managed cluster limited to 500 records
+              record: 'acm_top500_mcs:acm_managed_cluster_info',
+              expr: |||
+                topk(500, sum (acm_managed_cluster_info) by (managed_cluster_id, cloud, created_via, endpoint, instance, job, namespace, pod, service, vendor, version))
+              |||,
+            },
           ],
         },
       ],
