@@ -60,6 +60,13 @@
                 0 * (count by (_id, install_type) (label_replace(label_replace(label_replace(label_replace(topk by (_id) (1, cluster_installer), "install_type", "upi", "type", "other"), "install_type", "ipi", "type", "openshift-install"), "install_type", "hive", "invoker", "hive"), "install_type", "assisted-installer", "invoker", "assisted-installer")) or on(_id) (label_replace(count by (_id) (cluster:virt_platform_nodes:sum), "install_type", "hypershift-unknown", "install_type", ""))*0)
               |||,
             },
+            {
+              // ACM managed cluster limited to 500 records
+              record: 'acm_top500_mcs:acm_managed_cluster_info',
+              expr: |||
+                topk(500, sum (acm_managed_cluster_info) by (managed_cluster_id, cloud, created_via, endpoint, instance, job, namespace, pod, service, vendor, version))
+              |||,
+            },
           ],
         },
       ],
