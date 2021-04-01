@@ -1,4 +1,4 @@
-FROM registry.ci.openshift.org/ocp/builder:rhel-8-golang-1.15-openshift-4.8
+FROM registry.ci.openshift.org/ocp/builder:rhel-8-golang-1.16-openshift-4.8
 ENV GOFLAGS="-mod=vendor"
 COPY . /go/src/github.com/openshift/telemeter
 RUN cd /go/src/github.com/openshift/telemeter && \
