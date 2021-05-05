@@ -67,6 +67,26 @@
               |||,
             },
             {
+              // Identifies clusters by network type depending on what resources they expose. This is only accurate from 4.6.24 onwards when
+              // we started reporting all resource types to telemetry. It also requires that the cluster not have so many CRDs that some networks
+              // do not get returned because their object is below the cut-off (i.e. OVN doesn't materialize a lot of objects to CRD and so it
+              // can be excluded from large clusters, but we don't observe this yet).
+              // TODO: integrate cluster reported network type
+              record: 'id_network_type',
+              expr: |||
+                topk by(_id) (1,
+                  (label_replace(7+0*count by (_id) (cluster:usage:resources:sum{resource="netnamespaces.network.openshift.io"}), "network_type", "OpenshiftSDN", "", "") > 0) or
+                  (label_replace(6+0*count by (_id) (cluster:usage:resources:sum{resource="clusterinformations.crd.projectcalico.org"}), "network_type", "Calico", "", "") > 0) or
+                  (label_replace(5+0*count by (_id) (cluster:usage:resources:sum{resource="acicontainersoperators.aci.ctrl"}), "network_type", "ACI", "", "") > 0) or
+                  (label_replace(4+0*count by (_id) (cluster:usage:resources:sum{resource="kuryrnetworks.openstack.org"}), "network_type", "Kuryr", "", "") > 0) or
+                  (label_replace(3+0*count by (_id) (cluster:usage:resources:sum{resource="ciliumendpoints.cilium.io"}), "network_type", "Cilium", "", "") > 0) or
+                  (label_replace(2+0*count by (_id) (cluster:usage:resources:sum{resource="ncpconfigs.nsx.vmware.com"}), "network_type", "VMWareNSX", "", "") > 0) or
+                  (label_replace(1+0*count by (_id) (cluster:usage:resources:sum{resource="egressips.k8s.ovn.org"}), "network_type", "OVNKube", "", "")) or
+                  (label_replace(0+0*max by (_id) (cluster:node_instance_type_count:sum*0), "network_type", "unknown", "", ""))
+                )
+              |||,
+            },
+            {
               // Identifies ebs_accounts into account_type by their likely status - Partner, Evaluation, Customer, or Internal. Sets the internal
               // label on any redhat.com or .ibm.com email domain. The account_type="Internal" selector should be preferred over internal="true"
               // since ibm.com accounts may be customers or running clusters on customer's behalf. account_type is mostly determined by whether
