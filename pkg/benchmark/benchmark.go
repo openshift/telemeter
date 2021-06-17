@@ -20,10 +20,10 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
-	uuid "github.com/satori/go.uuid"
 
 	"github.com/openshift/telemeter/pkg/authorize"
 	"github.com/openshift/telemeter/pkg/metricfamily"
@@ -137,7 +137,7 @@ func New(cfg *Config) (*Benchmark, error) {
 
 	for i := range b.workers {
 		w := &worker{
-			id:       uuid.Must(uuid.NewV4()).String(),
+			id:       uuid.New().String(),
 			interval: interval,
 			to:       cfg.ToUpload,
 			logger:   logger,

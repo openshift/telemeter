@@ -13,3 +13,4 @@ benchmark.pdf
 # purpose is to track the last target execution time to evalualte, whether the
 # container needds to be rebuild
 .hack-*-image
+.idea/
