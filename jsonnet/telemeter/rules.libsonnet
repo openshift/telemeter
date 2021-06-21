@@ -57,7 +57,7 @@
             {
               record: 'id_install_type',
               expr: |||
-                0 * (count by (_id, install_type) (label_replace(label_replace(label_replace(label_replace(topk by (_id) (1, cluster_installer), "install_type", "upi", "type", "other"), "install_type", "ipi", "type", "openshift-install"), "install_type", "hive", "invoker", "hive"), "install_type", "assisted-installer", "invoker", "assisted-installer")) or on(_id) (label_replace(count by (_id) (cluster:virt_platform_nodes:sum), "install_type", "hypershift-unknown", "install_type", ""))*0)
+                0 * (count by (_id, install_type) (label_replace(label_replace(label_replace(label_replace(label_replace(topk by (_id) (1, cluster_installer), "install_type", "upi", "type", "other"), "install_type", "ipi", "type", "openshift-install"), "install_type", "hive", "invoker", "hive"), "install_type", "assisted-installer", "invoker", "assisted-installer"), "install_type", "infrastructure-operator", "invoker", "assisted-installer-operator") or on(_id) (label_replace(count by (_id) (cluster:virt_platform_nodes:sum), "install_type", "hypershift-unknown", "install_type", ""))*0)
               |||,
             },
             {
