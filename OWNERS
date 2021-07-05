@@ -1,23 +1,13 @@
 component: "Monitoring"
 
 reviewers:
-- brancz
 - paulfantom
 - squat
-- s-urbaniak
 - smarterclayton
-- metalmatze
-- lilic
-- kakkoyun
 - bwplotka
 
 approvers:
-- brancz
 - paulfantom
 - squat
-- s-urbaniak
 - smarterclayton
-- metalmatze
-- lilic
-- kakkoyun
 - bwplotka
