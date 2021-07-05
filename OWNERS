@@ -6,19 +6,10 @@ reviewers:
 - squat
 - s-urbaniak
 - smarterclayton
-- aditya-konarde
-- jfchevrette
-- jmelis
-- maorfr
-- pbergene
-- skryzhny
 - metalmatze
 - lilic
 - kakkoyun
-- rrati
 - bwplotka
-- rporres
-- arilivigni
 
 approvers:
 - brancz
@@ -26,16 +17,7 @@ approvers:
 - squat
 - s-urbaniak
 - smarterclayton
-- aditya-konarde
-- jfchevrette
-- jmelis
-- maorfr
-- pbergene
-- skryzhny
 - metalmatze
 - lilic
 - kakkoyun
-- rrati
 - bwplotka
-- rporres
-- arilivigni
