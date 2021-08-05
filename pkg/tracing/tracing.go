@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	propjaeger "go.opentelemetry.io/contrib/propagators/jaeger"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/trace/jaeger"
@@ -26,6 +28,7 @@ const (
 
 // InitTracer creates an OTel TracerProvider that exports the traces to a Jaeger agent/collector.
 func InitTracer(
+	ctx context.Context,
 	serviceName string,
 	endpoint string,
 	endpointTypeRaw string,
@@ -48,7 +51,7 @@ func InitTracer(
 		endpointOption,
 	)
 	if err != nil {
-		return tp, fmt.Errorf("create jaeger export pipeline: %w", err)
+		return tp, fmt.Errorf("create jaeger exporter: %w", err)
 	}
 
 	r, err := resource.New(context.Background(), resource.WithAttributes(semconv.ServiceNameKey.String(serviceName)))
@@ -70,4 +73,12 @@ func InitTracer(
 	))
 
 	return tp, nil
+}
+
+type OtelErrorHandler struct {
+	Logger log.Logger
+}
+
+func (oh OtelErrorHandler) Handle(err error) {
+	level.Error(oh.Logger).Log("msg", "opentelemetry", "err", err.Error())
 }
