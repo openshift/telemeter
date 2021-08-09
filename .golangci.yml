@@ -12,3 +12,7 @@ linters:
 linters-settings:
   errcheck:
     exclude: .errcheck_excludes.txt
+  govet:
+    # disable for those few tests calling t.Fatal from withing go routine.
+    disable:
+      - testinggoroutine
