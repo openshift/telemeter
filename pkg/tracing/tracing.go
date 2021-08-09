@@ -3,6 +3,7 @@ package tracing
 import (
 	"context"
 	"fmt"
+	"net"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -34,17 +35,29 @@ func InitTracer(
 	endpointTypeRaw string,
 	samplingFraction float64,
 ) (tp trace.TracerProvider, err error) {
+	tp = trace.NewNoopTracerProvider()
+
 	if endpoint == "" {
-		return trace.NewNoopTracerProvider(), nil
+		return tp, nil
 	}
 
-	endpointOption := jaeger.WithAgentEndpoint(
-		jaeger.WithAgentHost(endpoint),
-	)
-	if EndpointType(endpointTypeRaw) == EndpointTypeCollector {
+	var endpointOption jaeger.EndpointOption
+	switch EndpointType(endpointTypeRaw) {
+	case EndpointTypeAgent:
+		host, port, err := net.SplitHostPort(endpoint)
+		if err != nil {
+			return tp, fmt.Errorf("cannot parse tracing endpoint host and port: %w", err)
+		}
+		endpointOption = jaeger.WithAgentEndpoint(
+			jaeger.WithAgentHost(host),
+			jaeger.WithAgentPort(port),
+		)
+	case EndpointTypeCollector:
 		endpointOption = jaeger.WithCollectorEndpoint(
 			jaeger.WithEndpoint(endpoint),
 		)
+	default:
+		return tp, fmt.Errorf("unknown tracing endpoint type provided")
 	}
 
 	exp, err := jaeger.NewRawExporter(
@@ -54,7 +67,7 @@ func InitTracer(
 		return tp, fmt.Errorf("create jaeger exporter: %w", err)
 	}
 
-	r, err := resource.New(context.Background(), resource.WithAttributes(semconv.ServiceNameKey.String(serviceName)))
+	r, err := resource.New(ctx, resource.WithAttributes(semconv.ServiceNameKey.String(serviceName)))
 	if err != nil {
 		return tp, fmt.Errorf("create resource: %w", err)
 	}
