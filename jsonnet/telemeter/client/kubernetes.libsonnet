@@ -92,7 +92,7 @@ local securePort = 8443;
       local containerVolumeMount = container.volumeMountsType;
       local containerEnv = container.envType;
 
-      local podLabels = { 'k8s-app': 'telemeter-client' };
+      local podLabels = $._config.commonLabels;
       local secretMount = containerVolumeMount.new(secretVolumeName, secretMountPath);
       local secretVolume = volume.fromSecret(secretVolumeName, secretName);
       local tlsMount = containerVolumeMount.new(tlsVolumeName, tlsMountPath);
