@@ -2,18 +2,21 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    k8s-app: telemeter-client
+    app.kubernetes.io/component: telemetry-metrics-collector
+    app.kubernetes.io/name: telemeter-client
   name: telemeter-client
   namespace: openshift-monitoring
 spec:
   replicas: 1
   selector:
     matchLabels:
-      k8s-app: telemeter-client
+      app.kubernetes.io/component: telemetry-metrics-collector
+      app.kubernetes.io/name: telemeter-client
   template:
     metadata:
       labels:
-        k8s-app: telemeter-client
+        app.kubernetes.io/component: telemetry-metrics-collector
+        app.kubernetes.io/name: telemeter-client
     spec:
       containers:
       - command:
@@ -90,7 +93,7 @@ spec:
           name: telemeter-client-tls
           readOnly: false
       nodeSelector:
-        beta.kubernetes.io/os: linux
+        kubernetes.io/os: linux
       priorityClassName: system-cluster-critical
       serviceAccountName: telemeter-client
       volumes:

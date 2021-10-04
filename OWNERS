@@ -1,23 +1,50 @@
 component: "Monitoring"
 
 reviewers:
-- brancz
-- paulfantom
 - squat
 - s-urbaniak
 - smarterclayton
-- metalmatze
-- lilic
-- kakkoyun
 - bwplotka
+- simonpasquier
+- dgrisonnet
+- jan--f
+- bison
+- fpetkovski
+- raptorsun
+- slashpai
+- prashbnair
+- arajkumar
+- sthaha
+- PhilipGough
+- ianbillett
+- matej-g
+- onprem
+- spaparaju
 
 approvers:
-- brancz
-- paulfantom
 - squat
 - s-urbaniak
 - smarterclayton
+- bwplotka
+- simonpasquier
+- dgrisonnet
+- jan--f
+- bison
+- fpetkovski
+- raptorsun
+- slashpai
+- prashbnair
+- arajkumar
+- sthaha
+- PhilipGough
+- ianbillett
+- matej-g
+- onprem
+- spaparaju
+
+emeritus_approvers:
+- brancz
+- paulfantom
 - metalmatze
 - lilic
 - kakkoyun
-- bwplotka
