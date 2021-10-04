@@ -78,7 +78,7 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.name
-        image: quay.io/openshift/origin-telemeter:v4.0
+        image: quay.io/openshift/origin-telemeter:4.9
         livenessProbe:
           httpGet:
             path: /healthz
@@ -106,7 +106,7 @@ spec:
         - /usr/bin/authorization-server
         - localhost:8083
         - /etc/telemeter/tokens.json
-        image: quay.io/openshift/origin-telemeter:v4.0
+        image: quay.io/openshift/origin-telemeter:4.9
         name: authorization-server
         volumeMounts:
         - mountPath: /etc/telemeter
