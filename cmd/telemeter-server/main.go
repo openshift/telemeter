@@ -27,8 +27,11 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/oklog/run"
 	"github.com/openshift/telemeter/pkg/runutil"
+	"github.com/openshift/telemeter/pkg/tracing"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 
@@ -147,6 +150,15 @@ func main() {
 
 	cmd.Flags().StringVar(&opt.LogLevel, "log-level", opt.LogLevel, "Log filtering level. e.g info, debug, warn, error")
 
+	cmd.Flags().StringVar(&opt.TracingServiceName, "internal.tracing.service-name", "telemeter-server",
+		"The service name to report to the tracing backend.")
+	cmd.Flags().StringVar(&opt.TracingEndpoint, "internal.tracing.endpoint", "",
+		"The full URL of the trace collector. If it's not set, tracing will be disabled.")
+	cmd.Flags().Float64Var(&opt.TracingSamplingFraction, "internal.tracing.sampling-fraction", 0.1,
+		"The fraction of traces to sample. Thus, if you set this to .5, half of traces will be sampled.")
+	cmd.Flags().StringVar(&opt.TracingEndpointType, "internal.tracing.endpoint-type", string(tracing.EndpointTypeAgent),
+		fmt.Sprintf("The tracing endpoint type. Options: '%s', '%s'.", tracing.EndpointTypeAgent, tracing.EndpointTypeCollector))
+
 	l := log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
 	l = level.NewFilter(l, logger.LogLevelFromString(opt.LogLevel))
 	l = log.WithPrefix(l, "ts", log.DefaultTimestampUTC)
@@ -200,6 +212,11 @@ type Options struct {
 	LogLevel string
 	Logger   log.Logger
 
+	TracingServiceName      string
+	TracingEndpoint         string
+	TracingEndpointType     string
+	TracingSamplingFraction float64
+
 	Verbose bool
 }
 
@@ -230,11 +247,24 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 		o.RequiredLabels[values[0]] = values[1]
 	}
 
-	var transport http.RoundTripper = &http.Transport{
+	tp, err := tracing.InitTracer(
+		ctx,
+		o.TracingServiceName,
+		o.TracingEndpoint,
+		o.TracingEndpointType,
+		o.TracingSamplingFraction,
+	)
+	if err != nil {
+		return fmt.Errorf("cannot initialize tracer: %v", err)
+	}
+
+	otel.SetErrorHandler(tracing.OtelErrorHandler{Logger: o.Logger})
+
+	var transport http.RoundTripper = otelhttp.NewTransport(&http.Transport{
 		DialContext:         (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
 		MaxIdleConnsPerHost: 10,
 		IdleConnTimeout:     30 * time.Second,
-	}
+	})
 
 	if o.Verbose {
 		transport = telemeter_http.NewDebugRoundTripper(o.Logger, transport)
@@ -328,7 +358,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 		})
 
 		s := &http.Server{
-			Handler: r,
+			Handler: otelhttp.NewHandler(r, "internal", otelhttp.WithTracerProvider(tp)),
 		}
 
 		// Run the internal server.
@@ -515,7 +545,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 		})
 
 		s := &http.Server{
-			Handler: external,
+			Handler: otelhttp.NewHandler(external, "external", otelhttp.WithTracerProvider(tp)),
 		}
 
 		// Run the external server.

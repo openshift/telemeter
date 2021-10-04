@@ -17,6 +17,8 @@ import (
 	"github.com/oklog/run"
 	"github.com/prometheus/common/expfmt"
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
@@ -25,6 +27,7 @@ import (
 	telemeterhttp "github.com/openshift/telemeter/pkg/http"
 	"github.com/openshift/telemeter/pkg/logger"
 	"github.com/openshift/telemeter/pkg/metricfamily"
+	"github.com/openshift/telemeter/pkg/tracing"
 )
 
 func main() {
@@ -71,6 +74,15 @@ func main() {
 	cmd.Flags().BoolVarP(&opt.Verbose, "verbose", "v", opt.Verbose, "Show verbose output.")
 
 	cmd.Flags().StringVar(&opt.LogLevel, "log-level", opt.LogLevel, "Log filtering level. e.g info, debug, warn, error")
+
+	cmd.Flags().StringVar(&opt.TracingServiceName, "internal.tracing.service-name", "telemeter-client",
+		"The service name to report to the tracing backend.")
+	cmd.Flags().StringVar(&opt.TracingEndpoint, "internal.tracing.endpoint", "",
+		"The full URL of the trace collector. If it's not set, tracing will be disabled.")
+	cmd.Flags().Float64Var(&opt.TracingSamplingFraction, "internal.tracing.sampling-fraction", 0.1,
+		"The fraction of traces to sample. Thus, if you set this to .5, half of traces will be sampled.")
+	cmd.Flags().StringVar(&opt.TracingEndpointType, "internal.tracing.endpoint-type", string(tracing.EndpointTypeAgent),
+		fmt.Sprintf("The tracing endpoint type. Options: '%s', '%s'.", tracing.EndpointTypeAgent, tracing.EndpointTypeCollector))
 
 	l := log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
 	lvl, err := cmd.Flags().GetString("log-level")
@@ -123,6 +135,11 @@ type Options struct {
 
 	LogLevel string
 	Logger   log.Logger
+
+	TracingServiceName      string
+	TracingEndpoint         string
+	TracingEndpointType     string
+	TracingSamplingFraction float64
 }
 
 func (o *Options) Run() error {
@@ -228,6 +245,21 @@ func (o *Options) Run() error {
 	transformer.With(metricfamily.TransformerFunc(metricfamily.PackMetrics))
 	transformer.With(metricfamily.TransformerFunc(metricfamily.SortMetrics))
 
+	ctx := context.Background()
+
+	tp, err := tracing.InitTracer(
+		ctx,
+		o.TracingServiceName,
+		o.TracingEndpoint,
+		o.TracingEndpointType,
+		o.TracingSamplingFraction,
+	)
+	if err != nil {
+		return fmt.Errorf("cannot initialize tracer: %v", err)
+	}
+
+	otel.SetErrorHandler(tracing.OtelErrorHandler{Logger: o.Logger})
+
 	cfg := forwarder.Config{
 		From:          from,
 		ToAuthorize:   toAuthorize,
@@ -249,6 +281,7 @@ func (o *Options) Run() error {
 		Transformer:       transformer,
 
 		Logger: o.Logger,
+		Tracer: tp,
 	}
 
 	worker, err := forwarder.New(cfg)
@@ -261,7 +294,7 @@ func (o *Options) Run() error {
 	var g run.Group
 	{
 		// Execute the worker's `Run` func.
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(ctx)
 		g.Add(func() error {
 			worker.Run(ctx)
 			return nil
@@ -300,7 +333,9 @@ func (o *Options) Run() error {
 		telemeterhttp.ReloadRoutes(handlers, func() error {
 			return worker.Reconfigure(cfg)
 		})
-		handlers.Handle("/federate", serveLastMetrics(o.Logger, worker))
+		handlers.Handle("/federate",
+			otelhttp.NewHandler(serveLastMetrics(o.Logger, worker), "federate", otelhttp.WithTracerProvider(tp)),
+		)
 		l, err := net.Listen("tcp", o.Listen)
 		if err != nil {
 			return fmt.Errorf("failed to listen: %v", err)

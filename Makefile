@@ -10,9 +10,10 @@ GOLANG_FILES:=$(shell find . -name \*.go -print)
 FIRST_GOPATH:=$(firstword $(subst :, ,$(shell go env GOPATH)))
 BIN_DIR?=$(shell pwd)/_output/bin
 LIB_DIR?=./_output/lib
+CACHE_DIR?=$(shell pwd)/_output/cache
 METRICS_JSON=./_output/metrics.json
 GOLANGCI_LINT_BIN=$(BIN_DIR)/golangci-lint
-GOLANGCI_LINT_VERSION=v1.18.0
+GOLANGCI_LINT_VERSION=v1.41.1
 EMBEDMD_BIN=$(BIN_DIR)/embedmd
 THANOS_BIN=$(BIN_DIR)/thanos
 UP_BIN=$(BIN_DIR)/up
@@ -132,7 +133,7 @@ benchmark.pdf: $(BENCHMARK_RESULTS)
 .PHONY: lint
 lint: $(GOLANGCI_LINT_BIN)
 	# Check .golangci.yml for configuration
-	$(GOLANGCI_LINT_BIN) run -c .golangci.yml
+	GOLANGCI_LINT_CACHE=$(CACHE_DIR)/golangci-lint $(GOLANGCI_LINT_BIN) run -c .golangci.yml
 
 .PHONY: format
 format: go-fmt jsonnet-fmt

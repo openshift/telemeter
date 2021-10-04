@@ -24,6 +24,12 @@ require (
 	github.com/prometheus/prometheus v1.8.2-0.20200110114423-1e64d757f711 // Prometheus master v2.14.0
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/cobra v0.0.3
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.20.0
+	go.opentelemetry.io/contrib/propagators v0.20.0
+	go.opentelemetry.io/otel v0.20.0
+	go.opentelemetry.io/otel/exporters/trace/jaeger v0.20.0
+	go.opentelemetry.io/otel/sdk v0.20.0
+	go.opentelemetry.io/otel/trace v0.20.0
 	go.uber.org/goleak v1.1.10
 	golang.org/x/crypto v0.0.0-20191112222119-e1110fd1c708 // indirect
 	golang.org/x/net v0.0.0-20191112182307-2180aed22343 // indirect

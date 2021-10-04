@@ -15,6 +15,8 @@ import (
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	trace "go.opentelemetry.io/otel/trace"
 
 	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
@@ -73,6 +75,7 @@ type Config struct {
 	Transformer       metricfamily.Transformer
 
 	Logger log.Logger
+	Tracer trace.TracerProvider
 }
 
 // Worker represents a metrics forwarding agent. It collects metrics from a source URL and forwards them to a sink.
@@ -177,7 +180,7 @@ func New(cfg Config) (*Worker, error) {
 	// Create the `toClient`.
 	toTransport := metricsclient.DefaultTransport()
 	toTransport.Proxy = http.ProxyFromEnvironment
-	toClient := &http.Client{Transport: toTransport}
+	toClient := &http.Client{Transport: otelhttp.NewTransport(toTransport, otelhttp.WithTracerProvider(cfg.Tracer))}
 	if cfg.Debug {
 		toClient.Transport = telemeterhttp.NewDebugRoundTripper(logger, toClient.Transport)
 	}
