@@ -78,6 +78,7 @@ normalized before processing continues.
 func defaultOpts() *Options {
 	return &Options{
 		LimitBytes:         500 * 1024,
+		LimitReceiveBytes:  receive.DefaultRequestLimit,
 		TokenExpireSeconds: 24 * 60 * 60,
 		clusterIDKey:       "_id",
 		Ratelimit:          4*time.Minute + 30*time.Second,
@@ -147,6 +148,7 @@ func main() {
 	cmd.Flags().StringVar(&opt.WhitelistFile, "whitelist-file", opt.WhitelistFile, "A file of allowed rules for incoming metrics. If one of these rules is not matched, the metric is dropped; one label key per line.")
 	cmd.Flags().StringArrayVar(&opt.ElideLabels, "elide-label", opt.ElideLabels, "A list of labels to be elided from incoming metrics.")
 	cmd.Flags().Int64Var(&opt.LimitBytes, "limit-bytes", opt.LimitBytes, "The maxiumum acceptable size of a request made to the upload endpoint.")
+	cmd.Flags().Int64Var(&opt.LimitReceiveBytes, "limit-receive-bytes", opt.LimitReceiveBytes, "The maxiumum acceptable size of a request made to the receive endpoint.")
 
 	cmd.Flags().StringVar(&opt.LogLevel, "log-level", opt.LogLevel, "Log filtering level. e.g info, debug, warn, error")
 
@@ -200,6 +202,7 @@ type Options struct {
 	LabelFlag         []string
 	Labels            map[string]string
 	LimitBytes        int64
+	LimitReceiveBytes int64
 	RequiredLabelFlag []string
 	RequiredLabels    map[string]string
 	Whitelist         []string
@@ -522,7 +525,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 				runutil.ExhaustCloseRequestBodyHandler(o.Logger,
 					server.InstrumentedHandler("receive",
 						authorize.NewHandler(o.Logger, &v2AuthorizeClient, authorizeURL, o.TenantKey,
-							receive.LimitBodySize(receive.DefaultRequestLimit,
+							receive.LimitBodySize(o.LimitReceiveBytes,
 								receive.ValidateLabels(
 									o.Logger,
 									http.HandlerFunc(receiver.Receive),
