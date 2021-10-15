@@ -19,7 +19,7 @@ import (
 const forwardTimeout = 5 * time.Second
 
 // DefaultRequestLimit is the size limit of a request body coming in
-const DefaultRequestLimit = 15 * 1024 // based on historic Prometheus data with 6KB at most
+const DefaultRequestLimit = 128 * 1024
 
 // ClusterAuthorizer authorizes a cluster by its token and id, returning a subject or error
 type ClusterAuthorizer interface {
