@@ -135,11 +135,12 @@ func TestLimitBodySize(t *testing.T) {
 
 	var telemeterServer *httptest.Server
 	{
-		receiver := receive.NewHandler(log.NewNopLogger(), receiveServer.URL, prometheus.NewRegistry(), "default-tenant")
+		logger := log.NewNopLogger()
+		receiver := receive.NewHandler(logger, receiveServer.URL, prometheus.NewRegistry(), "default-tenant")
 
 		telemeterServer = httptest.NewServer(
 			fakeAuthorizeHandler(
-				receive.LimitBodySize(receive.DefaultRequestLimit,
+				receive.LimitBodySize(logger, receive.DefaultRequestLimit,
 					http.HandlerFunc(receiver.Receive),
 				),
 				&authorize.Client{ID: "test"},

@@ -19,7 +19,7 @@ import (
 const forwardTimeout = 5 * time.Second
 
 // DefaultRequestLimit is the size limit of a request body coming in
-const DefaultRequestLimit = 15 * 1024 // based on historic Prometheus data with 6KB at most
+const DefaultRequestLimit = 128 * 1024
 
 // ClusterAuthorizer authorizes a cluster by its token and id, returning a subject or error
 type ClusterAuthorizer interface {
@@ -101,10 +101,12 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 }
 
 // LimitBodySize is a middleware that check that the request body is not bigger than the limit
-func LimitBodySize(limit int64, next http.Handler) http.HandlerFunc {
+func LimitBodySize(logger log.Logger, limit int64, next http.Handler) http.HandlerFunc {
+	logger = log.With(logger, "component", "receive", "middleware", "LimitBodySize")
 	return func(w http.ResponseWriter, r *http.Request) {
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
+			level.Error(logger).Log("msg", "failed to read body", "err", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -114,6 +116,7 @@ func LimitBodySize(limit int64, next http.Handler) http.HandlerFunc {
 		r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
 
 		if len(body) >= int(limit) {
+			level.Debug(logger).Log("msg", "request is too big", "req_size", len(body))
 			http.Error(w, "request too big", http.StatusRequestEntityTooLarge)
 			return
 		}
