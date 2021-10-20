@@ -51,6 +51,8 @@ create() {
     until [ "$(oc get pods -n telemeter-benchmark | grep telemeter-server- | grep Running -c)" -eq "$SERVERS" ]; do
         retries=$((retries-1))
         if [ $retries -eq 0 ]; then
+            oc get statefulset telemeter-server --namespace telemeter-benchmark -o yaml
+            oc get pods -n telemeter-benchmark -o yaml
             printf "timed out waiting for telemeter-server to be up\n"
             return 1
         fi
@@ -65,6 +67,8 @@ create() {
     until [ "$(oc get pods -n telemeter-benchmark -l 'app.kubernetes.io/part-of=telemeter-benchmark' | grep Running -c)" -eq 5 ]; do
         retries=$((retries-1))
         if [ $retries -eq 0 ]; then
+            oc describe deployments --namespace telemeter-benchmark
+            oc describe pods -n telemeter-benchmark
             printf "timed out waiting for Thanos to be up\n"
             return 1
         fi
