@@ -95,6 +95,7 @@ spec:
             path: /healthz/ready
             port: 8080
             scheme: HTTP
+        terminationMessagePolicy: FallbackToLogsOnError
         volumeMounts:
         - mountPath: /etc/telemeter
           name: secret-telemeter-server

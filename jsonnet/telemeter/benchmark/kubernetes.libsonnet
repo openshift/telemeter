@@ -79,7 +79,8 @@ local tokensFileName = 'tokens.json';
           containerPort.newNamed(internalPort, 'internal'),
         ]) +
         container.withVolumeMounts([secretMount, tlsMount]) +
-        container.withEnv([name]) + {
+        container.withEnv([name]) +
+        container.withTerminationMessagePolicy('FallbackToLogsOnError') + {
           livenessProbe: {
             httpGet: {
               path: '/healthz',
