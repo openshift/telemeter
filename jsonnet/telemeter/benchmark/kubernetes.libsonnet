@@ -23,7 +23,7 @@ local tokensFileName = 'tokens.json';
   telemeterServer+:: {
     local ts = self,
     route: {
-      apiVersion: 'v1',
+      apiVersion: 'route.openshift.io/v1',
       kind: 'Route',
       metadata: {
         name: 'telemeter-server',
@@ -216,7 +216,7 @@ local tokensFileName = 'tokens.json';
       replicaLabels: ['prometheus_replica', 'ruler_replica', 'replica'],
     },
     route: {
-      apiVersion: 'v1',
+      apiVersion: 'route.openshift.io/v1',
       kind: 'Route',
       metadata: {
         name: b.query.config.name,
