@@ -175,8 +175,12 @@ test-integration: build | $(THANOS_BIN) $(UP_BIN) $(MEMCACHED_BIN) $(PROMETHEUS_
 
 test-benchmark: build $(GOJSONTOYAML_BIN)
 	# Allow the image to be overridden when running in CI.
-	if [ -n "$$IMAGE_FORMAT" ]; then \
-	    f=$$(mktemp) && cat ./manifests/benchmark/statefulSetTelemeterServer.yaml | $(GOJSONTOYAML_BIN) --yamltojson | jq '.spec.template.spec.containers[].image="'"$${IMAGE_FORMAT//\$$\{component\}/telemeter}"'"' | $(GOJSONTOYAML_BIN) > $$f && mv $$f ./manifests/benchmark/statefulSetTelemeterServer.yaml; \
+	# The CI_TELEMETER_IMAGE environment variable is injected by the
+	# ci-operator. Check the configuration of the job in
+	# https://github.com/openshift/release.
+	if [ -n "$$CI_TELEMETER_IMAGE" ]; then \
+	    echo "Overriding telemeter image to $${CI_TELEMETER_IMAGE}"; \
+	    f=$$(mktemp) && cat ./manifests/benchmark/statefulSetTelemeterServer.yaml | $(GOJSONTOYAML_BIN) --yamltojson | jq '.spec.template.spec.containers[].image="'"$${CI_TELEMETER_IMAGE}"'"' | $(GOJSONTOYAML_BIN) > $$f && mv $$f ./manifests/benchmark/statefulSetTelemeterServer.yaml; \
 	fi
 	./test/benchmark.sh "" "" $(BENCHMARK_GOAL) "" $(BENCHMARK_GOAL)
 
