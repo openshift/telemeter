@@ -230,7 +230,7 @@ local securePort = 8443;
     servingCertsCABundle+:
       local configmap = k.core.v1.configMap;
 
-      configmap.new('telemeter-client-serving-certs-ca-bundle', { [servingCertsCABundleFileName]: '' }) +
+      configmap.new('telemeter-client-serving-certs-ca-bundle') +
       configmap.mixin.metadata.withNamespace($._config.namespace) +
       configmap.mixin.metadata.withAnnotations({ 'service.alpha.openshift.io/inject-cabundle': 'true' }),
   },
