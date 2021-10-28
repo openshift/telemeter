@@ -1,12 +1,9 @@
 component: "Monitoring"
 
 reviewers:
-- squat
-- s-urbaniak
 - smarterclayton
 - bwplotka
 - simonpasquier
-- dgrisonnet
 - jan--f
 - bison
 - fpetkovski
@@ -22,12 +19,9 @@ reviewers:
 - spaparaju
 
 approvers:
-- squat
-- s-urbaniak
 - smarterclayton
 - bwplotka
 - simonpasquier
-- dgrisonnet
 - jan--f
 - bison
 - fpetkovski
@@ -43,6 +37,9 @@ approvers:
 - spaparaju
 
 emeritus_approvers:
+- squat
+- s-urbaniak
+- dgrisonnet
 - brancz
 - paulfantom
 - metalmatze
