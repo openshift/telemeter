@@ -263,11 +263,18 @@ local internalPort = 8081;
       sts.mixin.metadata.withLabels({ 'app.kubernetes.io/name': $.memcached.statefulSet.metadata.name }) +
       sts.mixin.spec.withServiceName($.memcached.service.metadata.name) +
       sts.mixin.spec.selector.withMatchLabels($.memcached.statefulSet.metadata.labels) +
+      sts.mixin.spec.template.spec.withServiceAccountName('telemeter-memcached') +
       {
         spec+: {
           volumeClaimTemplates:: null,
         },
       },
+
+    serviceAccount:
+      local serviceAccount = k.core.v1.serviceAccount;
+
+      serviceAccount.new('telemeter-memcached') +
+      serviceAccount.mixin.metadata.withNamespace($._config.namespace),
 
     serviceMonitor:
       {
