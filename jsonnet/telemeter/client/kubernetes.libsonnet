@@ -185,7 +185,7 @@ local securePort = 8443;
       service.mixin.metadata.withLabels({ 'k8s-app': 'telemeter-client' }) +
       service.mixin.spec.withClusterIp('None') +
       service.mixin.metadata.withAnnotations({
-        'service.alpha.openshift.io/serving-cert-secret-name': tlsSecret,
+        'service.beta.openshift.io/serving-cert-secret-name': tlsSecret,
       }),
 
     serviceAccount:
