@@ -1,7 +1,7 @@
 # xxhash
 
-[![GoDoc](https://godoc.org/github.com/cespare/xxhash?status.svg)](https://godoc.org/github.com/cespare/xxhash)
-[![Build Status](https://travis-ci.org/cespare/xxhash.svg?branch=master)](https://travis-ci.org/cespare/xxhash)
+[![Go Reference](https://pkg.go.dev/badge/github.com/cespare/xxhash/v2.svg)](https://pkg.go.dev/github.com/cespare/xxhash/v2)
+[![Test](https://github.com/cespare/xxhash/actions/workflows/test.yml/badge.svg)](https://github.com/cespare/xxhash/actions/workflows/test.yml)
 
 xxhash is a Go implementation of the 64-bit
 [xxHash](http://cyan4973.github.io/xxHash/) algorithm, XXH64. This is a
@@ -28,6 +28,18 @@ func (*Digest) Sum64() uint64
 This implementation provides a fast pure-Go implementation and an even faster
 assembly implementation for amd64.
 
+## Compatibility
+
+This package is in a module and the latest code is in version 2 of the module.
+You need a version of Go with at least "minimal module compatibility" to use
+github.com/cespare/xxhash/v2:
+
+* 1.9.7+ for Go 1.9
+* 1.10.3+ for Go 1.10
+* Go 1.11 or later
+
+I recommend using the latest release of Go.
+
 ## Benchmarks
 
 Here are some quick benchmarks comparing the pure-Go and assembly
@@ -52,4 +64,6 @@ $ go test -benchtime 10s -bench '/xxhash,direct,bytes'
 
 - [InfluxDB](https://github.com/influxdata/influxdb)
 - [Prometheus](https://github.com/prometheus/prometheus)
+- [VictoriaMetrics](https://github.com/VictoriaMetrics/VictoriaMetrics)
 - [FreeCache](https://github.com/coocood/freecache)
+- [FastCache](https://github.com/VictoriaMetrics/fastcache)
