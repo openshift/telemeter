@@ -117,7 +117,7 @@ func TestCloseMoreThanOnce(t *testing.T) {
 
 	CloseWithLogOnErr(lc, r, "should not be called")
 	CloseWithLogOnErr(lc, r, "should not be called")
-	testutil.Equals(t, true, lc.WasCalled)
+	testutil.Equals(t, false, lc.WasCalled)
 
 	CloseWithLogOnErr(lc, r, "should be called")
 	testutil.Equals(t, true, lc.WasCalled)
