@@ -84,6 +84,7 @@ local securePort = 8443;
       clusterRoleBinding.mixin.roleRef.mixinInstance({ kind: 'ClusterRole' }) +
       clusterRoleBinding.withSubjects([{ kind: 'ServiceAccount', name: 'telemeter-client', namespace: $._config.namespace }]),
 
+
     deployment:
       local deployment = k.apps.v1.deployment;
       local container = k.apps.v1.deployment.mixin.spec.template.spec.containersType;
@@ -226,6 +227,28 @@ local securePort = 8443;
           ],
         },
       },
+
+    prometheusRule: {
+      apiVersion: 'monitoring.coreos.com/v1',
+      kind: 'PrometheusRule',
+      metadata: {
+        name: 'telemetry',
+        namespace: $._config.namespace,
+      },
+      spec: {
+        groups: [
+          {
+            name: 'telemeter.rules',
+            rules: [
+              {
+                record: 'cluster:telemetry_selected_series:count',
+                expr: 'max(federate_samples - federate_filtered_samples)',
+              },
+            ],
+          },
+        ],
+      },
+    },
 
     servingCertsCABundle+:
       local configmap = k.core.v1.configMap;
