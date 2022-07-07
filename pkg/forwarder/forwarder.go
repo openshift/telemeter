@@ -40,15 +40,19 @@ var (
 		Name: "federate_filtered_samples",
 		Help: "Tracks the number of samples filtered per federation",
 	})
-	gaugeFederateErrors = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "federate_errors",
-		Help: "The number of times forwarding federated metrics has failed",
+	federateErrors = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "federate_requests_failed_total",
+		Help: "Number of times the client failed to forward metrics",
+	})
+	federateTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "federate_requests_total",
+		Help: "Number of times the client forwarded metrics",
 	})
 )
 
 func init() {
 	prometheus.MustRegister(
-		gaugeFederateErrors, gaugeFederateSamples, gaugeFederateFilteredSamples,
+		federateErrors, federateTotal, gaugeFederateSamples, gaugeFederateFilteredSamples,
 	)
 }
 
@@ -266,8 +270,9 @@ func (w *Worker) Run(ctx context.Context) {
 		// The critical section ends here.
 		w.lock.Unlock()
 
+		federateTotal.Inc()
 		if err := w.forward(ctx); err != nil {
-			gaugeFederateErrors.Inc()
+			federateErrors.Inc()
 			level.Error(w.logger).Log("msg", "unable to forward results", "err", err)
 			wait = time.Minute
 		}
