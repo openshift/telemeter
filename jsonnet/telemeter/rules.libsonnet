@@ -4,7 +4,7 @@
       groups+: [
         {
           name: 'telemeter.rules',
-          interval: '1m',
+          interval: '3m',
           rules: [
             {
               record: 'name_reason:cluster_operator_degraded:count',
