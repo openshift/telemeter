@@ -130,6 +130,24 @@
                 topk(500, sum (acm_managed_cluster_info) by (managed_cluster_id, cloud, created_via, endpoint, instance, job, namespace, pod, service, vendor, version))
               |||,
             },
+            {
+              // OpenShift Cluster CPU-hours for the last hour
+              // The divisor of count_over_time(vector(1)[1h:5m])) allows us to get an effective average value having "absent data" treated as 0.
+              // max(...) by (_id) is used ensure a single datapoint per cluster ID
+              record: 'cluster:usage:workload:capacity_physical_cpu_hours',
+              expr: |||
+                max(sum_over_time(cluster:usage:workload:capacity_physical_cpu_cores:max:5m[1h:5m]) / count_over_time(vector(1)[1h:5m])) by (_id)
+              |||,
+            },
+            {
+              // OpenShift Cluster Instance-hours for the last hour
+              // The divisor of count_over_time(vector(1)[1h:5m])) allows us to get an effective average value having "absent data" treated as 0.
+              // max(...) by (_id) is used ensure a single datapoint per cluster ID
+              record: 'cluster:usage:workload:capacity_physical_instance_hours',
+              expr: |||
+                max(sum_over_time(group(cluster:usage:workload:capacity_physical_cpu_cores:max:5m) by (_id)[1h:5m]) / count_over_time(vector(1)[1h:5m])) by (_id)
+              |||,
+            },
           ],
         },
       ],
