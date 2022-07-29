@@ -8,7 +8,7 @@ require (
 	github.com/coreos/go-oidc v2.0.0+incompatible
 	github.com/go-chi/chi v4.0.4+incompatible
 	github.com/go-kit/kit v0.9.0
-	github.com/gogo/protobuf v1.3.1
+	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
 	github.com/golang/snappy v0.0.1
 	github.com/google/uuid v1.1.1
