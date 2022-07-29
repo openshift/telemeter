@@ -136,7 +136,7 @@
               // max(...) by (_id) is used ensure a single datapoint per cluster ID
               record: 'cluster:usage:workload:capacity_physical_cpu_hours',
               expr: |||
-                max(sum_over_time(cluster:usage:workload:capacity_physical_cpu_cores:max:5m[1h:5m]) / scalar(count_over_time(vector(1)[1h:5m]))) by (_id)
+                max by(_id) (sum_over_time(cluster:usage:workload:capacity_physical_cpu_cores:max:5m[1h:5m]) / scalar(count_over_time(vector(1)[1h:5m])))
               |||,
             },
             {
