@@ -33,6 +33,8 @@ var (
 		Name: "telemeter_v1_forward_samples_total",
 		Help: "Total amount of successfully forwarded samples from v1 requests.",
 	})
+	// Uses labelvalue "telemeter_error" to denote errors when converting metric families
+	// to a remote write request, and "error"/"success" to indicate upstream errors.
 	forwardRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "telemeter_v1_forward_requests_total",
 		Help: "Total amount of forwarded v1 requests.",
@@ -78,6 +80,7 @@ func ForwardHandler(logger log.Logger, forwardURL *url.URL, tenantID string, cli
 					break
 				}
 				msg := err.Error()
+				forwardRequests.WithLabelValues("telemeter_error").Inc()
 				level.Warn(rlogger).Log("msg", msg, "err", err)
 				http.Error(w, msg, http.StatusInternalServerError)
 				return
@@ -90,6 +93,7 @@ func ForwardHandler(logger log.Logger, forwardURL *url.URL, tenantID string, cli
 		timeseries, err := convertToTimeseries(&PartitionedMetrics{ClusterID: clusterID, Families: families}, time.Now())
 		if err != nil {
 			msg := "failed to convert timeseries"
+			forwardRequests.WithLabelValues("telemeter_error").Inc()
 			level.Warn(rlogger).Log("msg", msg, "err", err)
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
@@ -114,6 +118,7 @@ func ForwardHandler(logger log.Logger, forwardURL *url.URL, tenantID string, cli
 
 		req, err := http.NewRequest(http.MethodPost, forwardURL.String(), bytes.NewBuffer(compressed))
 		if err != nil {
+			forwardRequests.WithLabelValues("telemeter_error").Inc()
 			msg := "failed to create forwarding request"
 			level.Warn(rlogger).Log("msg", msg, "err", err)
 			http.Error(w, msg, http.StatusInternalServerError)
@@ -128,6 +133,7 @@ func ForwardHandler(logger log.Logger, forwardURL *url.URL, tenantID string, cli
 		begin := time.Now()
 		resp, err := client.Do(req.WithContext(clientCtx))
 		if err != nil {
+			forwardRequests.WithLabelValues("error").Inc()
 			msg := "failed to forward request"
 			level.Warn(rlogger).Log("msg", msg, "err", err)
 			http.Error(w, msg, http.StatusBadGateway)
@@ -144,11 +150,14 @@ func ForwardHandler(logger log.Logger, forwardURL *url.URL, tenantID string, cli
 
 		if resp.StatusCode/100 != 2 {
 			// surfacing upstreams error to our users too
+			forwardRequests.WithLabelValues("error").Inc()
 			msg := fmt.Sprintf("response status code is %s", resp.Status)
 			level.Warn(rlogger).Log("msg", msg)
 			http.Error(w, msg, resp.StatusCode)
 			return
 		}
+
+		forwardRequests.WithLabelValues("success").Inc()
 
 		s := 0
 		for _, ts := range wreq.Timeseries {
