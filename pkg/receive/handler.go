@@ -92,8 +92,11 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 
 	if resp.StatusCode/100 != 2 {
 		// Return upstream error as well.
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, err := ioutil.ReadAll(resp.Body)
 		msg := fmt.Sprintf("upstream response status is not 200 OK: %s", body)
+		if err != nil {
+			msg = fmt.Sprintf("upstream response status is not 200 OK: couldn't read body %v", err)
+		}
 		h.forwardRequestsTotal.WithLabelValues("error").Inc()
 		level.Error(h.logger).Log("msg", msg, "statuscode", resp.Status)
 		http.Error(w, msg, resp.StatusCode)
