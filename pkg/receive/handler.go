@@ -78,8 +78,9 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// No need for adding a tenant header, as this is done by downstream Observatorium API.
 	req = req.WithContext(ctx)
-	req.Header.Add("THANOS-TENANT", h.tenantID)
 
 	resp, err := h.client.Do(req)
 	if err != nil {
@@ -90,7 +91,12 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if resp.StatusCode/100 != 2 {
-		msg := "upstream response status is not 200 OK"
+		// Return upstream error as well.
+		body, err := ioutil.ReadAll(resp.Body)
+		msg := fmt.Sprintf("upstream response status is not 200 OK: %s", body)
+		if err != nil {
+			msg = fmt.Sprintf("upstream response status is not 200 OK: couldn't read body %v", err)
+		}
 		h.forwardRequestsTotal.WithLabelValues("error").Inc()
 		level.Error(h.logger).Log("msg", msg, "statuscode", resp.Status)
 		http.Error(w, msg, resp.StatusCode)
