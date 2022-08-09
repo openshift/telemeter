@@ -1,38 +1,32 @@
 component: "Monitoring"
 
 reviewers:
-- smarterclayton
 - bwplotka
 - simonpasquier
 - jan--f
-- bison
 - raptorsun
 - slashpai
-- arajkumar
 - sthaha
 - PhilipGough
 - ianbillett
 - matej-g
-- onprem
 - jessicalins
 - JoaoBraveCoding
+- juanrh
 
 approvers:
-- smarterclayton
 - bwplotka
 - simonpasquier
 - jan--f
-- bison
 - raptorsun
 - slashpai
-- arajkumar
 - sthaha
 - PhilipGough
 - ianbillett
 - matej-g
-- onprem
 - jessicalins
 - JoaoBraveCoding
+- juanrh
 
 emeritus_approvers:
 - squat
@@ -43,3 +37,7 @@ emeritus_approvers:
 - metalmatze
 - lilic
 - kakkoyun
+- smarterclayton
+- bison
+- arajkumar
+- onprem
