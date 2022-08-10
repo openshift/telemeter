@@ -38,14 +38,12 @@ type Handler struct {
 }
 
 // NewHandler returns a new Handler with a http client
-func NewHandler(logger log.Logger, forwardURL string, reg prometheus.Registerer, tenantID string) *Handler {
+func NewHandler(logger log.Logger, forwardURL string, client *http.Client, reg prometheus.Registerer, tenantID string) *Handler {
 	h := &Handler{
 		ForwardURL: forwardURL,
 		tenantID:   tenantID,
-		client: &http.Client{
-			Timeout: forwardTimeout,
-		},
-		logger: log.With(logger, "component", "receive/handler"),
+		client:     client,
+		logger:     log.With(logger, "component", "receive/handler"),
 		forwardRequestsTotal: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "telemeter_forward_requests_total",

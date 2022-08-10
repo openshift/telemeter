@@ -512,6 +512,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 		// v2 routes
 		{
 			v2AuthorizeClient := authorizeClient
+			v2ForwardClient := forwardClient
 
 			if len(o.Memcacheds) > 0 {
 				mc := memcached.New(context.Background(), o.MemcachedInterval, o.MemcachedExpire, o.Memcacheds...)
@@ -519,7 +520,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 				v2AuthorizeClient.Transport = cache.NewRoundTripper(mc, tollbooth.ExtractToken, v2AuthorizeClient.Transport, l, prometheus.DefaultRegisterer)
 			}
 
-			receiver := receive.NewHandler(o.Logger, o.ForwardURL, prometheus.DefaultRegisterer, o.TenantID)
+			receiver := receive.NewHandler(o.Logger, o.ForwardURL, v2ForwardClient, prometheus.DefaultRegisterer, o.TenantID)
 
 			external.Handle("/metrics/v1/receive",
 				runutil.ExhaustCloseRequestBodyHandler(o.Logger,
