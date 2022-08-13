@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/efficientgo/tools/core/pkg/testutil"
 	"github.com/pkg/errors"
-	"github.com/prometheus/prometheus/util/testutil"
 )
 
 type testCloser struct {

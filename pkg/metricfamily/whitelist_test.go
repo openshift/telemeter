@@ -68,14 +68,14 @@ func TestWhitelist(t *testing.T) {
 	}
 
 	a := familyWithLabels("A", []*clientmodel.LabelPair{
-		&clientmodel.LabelPair{
+		{
 			Name:  strPnt("method"),
 			Value: strPnt("POST"),
 		},
 	})
 
 	b := familyWithLabels("B", []*clientmodel.LabelPair{
-		&clientmodel.LabelPair{
+		{
 			Name:  strPnt("method"),
 			Value: strPnt("GET"),
 		},
@@ -83,41 +83,41 @@ func TestWhitelist(t *testing.T) {
 
 	c := familyWithLabels("C",
 		[]*clientmodel.LabelPair{
-			&clientmodel.LabelPair{
+			{
 				Name:  strPnt("method"),
 				Value: strPnt("POST"),
 			},
-			&clientmodel.LabelPair{
+			{
 				Name:  strPnt("status"),
 				Value: strPnt("200"),
 			},
 		},
 		[]*clientmodel.LabelPair{
-			&clientmodel.LabelPair{
+			{
 				Name:  strPnt("method"),
 				Value: strPnt("GET"),
 			},
-			&clientmodel.LabelPair{
+			{
 				Name:  strPnt("status"),
 				Value: strPnt("200"),
 			},
 		},
 		[]*clientmodel.LabelPair{
-			&clientmodel.LabelPair{
+			{
 				Name:  strPnt("method"),
 				Value: strPnt("POST"),
 			},
-			&clientmodel.LabelPair{
+			{
 				Name:  strPnt("status"),
 				Value: strPnt("500"),
 			},
 		},
 		[]*clientmodel.LabelPair{
-			&clientmodel.LabelPair{
+			{
 				Name:  strPnt("method"),
 				Value: strPnt("DELETE"),
 			},
-			&clientmodel.LabelPair{
+			{
 				Name:  strPnt("status"),
 				Value: strPnt("200"),
 			},

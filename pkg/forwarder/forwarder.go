@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	trace "go.opentelemetry.io/otel/trace"
 

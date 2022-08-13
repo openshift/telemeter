@@ -1,7 +1,7 @@
 package logger
 
 import (
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log/level"
 )
 
 // LogLevelFromString determines log level to string, defaults to all,

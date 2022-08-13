@@ -14,7 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/kit/log"
+	"github.com/efficientgo/tools/core/pkg/testutil"
+	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/openshift/telemeter/pkg/authorize"
@@ -23,7 +24,6 @@ import (
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/prometheus/pkg/timestamp"
 	"github.com/prometheus/prometheus/prompb"
-	"github.com/prometheus/prometheus/util/testutil"
 	"go.uber.org/goleak"
 )
 

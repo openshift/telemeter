@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	clientmodel "github.com/prometheus/client_model/go"
 )
 

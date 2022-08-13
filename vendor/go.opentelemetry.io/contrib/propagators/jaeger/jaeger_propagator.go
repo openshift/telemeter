@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package jaeger
+package jaeger // import "go.opentelemetry.io/contrib/propagators/jaeger"
 
 import (
 	"context"
@@ -56,7 +56,7 @@ var (
 //
 // Jaeger format:
 //
-// uber-trace-id: {trace-id}:{span-id}:{parent-span-id}:{flags}
+// uber-trace-id: {trace-id}:{span-id}:{parent-span-id}:{flags}.
 type Jaeger struct{}
 
 var _ propagation.TextMapPropagator = &Jaeger{}
@@ -156,6 +156,7 @@ func extract(ctx context.Context, headerVal string) (context.Context, trace.Span
 	return ctx, trace.NewSpanContext(scc), nil
 }
 
+// Fields returns the Jaeger header key whose value is set with Inject.
 func (jaeger Jaeger) Fields() []string {
 	return []string{jaegerHeader}
 }

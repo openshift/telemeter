@@ -33,10 +33,10 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/efficientgo/tools/core/pkg/merrors"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	pkgerrors "github.com/pkg/errors"
-	tsdberrors "github.com/prometheus/prometheus/tsdb/errors"
 )
 
 // CloseWithLogOnErr is making sure we log every error, even those from best effort tiny closers.
@@ -71,7 +71,7 @@ func ExhaustCloseWithLogOnErr(logger log.Logger, r io.ReadCloser, format string,
 // CloseWithErrCapture runs function and on error return error by argument including the given error (usually
 // from caller function).
 func CloseWithErrCapture(err *error, closer io.Closer, format string, a ...interface{}) {
-	merr := tsdberrors.MultiError{}
+	merr := merrors.NilOrMultiError{}
 
 	merr.Add(*err)
 	merr.Add(pkgerrors.Wrapf(closer.Close(), format, a...))
@@ -86,7 +86,7 @@ func ExhaustCloseWithErrCapture(err *error, r io.ReadCloser, format string, a ..
 	CloseWithErrCapture(err, r, format, a...)
 
 	// Prepend the io.Copy error.
-	merr := tsdberrors.MultiError{}
+	merr := merrors.NilOrMultiError{}
 	merr.Add(copyErr)
 	merr.Add(*err)
 

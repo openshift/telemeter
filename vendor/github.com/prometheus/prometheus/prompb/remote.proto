@@ -21,6 +21,10 @@ import "gogoproto/gogo.proto";
 
 message WriteRequest {
   repeated prometheus.TimeSeries timeseries = 1 [(gogoproto.nullable) = false];
+  // Cortex uses this field to determine the source of the write request.
+  // We reserve it to avoid any compatibility issues.
+  reserved  2;
+  repeated prometheus.MetricMetadata metadata = 3 [(gogoproto.nullable) = false];
 }
 
 // ReadRequest represents a remote read request.
@@ -73,7 +77,7 @@ message QueryResult {
 // ChunkedReadResponse is a response when response_type equals STREAMED_XOR_CHUNKS.
 // We strictly stream full series after series, optionally split by time. This means that a single frame can contain
 // partition of the single series, but once a new series is started to be streamed it means that no more chunks will
-// be sent for previous one.
+// be sent for previous one. Series are returned sorted in the same way TSDB block are internally.
 message ChunkedReadResponse {
   repeated prometheus.ChunkedSeries chunked_series = 1;
 
