@@ -6,6 +6,8 @@
 
 set -euo pipefail
 
+source .bingo/variables.env
+
 result=1
 trap 'kill $(jobs -p); exit $result' EXIT
 
@@ -16,9 +18,11 @@ trap 'kill $(jobs -p); exit $result' EXIT
 (
   thanos receive \
     --tsdb.path="$(mktemp -d)" \
+    --label "receive_replica=\"0\"" \
     --remote-write.address=127.0.0.1:9105 \
     --grpc-address=127.0.0.1:9106 \
     --http-address=127.0.0.1:9116 \
+    --receive.local-endpoint 127.0.0.1:9106 \
     --receive.default-tenant-id="FB870BF3-9F3A-44FF-9BF7-D7A047A52F43"
 ) &
 
@@ -60,15 +64,10 @@ until curl --output /dev/null --silent --fail http://localhost:9103/healthz/read
 done
 
 if
-  up \
+  $UP \
     --endpoint-type=metrics \
     --endpoint-write=http://127.0.0.1:9103/metrics/v1/receive \
-    --endpoint-read=http://127.0.0.1:9108/api/v1/query \
-    --period=500ms \
-    --initial-query-delay=250ms \
-    --threshold=1 \
-    --latency=10s \
-    --duration=10s \
+    --endpoint-read=http://127.0.0.1:9108 \
     --log.level=debug \
     --name cluster_installer \
     --labels '_id="test"' \

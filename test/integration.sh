@@ -45,8 +45,10 @@ trap 'kill $(jobs -p); exit $result' EXIT
 (
 thanos receive \
     --tsdb.path="$(mktemp -d)" \
+    --label "receive_replica=\"0\"" \
     --remote-write.address=127.0.0.1:9005 \
-    --grpc-address=127.0.0.1:9006
+    --grpc-address=127.0.0.1:9006 \
+    --receive.local-endpoint 127.0.0.1:9006 
 ) &
 
 (
