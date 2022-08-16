@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -128,13 +129,13 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 func LimitBodySize(logger log.Logger, limit int64, next http.Handler) http.HandlerFunc {
 	logger = log.With(logger, "component", "receive", "middleware", "LimitBodySize")
 	return func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			level.Error(logger).Log("msg", "failed to read body", "err", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		defer r.Body.Close()
 
 		// Set body to this buffer for other handlers to read
 		r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
@@ -161,13 +162,13 @@ func ValidateLabels(logger log.Logger, next http.Handler, labels ...string) http
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			level.Error(logger).Log("msg", "failed to read body", "err", err)
 			http.Error(w, "failed to read body", http.StatusInternalServerError)
 			return
 		}
-		defer r.Body.Close()
 
 		// Set body to this buffer for other handlers to read
 		r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
@@ -214,15 +215,15 @@ func ValidateLabels(logger log.Logger, next http.Handler, labels ...string) http
 }
 
 func (h *Handler) TransformWriteRequest(logger log.Logger, next http.Handler) http.HandlerFunc {
-	logger = log.With(logger, "component", "receive", "middleware", "transformWriteRequest")
+	logger = log.With(h.logger, "middleware", "transformWriteRequest")
 	return func(w http.ResponseWriter, r *http.Request) {
-		body, err := ioutil.ReadAll(r.Body)
+		defer r.Body.Close()
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			level.Error(logger).Log("msg", "failed to read body", "err", err)
 			http.Error(w, "failed to read body", http.StatusInternalServerError)
 			return
 		}
-		defer r.Body.Close()
 
 		content, err := snappy.Decode(nil, body)
 		if err != nil {
