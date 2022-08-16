@@ -12,6 +12,7 @@ GOLANG_FILES:=$(shell find . -name \*.go -print)
 FIRST_GOPATH:=$(firstword $(subst :, ,$(shell go env GOPATH)))
 BIN_DIR?=$(shell pwd)/_output/bin
 LIB_DIR?=./_output/lib
+CACHE_DIR?=$(shell pwd)/_output/cache
 METRICS_JSON=./_output/metrics.json
 THANOS_BIN=$(BIN_DIR)/thanos
 MEMCACHED_BIN=$(BIN_DIR)/memcached
@@ -106,7 +107,7 @@ $(METRICS_JSON): $(GOJSONTOYAML)
 	curl -L https://raw.githubusercontent.com/openshift/cluster-monitoring-operator/844e7afabfcfa4162c716ea18cd8e2d010789de1/manifests/0000_50_cluster_monitoring_operator_04-config.yaml | \
 	    $(GOJSONTOYAML) --yamltojson | jq -r '.data."metrics.yaml"' | $(GOJSONTOYAML) --yamltojson | jq -r '.matches' > $@
 
-manifests: $(JSONNET_LOCAL_OR_INSTALLED) $(JSONNET_SRC) $(JSONNET_VENDOR) $(GOJSONTOYAML) $(METRICS_JSON)
+manifests: $(BIN_DIR) $(JSONNET_LOCAL_OR_INSTALLED) $(JSONNET_SRC) $(JSONNET_VENDOR) $(GOJSONTOYAML) $(METRICS_JSON) 
 	rm -rf manifests
 	mkdir -p manifests/{benchmark,client}
 	$(JSONNET_LOCAL_OR_INSTALLED) jsonnet/benchmark.jsonnet -J jsonnet/vendor -m manifests/benchmark --tla-code metrics="$$(cat $(METRICS_JSON))"
@@ -124,9 +125,9 @@ benchmark.pdf: $(BENCHMARK_RESULTS)
 ##############
 
 .PHONY: lint
-lint: $(GOLANGCI_LINT)
+lint:  $(BIN_DIR) $(GOLANGCI_LINT)
 	# Check .golangci.yml for configuration
-	$(GOLANGCI_LINT) run --fix -c .golangci.yml
+	GOLANGCI_LINT_CACHE=$(CACHE_DIR)/golangci-lint $(GOLANGCI_LINT) run --fix -c .golangci.yml
 
 .PHONY: format
 format: go-fmt jsonnet-fmt
