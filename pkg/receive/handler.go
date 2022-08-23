@@ -4,16 +4,20 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"time"
+	"unsafe"
 
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/prompb"
+	"github.com/prometheus/prometheus/promql"
 )
 
 const forwardTimeout = 5 * time.Second
@@ -33,12 +37,14 @@ type Handler struct {
 	client     *http.Client
 	logger     log.Logger
 
+	elideLabelSet map[string]struct{}
+	matcherSets   [][]*labels.Matcher
 	// Metrics.
 	forwardRequestsTotal *prometheus.CounterVec
 }
 
 // NewHandler returns a new Handler with a http client
-func NewHandler(logger log.Logger, forwardURL string, client *http.Client, reg prometheus.Registerer, tenantID string) *Handler {
+func NewHandler(logger log.Logger, forwardURL string, client *http.Client, reg prometheus.Registerer, tenantID string, whitelistRules []string, elideLabels []string) (*Handler, error) {
 	h := &Handler{
 		ForwardURL: forwardURL,
 		tenantID:   tenantID,
@@ -52,11 +58,26 @@ func NewHandler(logger log.Logger, forwardURL string, client *http.Client, reg p
 		),
 	}
 
+	var ms [][]*labels.Matcher
+	for _, rule := range whitelistRules {
+		matchers, err := promql.ParseMetricSelector(rule)
+		if err != nil {
+			return nil, err
+		}
+		ms = append(ms, matchers)
+	}
+	h.matcherSets = ms
+
+	h.elideLabelSet = make(map[string]struct{})
+	for _, l := range elideLabels {
+		h.elideLabelSet[l] = struct{}{}
+	}
+
 	if reg != nil {
 		reg.MustRegister(h.forwardRequestsTotal)
 	}
 
-	return h
+	return h, nil
 }
 
 // Receive a remote-write request after it has been authenticated and forward it to Thanos
@@ -108,13 +129,13 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 func LimitBodySize(logger log.Logger, limit int64, next http.Handler) http.HandlerFunc {
 	logger = log.With(logger, "component", "receive", "middleware", "LimitBodySize")
 	return func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			level.Error(logger).Log("msg", "failed to read body", "err", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		defer r.Body.Close()
 
 		// Set body to this buffer for other handlers to read
 		r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
@@ -129,7 +150,6 @@ func LimitBodySize(logger log.Logger, limit int64, next http.Handler) http.Handl
 	}
 }
 
-// ErrRequiredLabelMissing is returned if a required label is missing from a metric
 var ErrRequiredLabelMissing = fmt.Errorf("a required label is missing from the metric")
 
 // ValidateLabels by checking each enforced label to be present in every time series
@@ -142,13 +162,13 @@ func ValidateLabels(logger log.Logger, next http.Handler, labels ...string) http
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			level.Error(logger).Log("msg", "failed to read body", "err", err)
 			http.Error(w, "failed to read body", http.StatusInternalServerError)
 			return
 		}
-		defer r.Body.Close()
 
 		// Set body to this buffer for other handlers to read
 		r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
@@ -192,4 +212,81 @@ func ValidateLabels(logger log.Logger, next http.Handler, labels ...string) http
 
 		next.ServeHTTP(w, r)
 	}
+}
+
+func (h *Handler) TransformWriteRequest(logger log.Logger, next http.Handler) http.HandlerFunc {
+	logger = log.With(h.logger, "middleware", "transformWriteRequest")
+	return func(w http.ResponseWriter, r *http.Request) {
+		defer r.Body.Close()
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			level.Error(logger).Log("msg", "failed to read body", "err", err)
+			http.Error(w, "failed to read body", http.StatusInternalServerError)
+			return
+		}
+
+		content, err := snappy.Decode(nil, body)
+		if err != nil {
+			level.Warn(logger).Log("msg", "failed to decode request body", "err", err)
+			http.Error(w, "failed to decode request body", http.StatusBadRequest)
+			return
+		}
+
+		var wreq prompb.WriteRequest
+		if err := proto.Unmarshal(content, &wreq); err != nil {
+			level.Warn(logger).Log("msg", "failed to decode protobuf from body", "err", err)
+			http.Error(w, "failed to decode protobuf from body", http.StatusBadRequest)
+			return
+		}
+
+		// Only allow whitelisted metrics.
+		n := 0
+		for _, ts := range wreq.GetTimeseries() {
+			if h.matches(PrompbLabelsToPromLabels(ts.GetLabels())) {
+				// Remove elided labels.
+				for i, l := range ts.Labels {
+					if _, elide := h.elideLabelSet[l.Name]; elide {
+						ts.Labels = append(ts.Labels[:i], ts.Labels[i+1:]...)
+					}
+				}
+				wreq.Timeseries[n] = ts
+				n++
+			}
+		}
+		wreq.Timeseries = wreq.Timeseries[:n]
+
+		data, err := proto.Marshal(&wreq)
+		if err != nil {
+			msg := "failed to marshal proto"
+			level.Warn(logger).Log("msg", msg, "err", err)
+			http.Error(w, msg, http.StatusInternalServerError)
+			return
+		}
+
+		compressed := snappy.Encode(nil, data)
+
+		// Set body to this buffer for other handlers to read.
+		r.Body = ioutil.NopCloser(bytes.NewBuffer(compressed))
+
+		next.ServeHTTP(w, r)
+	}
+}
+
+func (h *Handler) matches(l labels.Labels) bool {
+	if len(h.matcherSets) == 0 {
+		return true
+	}
+
+	for _, matchers := range h.matcherSets {
+		for _, m := range matchers {
+			if v := l.Get(m.Name); !m.Matches(v) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func PrompbLabelsToPromLabels(lset []prompb.Label) labels.Labels {
+	return *(*labels.Labels)(unsafe.Pointer(&lset))
 }

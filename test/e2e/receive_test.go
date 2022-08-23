@@ -85,7 +85,10 @@ func TestReceiveValidateLabels(t *testing.T) {
 
 	var telemeterServer *httptest.Server
 	{
-		receiver := receive.NewHandler(log.NewNopLogger(), receiveServer.URL, &http.Client{}, prometheus.NewRegistry(), "default-tenant")
+		receiver, err := receive.NewHandler(log.NewNopLogger(), receiveServer.URL, &http.Client{}, prometheus.NewRegistry(), "default-tenant", nil, nil)
+		if err != nil {
+			t.Error("failed to initialize receive handler")
+		}
 
 		telemeterServer = httptest.NewServer(
 			fakeAuthorizeHandler(
@@ -136,7 +139,10 @@ func TestLimitBodySize(t *testing.T) {
 	var telemeterServer *httptest.Server
 	{
 		logger := log.NewNopLogger()
-		receiver := receive.NewHandler(logger, receiveServer.URL, &http.Client{}, prometheus.NewRegistry(), "default-tenant")
+		receiver, err := receive.NewHandler(logger, receiveServer.URL, &http.Client{}, prometheus.NewRegistry(), "default-tenant", nil, nil)
+		if err != nil {
+			t.Error("failed to initialize receive handler")
+		}
 
 		telemeterServer = httptest.NewServer(
 			fakeAuthorizeHandler(

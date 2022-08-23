@@ -520,7 +520,10 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 				v2AuthorizeClient.Transport = cache.NewRoundTripper(mc, tollbooth.ExtractToken, v2AuthorizeClient.Transport, l, prometheus.DefaultRegisterer)
 			}
 
-			receiver := receive.NewHandler(o.Logger, o.ForwardURL, v2ForwardClient, prometheus.DefaultRegisterer, o.TenantID)
+			receiver, err := receive.NewHandler(o.Logger, o.ForwardURL, v2ForwardClient, prometheus.DefaultRegisterer, o.TenantID, o.Whitelist, o.ElideLabels)
+			if err != nil {
+				level.Error(o.Logger).Log("msg", "could not initialize receive handler", "err", err)
+			}
 
 			external.Handle("/metrics/v1/receive",
 				runutil.ExhaustCloseRequestBodyHandler(o.Logger,
@@ -529,8 +532,11 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 							receive.LimitBodySize(o.Logger, o.LimitReceiveBytes,
 								receive.ValidateLabels(
 									o.Logger,
-									http.HandlerFunc(receiver.Receive),
-									o.clusterIDKey, // TODO: Enforce the same labels for v1 and v2
+									receiver.TransformWriteRequest(
+										o.Logger,
+										http.HandlerFunc(receiver.Receive),
+									),
+									o.clusterIDKey,
 								),
 							),
 						),
