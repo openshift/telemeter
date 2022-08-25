@@ -20,6 +20,8 @@ func Test_convertToTimeseries(t *testing.T) {
 	fooLabelValue1 := "bar"
 	fooLabelValue2 := "baz"
 
+	emptyLabelName := ""
+
 	barMetricName := "bar_metric"
 	barHelp := "bar help text"
 	barLabelName := "bar"
@@ -148,6 +150,69 @@ func Test_convertToTimeseries(t *testing.T) {
 		}, {
 			Labels:  []prompb.Label{{Name: nameLabelName, Value: barMetricName}, {Name: barLabelName, Value: barLabelValue1}},
 			Samples: []prompb.Sample{{Value: value42, Timestamp: nowTimestamp}},
+		}},
+	}, {
+		name: "unsanitized",
+		in: &PartitionedMetrics{
+			ClusterID: "foo",
+			Families: []*clientmodel.MetricFamily{{
+				Name: &fooMetricName,
+				Help: &fooHelp,
+				Type: &counter,
+				Metric: []*clientmodel.Metric{{
+					Label:       []*clientmodel.LabelPair{{Name: &fooLabelName, Value: &fooLabelValue1}},
+					Counter:     &clientmodel.Counter{Value: &value42},
+					TimestampMs: &timestamp,
+				}, {
+					Label:       []*clientmodel.LabelPair{{Name: &fooLabelName, Value: &fooLabelValue2}},
+					Counter:     &clientmodel.Counter{Value: &value50},
+					TimestampMs: &timestamp,
+				}, {
+					// With empty label.
+					Label:       []*clientmodel.LabelPair{{Name: &emptyLabelName, Value: &fooLabelValue2}},
+					Counter:     &clientmodel.Counter{Value: &value50},
+					TimestampMs: &timestamp,
+				},
+				},
+			}, {
+				Name: &barMetricName,
+				Help: &barHelp,
+				Type: &counter,
+				Metric: []*clientmodel.Metric{{
+					Label:       []*clientmodel.LabelPair{{Name: &barLabelName, Value: &barLabelValue1}},
+					Counter:     &clientmodel.Counter{Value: &value42},
+					TimestampMs: &timestamp,
+				}, {
+					// With duplicate labels.
+					Label:       []*clientmodel.LabelPair{{Name: &fooLabelName, Value: &fooLabelValue2}, {Name: &fooLabelName, Value: &fooLabelValue2}},
+					Counter:     &clientmodel.Counter{Value: &value42},
+					TimestampMs: &timestamp,
+				}, {
+					// With out-of-order labels.
+					Label:       []*clientmodel.LabelPair{{Name: &fooLabelName, Value: &fooLabelValue2}, {Name: &barLabelName, Value: &barLabelValue1}},
+					Counter:     &clientmodel.Counter{Value: &value50},
+					TimestampMs: &timestamp,
+				}},
+			}},
+		},
+		want: []prompb.TimeSeries{{
+			Labels:  []prompb.Label{{Name: nameLabelName, Value: fooMetricName}, {Name: fooLabelName, Value: fooLabelValue1}},
+			Samples: []prompb.Sample{{Value: value42, Timestamp: nowTimestamp}},
+		}, {
+			Labels:  []prompb.Label{{Name: nameLabelName, Value: fooMetricName}, {Name: fooLabelName, Value: fooLabelValue2}},
+			Samples: []prompb.Sample{{Value: value50, Timestamp: nowTimestamp}},
+		}, {
+			Labels:  []prompb.Label{{Name: nameLabelName, Value: fooMetricName}},
+			Samples: []prompb.Sample{{Value: value50, Timestamp: nowTimestamp}},
+		}, {
+			Labels:  []prompb.Label{{Name: nameLabelName, Value: barMetricName}, {Name: barLabelName, Value: barLabelValue1}},
+			Samples: []prompb.Sample{{Value: value42, Timestamp: nowTimestamp}},
+		}, {
+			Labels:  []prompb.Label{{Name: nameLabelName, Value: barMetricName}, {Name: fooLabelName, Value: fooLabelValue2}},
+			Samples: []prompb.Sample{{Value: value42, Timestamp: nowTimestamp}},
+		}, {
+			Labels:  []prompb.Label{{Name: nameLabelName, Value: barMetricName}, {Name: barLabelName, Value: barLabelValue1}, {Name: fooLabelName, Value: fooLabelValue2}},
+			Samples: []prompb.Sample{{Value: value50, Timestamp: nowTimestamp}},
 		}},
 	}}
 	for _, tt := range tests {
