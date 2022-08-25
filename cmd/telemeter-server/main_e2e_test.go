@@ -37,27 +37,27 @@ var expectedTimeSeries = []prompb.TimeSeries{
 	{
 		Labels: []prompb.Label{
 			{Name: "__name__", Value: "up"},
+			{Name: "cluster", Value: "dynamic"},
 			{Name: "job", Value: "test"},
 			{Name: "label", Value: "value0"},
-			{Name: "cluster", Value: "dynamic"},
 		},
 		Samples: []prompb.Sample{{Value: 1}},
 	},
 	{
 		Labels: []prompb.Label{
 			{Name: "__name__", Value: "up"},
+			{Name: "cluster", Value: "dynamic"},
 			{Name: "job", Value: "test"},
 			{Name: "label", Value: "value1"},
-			{Name: "cluster", Value: "dynamic"},
 		},
 		Samples: []prompb.Sample{{Value: 1}},
 	},
 	{
 		Labels: []prompb.Label{
 			{Name: "__name__", Value: "up"},
+			{Name: "cluster", Value: "dynamic"},
 			{Name: "job", Value: "test"},
 			{Name: "label", Value: "value2"},
-			{Name: "cluster", Value: "dynamic"},
 		},
 		Samples: []prompb.Sample{{Value: 0}},
 	},

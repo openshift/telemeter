@@ -8,6 +8,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"sort"
 	"time"
 
 	"github.com/go-chi/chi/middleware"
@@ -180,11 +181,21 @@ func convertToTimeseries(p *PartitionedMetrics, now time.Time) ([]prompb.TimeSer
 				Value: *f.Name,
 			}}
 
+			dedup := make(map[string]struct{})
 			for _, l := range m.Label {
+				// Skip empty labels.
+				if *l.Name == "" || *l.Value == "" {
+					continue
+				}
+				// Check for duplicates
+				if _, ok := dedup[*l.Name]; ok {
+					continue
+				}
 				labelpairs = append(labelpairs, prompb.Label{
 					Name:  *l.Name,
 					Value: *l.Value,
 				})
+				dedup[*l.Name] = struct{}{}
 			}
 
 			s := prompb.Sample{
@@ -208,6 +219,8 @@ func convertToTimeseries(p *PartitionedMetrics, now time.Time) ([]prompb.TimeSer
 			}
 
 			ts.Labels = append(ts.Labels, labelpairs...)
+			sortLabels(ts.Labels)
+
 			ts.Samples = append(ts.Samples, s)
 
 			timeseries = append(timeseries, ts)
@@ -230,3 +243,16 @@ func timeseriesMeanDrift(ts []prompb.TimeSeries, timestampSeconds int64) float64
 
 	return sum / count
 }
+
+func sortLabels(labels []prompb.Label) {
+	lset := sortableLabels(labels)
+	sort.Sort(&lset)
+}
+
+// Extension on top of prompb.Label to allow for easier sorting.
+// Based on https://github.com/prometheus/prometheus/blob/main/model/labels/labels.go#L44
+type sortableLabels []prompb.Label
+
+func (sl *sortableLabels) Len() int           { return len(*sl) }
+func (sl *sortableLabels) Swap(i, j int)      { (*sl)[i], (*sl)[j] = (*sl)[j], (*sl)[i] }
+func (sl *sortableLabels) Less(i, j int) bool { return (*sl)[i].Name < (*sl)[j].Name }
