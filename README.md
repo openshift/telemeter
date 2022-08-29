@@ -1,10 +1,10 @@
 # Telemeter
 
-Telemeter is a set of components used for [OpenShift remote health monitoring](https://docs.openshift.com/container-platform/4.7/support/remote_health_monitoring/about-remote-health-monitoring.html). It allows OpenShift clusters to push telemetry data about clusters to Red Hat, as Prometheus metrics.
+Telemeter is a set of components used for [OpenShift remote health monitoring](https://docs.openshift.com/container-platform/latest/support/remote_health_monitoring/about-remote-health-monitoring.html). It allows OpenShift clusters to push telemetry data about clusters to Red Hat, as Prometheus metrics.
 
 ![Telemeter Architecture](architecture.png)
 
-[telemeter-server](https://github.com/openshift/telemeter/tree/master/cmd/telemeter-server) needs to receive and send metrics across multiple security boundaries, and thus needs to perform serveral authentication, authorization and data integrity checks. It (currently) has two endpoints via which it receives metrics and forwards them to an upstream service as a [Prometheus remote write request](https://github.com/prometheus/prometheus/blob/release-2.38/prompb/remote.proto#L22).
+[telemeter-server](https://github.com/openshift/telemeter/tree/master/cmd/telemeter-server) needs to receive and send metrics across multiple security boundaries, and thus needs to perform several authentication, authorization and data integrity checks. It (currently) has two endpoints via which it receives metrics and forwards them to an upstream service as a [Prometheus remote write request](https://github.com/prometheus/prometheus/blob/release-2.38/prompb/remote.proto#L22).
 
 ## /upload endpoint (receive metrics in []client_model.MetricFamily format from telemeter-client, currently used by CMO)
 
