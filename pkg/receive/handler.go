@@ -25,11 +25,6 @@ const forwardTimeout = 5 * time.Second
 // DefaultRequestLimit is the size limit of a request body coming in
 const DefaultRequestLimit = 128 * 1024
 
-// ClusterAuthorizer authorizes a cluster by its token and id, returning a subject or error
-type ClusterAuthorizer interface {
-	AuthorizeCluster(token, cluster string) (subject string, err error)
-}
-
 // Handler knows the forwardURL for all requests
 type Handler struct {
 	ForwardURL string
