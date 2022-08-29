@@ -17,7 +17,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/prompb"
-	"github.com/prometheus/prometheus/promql"
+	"github.com/prometheus/prometheus/promql/parser"
 )
 
 const forwardTimeout = 5 * time.Second
@@ -55,7 +55,7 @@ func NewHandler(logger log.Logger, forwardURL string, client *http.Client, reg p
 
 	var ms [][]*labels.Matcher
 	for _, rule := range whitelistRules {
-		matchers, err := promql.ParseMetricSelector(rule)
+		matchers, err := parser.ParseMetricSelector(rule)
 		if err != nil {
 			return nil, err
 		}
