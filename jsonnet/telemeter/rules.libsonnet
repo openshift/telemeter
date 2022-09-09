@@ -131,16 +131,16 @@
               |||,
             },
             {
-              // OpenShift Cluster CPU-hours for the last hour
+              // OpenShift Cluster CPU-hours for the last hour.
               // The divisor of scalar(count_over_time(vector(1)[1h:5m])) allows us to get an effective average value having "absent data" treated as 0.
-              // max(...) by (_id) is used ensure a single datapoint per cluster ID
+              // max(...) by (_id) is used ensure a single datapoint per cluster ID.
               record: 'cluster:usage:workload:capacity_physical_cpu_hours',
               expr: |||
                 max by(_id) (sum_over_time(cluster:usage:workload:capacity_physical_cpu_cores:max:5m[1h:5m]) / scalar(count_over_time(vector(1)[1h:5m])))
               |||,
             },
             {
-              // OpenShift Cluster Instance-hours for the last hour
+              // OpenShift Cluster Instance-hours for the last hour.
               // The divisor of scalar(count_over_time(vector(1)[1h:5m])) allows us to get an effective average value having "absent data" treated as 0.
               record: 'cluster:usage:workload:capacity_physical_instance_hours',
               expr: |||
