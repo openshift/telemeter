@@ -244,6 +244,25 @@ local securePort = 8443;
                 record: 'cluster:telemetry_selected_series:count',
                 expr: 'max(federate_samples - federate_filtered_samples)',
               },
+              {
+                expr: |||
+                  sum by (namespace) (
+                    rate(federate_requests_failed_total{job="telemeter-client"}[15m])
+                  ) /
+                  sum by (namespace) (
+                    rate(federate_requests_total{job="telemeter-client"}[15m])
+                  ) > 0.2
+                |||,
+                labels: {
+                  severity: 'warning',
+                },
+                annotation: {
+                  description: 'The telemeter client in namespace {{ $labels.namespace }} fails {{ $value | humanize }} of the requests to the telemeter service.\nCheck the logs of the telemeter-client pod with the following command:\noc logs -n openshift-monitoring deployment.apps/telemeter-client -c telemeter-client\nIf the telemeter client fails to authenticate with the telemeter service, make sure that the global pull secret is up to date, see https://docs.openshift.com/container-platform/latest/openshift_images/managing_images/using-image-pull-secrets.html#images-update-global-pull-secret_using-image-pull-secrets for more details.',
+                  summary: 'Telemeter client fails to send metrics',
+                },
+                alert: 'TelemeterClientFailures',
+                'for': '1h',
+              },
             ],
           },
         ],
