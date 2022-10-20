@@ -10,7 +10,7 @@ spec:
     - expr: max(federate_samples - federate_filtered_samples)
       record: cluster:telemetry_selected_series:count
     - alert: TelemeterClientFailures
-      annotation:
+      annotations:
         description: |-
           The telemeter client in namespace {{ $labels.namespace }} fails {{ $value | humanize }} of the requests to the telemeter service.
           Check the logs of the telemeter-client pod with the following command:
