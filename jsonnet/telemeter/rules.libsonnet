@@ -45,7 +45,7 @@
             {
               record: 'id_provider',
               expr: |||
-                0 * topk by (_id) (1, count by (_id, provider) (label_replace(cluster_infrastructure_provider * 0 + 2, "provider", "$1", "type", "(.*)")) or on(_id) label_replace(max by (_id) (cluster_version{type="current"}*0+1), "provider", "", "provider", "") or on(_id) label_replace(max by (_id) (cluster:node_instance_type_count:sum*0), "provider", "hypershift-unknown", "provider", ""))
+                0 * topk by (_id) (1, group by (_id, provider) (label_replace(cluster_infrastructure_provider, "provider", "$1", "type", "(.*)")) or on(_id) label_replace(group by (_id) (cluster_version{type="current"}), "provider", "unknown", "provider", ""))
               |||,
             },
             {
@@ -74,7 +74,7 @@
                     label_replace(
                       count by (_id) (
                         cluster:virt_platform_nodes:sum
-                      ), "install_type", "hypershift-unknown", "install_type", ""
+                      ), "install_type", "unknown", "install_type", ""
                     )
                   ) * 0
                 ) * 0
