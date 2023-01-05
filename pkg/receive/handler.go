@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"sort"
 	"time"
 	"unsafe"
 
@@ -239,16 +240,33 @@ func (h *Handler) TransformWriteRequest(logger log.Logger, next http.Handler) ht
 			return
 		}
 
-		// Only allow whitelisted metrics.
+		// Only allow whitelisted & sanitized metrics.
 		n := 0
 		for _, ts := range wreq.GetTimeseries() {
 			if h.matches(PrompbLabelsToPromLabels(ts.GetLabels())) {
-				// Remove elided labels.
-				for i, l := range ts.Labels {
-					if _, elide := h.elideLabelSet[l.Name]; elide {
-						ts.Labels = append(ts.Labels[:i], ts.Labels[i+1:]...)
+				lbls := ts.Labels[:0]
+				dedup := make(map[string]struct{})
+				for _, l := range ts.Labels {
+					// Skip empty labels.
+					if l.Name == "" || l.Value == "" {
+						continue
 					}
+					// Check for duplicates.
+					if _, ok := dedup[l.Name]; ok {
+						continue
+					}
+					// Remove elided labels.
+					if _, elide := h.elideLabelSet[l.Name]; elide {
+						continue
+					}
+
+					lbls = append(lbls, l)
+					dedup[l.Name] = struct{}{}
 				}
+				ts.Labels = lbls
+				// Sort labels.
+				sortLabels(ts.Labels)
+
 				wreq.Timeseries[n] = ts
 				n++
 			}
@@ -286,6 +304,19 @@ func (h *Handler) matches(l labels.Labels) bool {
 	}
 	return true
 }
+
+func sortLabels(labels []prompb.Label) {
+	lset := sortableLabels(labels)
+	sort.Sort(&lset)
+}
+
+// Extension on top of prompb.Label to allow for easier sorting.
+// Based on https://github.com/prometheus/prometheus/blob/main/model/labels/labels.go#L44
+type sortableLabels []prompb.Label
+
+func (sl *sortableLabels) Len() int           { return len(*sl) }
+func (sl *sortableLabels) Swap(i, j int)      { (*sl)[i], (*sl)[j] = (*sl)[j], (*sl)[i] }
+func (sl *sortableLabels) Less(i, j int) bool { return (*sl)[i].Name < (*sl)[j].Name }
 
 func PrompbLabelsToPromLabels(lset []prompb.Label) labels.Labels {
 	return *(*labels.Labels)(unsafe.Pointer(&lset))
