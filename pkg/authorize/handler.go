@@ -125,14 +125,14 @@ func NewHandler(logger log.Logger, client *http.Client, endpoint *url.URL, tenan
 		authHeader := r.Header.Get("Authorization")
 		authParts := strings.Split(string(authHeader), " ")
 		if len(authParts) != 2 || strings.ToLower(authParts[0]) != "bearer" {
-			level.Warn(logger).Log("msg", "bad authorization header")
+			level.Warn(logger).Log("msg", "bad authorization header", "header", authHeader)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
 		token, err := base64.StdEncoding.DecodeString(authParts[1])
 		if err != nil {
-			level.Warn(logger).Log("msg", "failed to extract token", "err", err)
+			level.Warn(logger).Log("msg", "failed to extract token", "err", err, "token", authParts[1])
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}

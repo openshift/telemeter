@@ -142,7 +142,7 @@ func LimitBodySize(logger log.Logger, limit int64, next http.Handler) http.Handl
 		r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
 
 		if len(body) >= int(limit) {
-			level.Debug(logger).Log("msg", "request is too big", "req_size", len(body))
+			level.Warn(logger).Log("msg", "request is too big", "req_size", len(body))
 			http.Error(w, "request too big", http.StatusRequestEntityTooLarge)
 			return
 		}
