@@ -41,7 +41,10 @@ type Handler struct {
 	elideLabelSet map[string]struct{}
 	matcherSets   [][]*labels.Matcher
 	// Metrics.
-	forwardRequestsTotal *prometheus.CounterVec
+	forwardRequestsTotal   *prometheus.CounterVec
+	requestBodySizeLimited prometheus.Counter
+	requestMissingLabels   prometheus.Counter
+	seriesProcessedTotal   prometheus.Counter
 }
 
 // NewHandler returns a new Handler with a http client
@@ -56,6 +59,24 @@ func NewHandler(logger log.Logger, forwardURL string, client *http.Client, reg p
 				Name: "telemeter_forward_requests_total",
 				Help: "The number of forwarded remote-write requests.",
 			}, []string{"result"},
+		),
+		requestBodySizeLimited: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "telemeter_receive_size_limited_total",
+				Help: "The number of remote write requests dropped due to body size.",
+			},
+		),
+		requestMissingLabels: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "telemeter_receive_request_missing_labels_total",
+				Help: "The number of remote write requests dropped due to missing labels.",
+			},
+		),
+		seriesProcessedTotal: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "telemeter_receive_series_processed_total",
+				Help: "The total number of series processed by telemeter receive.",
+			},
 		),
 	}
 
@@ -76,6 +97,9 @@ func NewHandler(logger log.Logger, forwardURL string, client *http.Client, reg p
 
 	if reg != nil {
 		reg.MustRegister(h.forwardRequestsTotal)
+		reg.MustRegister(h.requestBodySizeLimited)
+		reg.MustRegister(h.requestMissingLabels)
+		reg.MustRegister(h.seriesProcessedTotal)
 	}
 
 	return h, nil
@@ -94,6 +118,7 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 
 	req, err := http.NewRequest(http.MethodPost, h.ForwardURL, r.Body)
 	if err != nil {
+		h.forwardRequestsTotal.WithLabelValues("error").Inc()
 		level.Error(h.logger).Log("msg", "failed to create forward request", "err", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -127,12 +152,13 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 }
 
 // LimitBodySize is a middleware that check that the request body is not bigger than the limit
-func LimitBodySize(logger log.Logger, limit int64, next http.Handler) http.HandlerFunc {
-	logger = log.With(logger, "component", "receive", "middleware", "LimitBodySize")
+func (h *Handler) LimitBodySize(logger log.Logger, limit int64, next http.Handler) http.HandlerFunc {
+	logger = log.With(h.logger, "middleware", "LimitBodySize")
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
+			h.forwardRequestsTotal.WithLabelValues("error").Inc()
 			level.Error(logger).Log("msg", "failed to read body", "err", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -143,6 +169,7 @@ func LimitBodySize(logger log.Logger, limit int64, next http.Handler) http.Handl
 
 		if len(body) >= int(limit) {
 			level.Warn(logger).Log("msg", "request is too big", "req_size", len(body))
+			h.requestBodySizeLimited.Inc()
 			http.Error(w, "request too big", http.StatusRequestEntityTooLarge)
 			return
 		}
@@ -153,29 +180,21 @@ func LimitBodySize(logger log.Logger, limit int64, next http.Handler) http.Handl
 
 var ErrRequiredLabelMissing = fmt.Errorf("a required label is missing from the metric")
 
-// ValidateLabels by checking each enforced label to be present in every time series
-func ValidateLabels(logger log.Logger, next http.Handler, labels ...string) http.HandlerFunc {
-	logger = log.With(logger, "component", "receive", "middleware", "validateLabels")
-
-	labelmap := make(map[string]struct{})
-	for _, label := range labels {
-		labelmap[label] = struct{}{}
-	}
-
+func (h *Handler) TransformAndValidateWriteRequest(logger log.Logger, next http.Handler, labels ...string) http.HandlerFunc {
+	logger = log.With(h.logger, "middleware", "transformAndValidateWriteRequest")
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
+			h.forwardRequestsTotal.WithLabelValues("error").Inc()
 			level.Error(logger).Log("msg", "failed to read body", "err", err)
 			http.Error(w, "failed to read body", http.StatusInternalServerError)
 			return
 		}
 
-		// Set body to this buffer for other handlers to read
-		r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
-
 		content, err := snappy.Decode(nil, body)
 		if err != nil {
+			h.forwardRequestsTotal.WithLabelValues("error").Inc()
 			level.Warn(logger).Log("msg", "failed to decode request body", "err", err)
 			http.Error(w, "failed to decode request body", http.StatusBadRequest)
 			return
@@ -183,15 +202,25 @@ func ValidateLabels(logger log.Logger, next http.Handler, labels ...string) http
 
 		var wreq prompb.WriteRequest
 		if err := proto.Unmarshal(content, &wreq); err != nil {
+			h.forwardRequestsTotal.WithLabelValues("error").Inc()
 			level.Warn(logger).Log("msg", "failed to decode protobuf from body", "err", err)
 			http.Error(w, "failed to decode protobuf from body", http.StatusBadRequest)
 			return
 		}
 
+		labelmap := make(map[string]struct{})
+		for _, label := range labels {
+			labelmap[label] = struct{}{}
+		}
+
+		// Only allow whitelisted & sanitized metrics.
+		n := 0
 		for _, ts := range wreq.GetTimeseries() {
-			// exit early if not enough labels anyway
+			// Check required labels.
+			// exit early if not enough labels anyway.
 			if len(ts.GetLabels()) < len(labels) {
 				level.Warn(logger).Log("msg", "request is missing required labels", "err", ErrRequiredLabelMissing)
+				h.requestMissingLabels.Inc()
 				http.Error(w, ErrRequiredLabelMissing.Error(), http.StatusBadRequest)
 				return
 			}
@@ -206,43 +235,11 @@ func ValidateLabels(logger log.Logger, next http.Handler, labels ...string) http
 
 			if len(labels) != found {
 				level.Warn(logger).Log("msg", "request is missing required labels", "err", ErrRequiredLabelMissing)
+				h.requestMissingLabels.Inc()
 				http.Error(w, ErrRequiredLabelMissing.Error(), http.StatusBadRequest)
 				return
 			}
-		}
 
-		next.ServeHTTP(w, r)
-	}
-}
-
-func (h *Handler) TransformWriteRequest(logger log.Logger, next http.Handler) http.HandlerFunc {
-	logger = log.With(h.logger, "middleware", "transformWriteRequest")
-	return func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			level.Error(logger).Log("msg", "failed to read body", "err", err)
-			http.Error(w, "failed to read body", http.StatusInternalServerError)
-			return
-		}
-
-		content, err := snappy.Decode(nil, body)
-		if err != nil {
-			level.Warn(logger).Log("msg", "failed to decode request body", "err", err)
-			http.Error(w, "failed to decode request body", http.StatusBadRequest)
-			return
-		}
-
-		var wreq prompb.WriteRequest
-		if err := proto.Unmarshal(content, &wreq); err != nil {
-			level.Warn(logger).Log("msg", "failed to decode protobuf from body", "err", err)
-			http.Error(w, "failed to decode protobuf from body", http.StatusBadRequest)
-			return
-		}
-
-		// Only allow whitelisted & sanitized metrics.
-		n := 0
-		for _, ts := range wreq.GetTimeseries() {
 			if h.matches(PrompbLabelsToPromLabels(ts.GetLabels())) {
 				lbls := ts.Labels[:0]
 				dedup := make(map[string]struct{})
@@ -263,18 +260,29 @@ func (h *Handler) TransformWriteRequest(logger log.Logger, next http.Handler) ht
 					lbls = append(lbls, l)
 					dedup[l.Name] = struct{}{}
 				}
-				ts.Labels = lbls
+
 				// Sort labels.
-				sortLabels(ts.Labels)
+				sortLabels(lbls)
+				ts.Labels = lbls
+
+				level.Debug(logger).Log("msg", "sanitized labels", "labels", ts.Labels)
 
 				wreq.Timeseries[n] = ts
+				h.seriesProcessedTotal.Inc()
 				n++
 			}
 		}
 		wreq.Timeseries = wreq.Timeseries[:n]
 
+		if len(wreq.Timeseries) == 0 {
+			level.Warn(logger).Log("msg", "empty remote write request after telemeter processing")
+			http.Error(w, "empty remote write request after telemeter processing", http.StatusBadRequest)
+			return
+		}
+
 		data, err := proto.Marshal(&wreq)
 		if err != nil {
+			h.forwardRequestsTotal.WithLabelValues("error").Inc()
 			msg := "failed to marshal proto"
 			level.Warn(logger).Log("msg", msg, "err", err)
 			http.Error(w, msg, http.StatusInternalServerError)
