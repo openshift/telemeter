@@ -44,6 +44,7 @@ type Handler struct {
 	forwardRequestsTotal   *prometheus.CounterVec
 	requestBodySizeLimited prometheus.Counter
 	requestMissingLabels   prometheus.Counter
+	seriesProcessedTotal   prometheus.Counter
 }
 
 // NewHandler returns a new Handler with a http client
@@ -71,6 +72,12 @@ func NewHandler(logger log.Logger, forwardURL string, client *http.Client, reg p
 				Help: "The number of remote write requests dropped due to missing labels.",
 			},
 		),
+		seriesProcessedTotal: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "telemeter_receive_series_processed_total",
+				Help: "The total number of series processed by telemeter receive.",
+			},
+		),
 	}
 
 	var ms [][]*labels.Matcher
@@ -92,6 +99,7 @@ func NewHandler(logger log.Logger, forwardURL string, client *http.Client, reg p
 		reg.MustRegister(h.forwardRequestsTotal)
 		reg.MustRegister(h.requestBodySizeLimited)
 		reg.MustRegister(h.requestMissingLabels)
+		reg.MustRegister(h.seriesProcessedTotal)
 	}
 
 	return h, nil
@@ -252,15 +260,25 @@ func (h *Handler) TransformAndValidateWriteRequest(logger log.Logger, next http.
 					lbls = append(lbls, l)
 					dedup[l.Name] = struct{}{}
 				}
-				ts.Labels = lbls
+
 				// Sort labels.
-				sortLabels(ts.Labels)
+				sortLabels(lbls)
+				ts.Labels = lbls
+
+				level.Debug(logger).Log("msg", "sanitized labels", "labels", ts.Labels)
 
 				wreq.Timeseries[n] = ts
+				h.seriesProcessedTotal.Inc()
 				n++
 			}
 		}
 		wreq.Timeseries = wreq.Timeseries[:n]
+
+		if len(wreq.Timeseries) == 0 {
+			level.Warn(logger).Log("msg", "empty remote write request after telemeter processing")
+			http.Error(w, "empty remote write request after telemeter processing", http.StatusBadRequest)
+			return
+		}
 
 		data, err := proto.Marshal(&wreq)
 		if err != nil {
