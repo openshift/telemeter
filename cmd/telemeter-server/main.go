@@ -529,13 +529,10 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 				runutil.ExhaustCloseRequestBodyHandler(o.Logger,
 					server.InstrumentedHandler("receive",
 						authorize.NewHandler(o.Logger, &v2AuthorizeClient, authorizeURL, o.TenantKey,
-							receive.LimitBodySize(o.Logger, o.LimitReceiveBytes,
-								receive.ValidateLabels(
+							receiver.LimitBodySize(o.Logger, o.LimitReceiveBytes,
+								receiver.TransformAndValidateWriteRequest(
 									o.Logger,
-									receiver.TransformWriteRequest(
-										o.Logger,
-										http.HandlerFunc(receiver.Receive),
-									),
+									http.HandlerFunc(receiver.Receive),
 									o.clusterIDKey,
 								),
 							),
