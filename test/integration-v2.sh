@@ -85,9 +85,11 @@ if
 then
   result=0
   echo "tests: ok"
+  sleep 60
   exit 0
 fi
 
 echo "tests: failed" 1>&2
 result=1
+sleep 60
 exit 1

@@ -1,6 +1,6 @@
 include .bingo/Variables.mk
 
-.PHONY: all build image check test-generate test-integration-v1 test-integration-v2 test-benchmark vendor dependencies manifests
+.PHONY: all build image check test-generate test-integration-v1 test-integration-v2 test-integration-v2-prom test-benchmark vendor dependencies manifests
 SHELL=/usr/bin/env bash -o pipefail
 
 GO_PKG=github.com/openshift/telemeter
@@ -149,7 +149,7 @@ shellcheck:
 ###########
 
 .PHONY: test
-test: test-unit test-integration-v1 test-integration-v2 test-benchmark
+test: test-unit test-integration-v1 test-integration-v2 test-integration-v2-prom test-benchmark
 
 .PHONY: test-unit
 test-unit:
@@ -169,6 +169,10 @@ test-integration-v1: build | $(THANOS_BIN) $(UP) $(MEMCACHED_BIN) $(PROMETHEUS_B
 test-integration-v2: build | $(THANOS_BIN) $(UP) $(MEMCACHED_BIN) $(PROMETHEUS_BIN)
 	@echo "Running integration tests: V2"
 	PATH=$$PATH:$$(pwd)/$(BIN_DIR) LD_LIBRARY_PATH=$$LD_LIBRARY_PATH:$$(pwd)/$(LIB_DIR) ./test/integration-v2.sh
+
+test-integration-v2-prom: build | $(THANOS_BIN) $(UP) $(MEMCACHED_BIN) $(PROMETHEUS_BIN)
+	@echo "Running integration tests: V2-prom"
+	PATH=$$PATH:$$(pwd)/$(BIN_DIR) LD_LIBRARY_PATH=$$LD_LIBRARY_PATH:$$(pwd)/$(LIB_DIR) ./test/integration-v2-prom.sh
 
 test-benchmark: build $(GOJSONTOYAML)
 	# Allow the image to be overridden when running in CI.
