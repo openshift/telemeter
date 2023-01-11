@@ -49,6 +49,7 @@ done
     --listen-internal localhost:9104 \
     --forward-url=http://localhost:9105/api/v1/receive \
     --memcached=localhost:11211 \
+    --log-level=debug \
     -v
 ) &
 

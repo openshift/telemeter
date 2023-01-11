@@ -213,9 +213,13 @@ func (h *Handler) TransformAndValidateWriteRequest(logger log.Logger, next http.
 			labelmap[label] = struct{}{}
 		}
 
+		level.Debug(logger).Log("msg", "timeseries received: "+fmt.Sprint(len(wreq.Timeseries)))
+
 		// Only allow whitelisted & sanitized metrics.
 		n := 0
 		for _, ts := range wreq.GetTimeseries() {
+			level.Debug(logger).Log("msg", "labels received", "timeseries", ts.String())
+
 			// Check required labels.
 			// exit early if not enough labels anyway.
 			if len(ts.GetLabels()) < len(labels) {
@@ -240,6 +244,7 @@ func (h *Handler) TransformAndValidateWriteRequest(logger log.Logger, next http.
 				return
 			}
 
+			level.Debug(logger).Log("msg", "labels comply with matchers", "match", h.matches(PrompbLabelsToPromLabels(ts.GetLabels())))
 			if h.matches(PrompbLabelsToPromLabels(ts.GetLabels())) {
 				lbls := ts.Labels[:0]
 				dedup := make(map[string]struct{})
@@ -265,7 +270,7 @@ func (h *Handler) TransformAndValidateWriteRequest(logger log.Logger, next http.
 				sortLabels(lbls)
 				ts.Labels = lbls
 
-				level.Debug(logger).Log("msg", "sanitized labels", "labels", ts.Labels)
+				level.Debug(logger).Log("msg", "sanitized labels", "result timeseries", ts.String())
 
 				wreq.Timeseries[n] = ts
 				h.seriesProcessedTotal.Inc()
