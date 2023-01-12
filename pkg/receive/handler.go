@@ -244,8 +244,9 @@ func (h *Handler) TransformAndValidateWriteRequest(logger log.Logger, next http.
 				return
 			}
 
-			level.Debug(logger).Log("msg", "labels comply with matchers", "match", h.matches(PrompbLabelsToPromLabels(ts.GetLabels())))
-			if h.matches(PrompbLabelsToPromLabels(ts.GetLabels())) {
+			whitelisted := h.isWhitelisted(PrompbLabelsToPromLabels(ts.GetLabels()))
+			level.Debug(logger).Log("msg", "labels comply with matchers", "match", whitelisted)
+			if whitelisted {
 				lbls := ts.Labels[:0]
 				dedup := make(map[string]struct{})
 				for _, l := range ts.Labels {
@@ -303,17 +304,31 @@ func (h *Handler) TransformAndValidateWriteRequest(logger log.Logger, next http.
 	}
 }
 
-func (h *Handler) matches(l labels.Labels) bool {
+func (h *Handler) isWhitelisted(l labels.Labels) bool {
 	if len(h.matcherSets) == 0 {
 		return true
 	}
 
+	var ok bool
 	for _, matchers := range h.matcherSets {
-		for _, m := range matchers {
-			if v := l.Get(m.Name); !m.Matches(v) {
-				return false
-			}
+		if matches(l, matchers...) {
+			ok = true
 		}
+	}
+
+	return ok
+}
+
+func matches(l labels.Labels, matchers ...*labels.Matcher) bool {
+Matcher:
+	for _, m := range matchers {
+		for _, lbl := range l {
+			if lbl.Name != m.Name || !m.Matches(lbl.Value) {
+				continue
+			}
+			continue Matcher
+		}
+		return false
 	}
 	return true
 }
