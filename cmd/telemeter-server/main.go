@@ -162,13 +162,12 @@ func main() {
 		fmt.Sprintf("The tracing endpoint type. Options: '%s', '%s'.", tracing.EndpointTypeAgent, tracing.EndpointTypeCollector))
 
 	l := log.NewLogfmtLogger(log.NewSyncWriter(os.Stderr))
-	l = level.NewFilter(l, logger.LogLevelFromString(opt.LogLevel))
 	l = log.WithPrefix(l, "ts", log.DefaultTimestampUTC)
 	l = log.WithPrefix(l, "caller", log.DefaultCaller)
 	stdlog.SetOutput(log.NewStdlibAdapter(l))
 	opt.Logger = l
-	level.Info(l).Log("msg", "Telemeter server initialized.")
 
+	level.Info(l).Log("msg", "Telemeter server initialized.")
 	if err := cmd.Execute(); err != nil {
 		level.Error(l).Log("err", err)
 		os.Exit(1)
@@ -249,6 +248,9 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 		}
 		o.RequiredLabels[values[0]] = values[1]
 	}
+
+	levelledOption := logger.LogLevelFromString(o.LogLevel)
+	o.Logger = level.NewFilter(o.Logger, levelledOption)
 
 	tp, err := tracing.InitTracer(
 		ctx,
