@@ -152,8 +152,8 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 }
 
 // LimitBodySize is a middleware that check that the request body is not bigger than the limit
-func (h *Handler) LimitBodySize(logger log.Logger, limit int64, next http.Handler) http.HandlerFunc {
-	logger = log.With(h.logger, "middleware", "LimitBodySize")
+func (h *Handler) LimitBodySize(limit int64, next http.Handler) http.HandlerFunc {
+	logger := log.With(h.logger, "middleware", "LimitBodySize")
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 		body, err := ioutil.ReadAll(r.Body)
@@ -180,8 +180,8 @@ func (h *Handler) LimitBodySize(logger log.Logger, limit int64, next http.Handle
 
 var ErrRequiredLabelMissing = fmt.Errorf("a required label is missing from the metric")
 
-func (h *Handler) TransformAndValidateWriteRequest(logger log.Logger, next http.Handler, labels ...string) http.HandlerFunc {
-	logger = log.With(h.logger, "middleware", "transformAndValidateWriteRequest")
+func (h *Handler) TransformAndValidateWriteRequest(next http.Handler, labels ...string) http.HandlerFunc {
+	logger := log.With(h.logger, "middleware", "transformAndValidateWriteRequest")
 	return func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 		body, err := io.ReadAll(r.Body)
