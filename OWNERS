@@ -6,18 +6,16 @@ reviewers:
 - simonpasquier
 - jan--f
 - bison
-- fpetkovski
 - raptorsun
 - slashpai
-- prashbnair
 - arajkumar
 - sthaha
 - PhilipGough
 - ianbillett
 - matej-g
 - onprem
-- spaparaju
 - jessicalins
+- JoaoBraveCoding
 
 approvers:
 - smarterclayton
@@ -25,18 +23,16 @@ approvers:
 - simonpasquier
 - jan--f
 - bison
-- fpetkovski
 - raptorsun
 - slashpai
-- prashbnair
 - arajkumar
 - sthaha
 - PhilipGough
 - ianbillett
 - matej-g
 - onprem
-- spaparaju
 - jessicalins
+- JoaoBraveCoding
 
 emeritus_approvers:
 - squat
