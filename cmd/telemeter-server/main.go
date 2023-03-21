@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"io/ioutil"
 	stdlog "log"
 	"net"
@@ -555,6 +556,14 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 
 		s := &http.Server{
 			Handler: otelhttp.NewHandler(external, "external", otelhttp.WithTracerProvider(tp)),
+			ErrorLog: stdlog.New(
+				&filteredHTTP2ErrorWriter{
+					out:               os.Stderr,
+					toDebugLogFilters: logFilter,
+					logger:            o.Logger,
+				},
+				"",
+				0),
 		}
 
 		// Run the external server.
@@ -624,4 +633,42 @@ func loadPrivateKey(data []byte) (crypto.PrivateKey, error) {
 	}
 
 	return nil, fmt.Errorf("unable to parse private key data: '%s', '%s' and '%s'", err0, err1, err2)
+}
+
+// logFilter is a list of filters
+var logFilter = [][]string{
+	// filter out TCP probes
+	// see https://github.com/golang/go/issues/26918
+	{
+		"http2: server: error reading preface from client",
+		"read: connection reset by peer",
+	},
+}
+
+type filteredHTTP2ErrorWriter struct {
+	out io.Writer
+	// toDebugLogFilters is a list of filters.
+	// All strings within a filter must match for the filter to match.
+	// If any of the filters matches, the log is written to debug level.
+	toDebugLogFilters [][]string
+	logger            log.Logger
+}
+
+func (w *filteredHTTP2ErrorWriter) Write(p []byte) (int, error) {
+	logContents := string(p)
+
+	for _, filter := range w.toDebugLogFilters {
+		shouldFilter := true
+		for _, matches := range filter {
+			if !strings.Contains(logContents, matches) {
+				shouldFilter = false
+				break
+			}
+		}
+		if shouldFilter {
+			level.Debug(w.logger).Log("msg", "http server error log has been filtered", "error", logContents)
+			return len(p), nil
+		}
+	}
+	return w.out.Write(p)
 }
