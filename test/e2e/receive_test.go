@@ -93,7 +93,6 @@ func TestReceiveValidateLabels(t *testing.T) {
 		telemeterServer = httptest.NewServer(
 			fakeAuthorizeHandler(
 				receiver.TransformAndValidateWriteRequest(
-					log.NewNopLogger(),
 					http.HandlerFunc(receiver.Receive),
 					"__name__",
 				),
@@ -146,7 +145,7 @@ func TestLimitBodySize(t *testing.T) {
 
 		telemeterServer = httptest.NewServer(
 			fakeAuthorizeHandler(
-				receiver.LimitBodySize(logger, receive.DefaultRequestLimit,
+				receiver.LimitBodySize(receive.DefaultRequestLimit,
 					http.HandlerFunc(receiver.Receive),
 				),
 				&authorize.Client{ID: "test"},
