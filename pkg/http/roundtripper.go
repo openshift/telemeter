@@ -37,6 +37,18 @@ func NewDebugRoundTripper(logger log.Logger, next http.RoundTripper) *debugRound
 	return &debugRoundTripper{next, log.With(logger, "component", "http/debugroundtripper")}
 }
 
+type TLSRoundTripper struct {
+	wrapper http.RoundTripper
+}
+
+func NewTLSRoundTripper(next http.RoundTripper) *TLSRoundTripper {
+	return &TLSRoundTripper{next}
+}
+
+func (rt *TLSRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return rt.wrapper.RoundTrip(req)
+}
+
 func (rt *debugRoundTripper) RoundTrip(req *http.Request) (res *http.Response, err error) {
 	reqd, _ := httputil.DumpRequest(req, false)
 	reqBody := bodyToString(&req.Body)

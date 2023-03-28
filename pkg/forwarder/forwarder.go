@@ -67,6 +67,8 @@ type Config struct {
 	FromTokenFile string
 	ToTokenFile   string
 	FromCAFile    string
+	TLSCertFile   string
+	TLSKey        string
 
 	AnonymizeLabels   []string
 	AnonymizeSalt     string
@@ -146,12 +148,31 @@ func New(cfg Config) (*Worker, error) {
 		transformer.With(metricfamily.NewMetricsAnonymizer(anonymizeSalt, cfg.AnonymizeLabels, nil))
 	}
 
+	fmt.Println("forwawrder cafile from?=", cfg.FromCAFile)
+	fmt.Println("forwawrder TLSCertFile?=", cfg.TLSCertFile)
+
 	// Create the `fromClient`.
 	fromTransport := metricsclient.DefaultTransport()
-	if len(cfg.FromCAFile) > 0 {
+	fromClient := &http.Client{Transport: fromTransport}
+	if cfg.Debug {
+		level.Info(logger).Log("msg", "fromClient transport: Debug ")
+		fromClient.Transport = telemeterhttp.NewDebugRoundTripper(logger, fromClient.Transport)
+	} else if len(cfg.FromCAFile) > 0 {
+		level.Info(logger).Log("msg", "fromClient transport: CA file %s and TLS", cfg.TLSCertFile)
+
 		if fromTransport.TLSClientConfig == nil {
 			fromTransport.TLSClientConfig = &tls.Config{}
 		}
+
+		var cert tls.Certificate
+		var err error
+		if *&cfg.TLSCertFile != "" && *&cfg.TLSKey != "" {
+			cert, err = tls.LoadX509KeyPair(*&cfg.TLSCertFile, *&cfg.TLSKey)
+			if err != nil {
+				return nil, fmt.Errorf("Error creating x509 keypair from client cert file %s and client key file %s", *&cfg.TLSCertFile, *&cfg.TLSKey)
+			}
+		}
+
 		pool, err := x509.SystemCertPool()
 		if err != nil {
 			return nil, fmt.Errorf("failed to read system certificates: %v", err)
@@ -163,22 +184,24 @@ func New(cfg Config) (*Worker, error) {
 		if !pool.AppendCertsFromPEM(data) {
 			level.Warn(logger).Log("msg", "no certs found in from-ca-file")
 		}
+
+		fromTransport.TLSClientConfig.Certificates = []tls.Certificate{cert}
 		fromTransport.TLSClientConfig.RootCAs = pool
-	}
-	fromClient := &http.Client{Transport: fromTransport}
-	if cfg.Debug {
-		fromClient.Transport = telemeterhttp.NewDebugRoundTripper(logger, fromClient.Transport)
-	}
-	if len(cfg.FromToken) == 0 && len(cfg.FromTokenFile) > 0 {
+
+		fromClient.Transport = telemeterhttp.NewTLSRoundTripper(fromClient.Transport)
+
+	} else if len(cfg.FromToken) == 0 && len(cfg.FromTokenFile) > 0 {
+		level.Info(logger).Log("msg", "fromClient transport FromTokenFile")
 		data, err := ioutil.ReadFile(cfg.FromTokenFile)
 		if err != nil {
 			return nil, fmt.Errorf("unable to read from-token-file: %v", err)
 		}
 		cfg.FromToken = strings.TrimSpace(string(data))
-	}
-	if len(cfg.FromToken) > 0 {
+	} else if len(cfg.FromToken) > 0 {
+		level.Info(logger).Log("msg", "fromClient transport FromToken")
 		fromClient.Transport = telemeterhttp.NewBearerRoundTripper(cfg.FromToken, fromClient.Transport)
 	}
+
 	w.fromClient = metricsclient.New(logger, fromClient, cfg.LimitBytes, w.interval, "federate_from")
 
 	// Create the `toClient`.
