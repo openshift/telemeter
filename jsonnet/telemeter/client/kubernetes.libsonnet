@@ -2,7 +2,7 @@ local k = import 'ksonnet/ksonnet.beta.4/k.libsonnet';
 local secretName = 'telemeter-client';
 local secretVolumeName = 'secret-telemeter-client';
 local secretMountPath = '/etc/telemeter';
-local tlsSecret = 'telemeter-client-tls';
+local tlsSecret = 'metrics-client-certs';
 local tlsVolumeName = 'telemeter-client-tls';
 local tlsMountPath = '/etc/tls/private';
 local servingCertsCABundle = 'serving-certs-ca-bundle';
@@ -18,7 +18,7 @@ local securePort = 8443;
 
     telemeterClient+:: {
       anonymizeLabels: [],
-      from: 'https://prometheus-k8s.%(namespace)s.svc:9091' % $._config,
+      from: 'https://prometheus-k8s.%(namespace)s.svc:9092' % $._config,
       id: '',
       matchRules: [],
       salt: '',
@@ -119,6 +119,8 @@ local securePort = 8443;
           '/usr/bin/telemeter-client',
           '--id=$(ID)',
           '--from=$(FROM)',
+          '--tls-cert-file=/etc/tls/private/tls.crt',
+          '--tls-private-key-file=/etc/tls/private/tls.key',
           '--from-ca-file=%s/%s' % [servingCertsCABundleMountPath, servingCertsCABundleFileName],
           '--from-token-file=' + fromTokenFile,
           '--to=$(TO)',
@@ -128,7 +130,7 @@ local securePort = 8443;
           '--anonymize-labels=$(ANONYMIZE_LABELS)',
         ] + matchRules) +
         container.withPorts(containerPort.newNamed(insecurePort, 'http')) +
-        container.withVolumeMounts([sccabMount, secretMount]) +
+        container.withVolumeMounts([sccabMount, secretMount, tlsMount]) +
         container.withEnv([anonymize, from, id, to, httpProxy, httpsProxy, noProxy]) +
         container.mixin.resources.withRequests({ cpu: '1m', memory: '40Mi' });
 

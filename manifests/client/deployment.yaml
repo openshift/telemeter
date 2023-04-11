@@ -23,6 +23,8 @@ spec:
         - /usr/bin/telemeter-client
         - --id=$(ID)
         - --from=$(FROM)
+        - --tls-cert-file=/etc/tls/private/tls.crt
+        - --tls-private-key-file=/etc/tls/private/tls.key
         - --from-ca-file=/etc/serving-certs-ca-bundle/service-ca.crt
         - --from-token-file=/var/run/secrets/kubernetes.io/serviceaccount/token
         - --to=$(TO)
@@ -30,11 +32,13 @@ spec:
         - --listen=localhost:8080
         - --anonymize-salt-file=/etc/telemeter/salt
         - --anonymize-labels=$(ANONYMIZE_LABELS)
+        - --log-level=debug 
+        - -v
         env:
         - name: ANONYMIZE_LABELS
           value: ""
         - name: FROM
-          value: https://prometheus-k8s.openshift-monitoring.svc:9091
+          value: https://prometheus-k8s.openshift-monitoring.svc:9092
         - name: ID
           value: ""
         - name: TO
@@ -45,7 +49,7 @@ spec:
           value: ""
         - name: NO_PROXY
           value: ""
-        image: quay.io/openshift/origin-telemeter:v4.0
+        image: quay.io/mariofer/origin-telemeter:new_cert_v2
         name: telemeter-client
         ports:
         - containerPort: 8080
@@ -60,6 +64,9 @@ spec:
           readOnly: false
         - mountPath: /etc/telemeter
           name: secret-telemeter-client
+          readOnly: false
+        - mountPath: /etc/tls/private
+          name: telemeter-client-tls
           readOnly: false
       - args:
         - --webhook-url=http://localhost:8080/-/reload
@@ -105,4 +112,4 @@ spec:
           secretName: telemeter-client
       - name: telemeter-client-tls
         secret:
-          secretName: telemeter-client-tls
+          secretName: federate-client-certs

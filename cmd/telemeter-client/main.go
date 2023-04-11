@@ -48,6 +48,11 @@ func main() {
 
 	cmd.Flags().StringVar(&opt.Listen, "listen", opt.Listen, "A host:port to listen on for health and metrics.")
 	cmd.Flags().StringVar(&opt.From, "from", opt.From, "The Prometheus server to federate from.")
+
+	// TLS flags
+	cmd.Flags().StringVar(&opt.TLSCertFile, "tls-cert-file", "", "File containing the default x509 Certificate for HTTPS. (CA cert, if any, concatenated after server cert)")
+	cmd.Flags().StringVar(&opt.TLSKey, "tls-private-key-file", "", "File containing the default x509 private key matching --tls-cert-file.")
+
 	cmd.Flags().StringVar(&opt.FromToken, "from-token", opt.FromToken, "A bearer token to use when authenticating to the source Prometheus server.")
 	cmd.Flags().StringVar(&opt.FromCAFile, "from-ca-file", opt.FromCAFile, "A file containing the CA certificate to use to verify the --from URL in addition to the system roots certificates.")
 	cmd.Flags().StringVar(&opt.FromTokenFile, "from-token-file", opt.FromTokenFile, "A file containing a bearer token to use when authenticating to the source Prometheus server.")
@@ -109,6 +114,8 @@ type Options struct {
 
 	From          string
 	To            string
+	TLSCertFile   string
+	TLSKey        string
 	ToUpload      string
 	ToAuthorize   string
 	FromCAFile    string
@@ -269,6 +276,8 @@ func (o *Options) Run() error {
 		FromTokenFile: o.FromTokenFile,
 		ToTokenFile:   o.ToTokenFile,
 		FromCAFile:    o.FromCAFile,
+		TLSCertFile:   o.TLSCertFile,
+		TLSKey:        o.TLSKey,
 
 		AnonymizeLabels:   o.AnonymizeLabels,
 		AnonymizeSalt:     o.AnonymizeSalt,
