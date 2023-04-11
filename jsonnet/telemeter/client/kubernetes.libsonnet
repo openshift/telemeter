@@ -5,6 +5,8 @@ local secretMountPath = '/etc/telemeter';
 local tlsSecret = 'telemeter-client-tls';
 local tlsVolumeName = 'telemeter-client-tls';
 local tlsMountPath = '/etc/tls/private';
+local metricsVolumeName = 'metrics-client-ca';
+local metricsMountPath = '/etc/tls/client';
 local servingCertsCABundle = 'serving-certs-ca-bundle';
 local servingCertsCABundleFileName = 'service-ca.crt';
 local servingCertsCABundleMountPath = '/etc/%s' % servingCertsCABundle;
@@ -98,6 +100,7 @@ local securePort = 8443;
       local secretVolume = volume.fromSecret(secretVolumeName, secretName);
       local tlsMount = containerVolumeMount.new(tlsVolumeName, tlsMountPath);
       local tlsVolume = volume.fromSecret(tlsVolumeName, tlsSecret);
+      local metricsMount = containerVolumeMount.new(metricsVolumeName, metricsMountPath, true);
       local sccabMount = containerVolumeMount.new(servingCertsCABundle, servingCertsCABundleMountPath);
       local sccabVolume = volume.withName(servingCertsCABundle) + volume.mixin.configMap.withName('telemeter-client-serving-certs-ca-bundle');
       local anonymize = containerEnv.new('ANONYMIZE_LABELS', std.join(',', $._config.telemeterClient.anonymizeLabels));
@@ -128,7 +131,7 @@ local securePort = 8443;
           '--anonymize-labels=$(ANONYMIZE_LABELS)',
         ] + matchRules) +
         container.withPorts(containerPort.newNamed(insecurePort, 'http')) +
-        container.withVolumeMounts([sccabMount, secretMount]) +
+        container.withVolumeMounts([sccabMount, secretMount, tlsMount, metricsMount]) +
         container.withEnv([anonymize, from, id, to, httpProxy, httpsProxy, noProxy]) +
         container.mixin.resources.withRequests({ cpu: '1m', memory: '40Mi' });
 

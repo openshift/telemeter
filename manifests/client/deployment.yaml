@@ -61,6 +61,12 @@ spec:
         - mountPath: /etc/telemeter
           name: secret-telemeter-client
           readOnly: false
+        - mountPath: /etc/tls/private
+          name: telemeter-client-tls
+          readOnly: false
+        - mountPath: /etc/tls/client
+          name: metrics-client-ca
+          readOnly: true
       - args:
         - --webhook-url=http://localhost:8080/-/reload
         - --volume-dir=/etc/serving-certs-ca-bundle
