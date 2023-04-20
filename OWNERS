@@ -17,6 +17,7 @@ reviewers:
 - danielmellado
 - douglascamata
 - coleenquadros
+- thibaultmg
 
 approvers:
 - bwplotka
@@ -35,6 +36,7 @@ approvers:
 - danielmellado
 - douglascamata
 - coleenquadros
+- thibaultmg
 
 emeritus_approvers:
 - squat
