@@ -2,9 +2,6 @@
 
 # Runs a semi-realistic integration test with two servers, a stub authorization server, a 
 # prometheus that scrapes from them, and a single client that fetches "cluster" metrics.
-# If no arguments are passed an integration test scenario is run. Otherwise $1 becomes 
-# the upstream prometheus server to test against and $2 is an optional bearer token to 
-# authenticate the request.
 
 set -euo pipefail
 
