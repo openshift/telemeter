@@ -153,14 +153,18 @@ func New(cfg Config) (*Worker, error) {
 	fromClient := &http.Client{Transport: fromTransport}
 
 	if len(cfg.FromCAFile) > 0 {
-		level.Info(logger).Log("msg", "fromClient transport: CA file %s and TLS", cfg.FromCAFile)
+		level.Info(logger).Log("msg", "TLS configuration", "ca_file", cfg.FromCAFile, "cert_file", cfg.TLSCertFile, "key_file", cfg.TLSKey)
 
 		var cert tls.Certificate
 		var err error
-		if *&cfg.TLSCertFile != "" && *&cfg.TLSKey != "" {
+
+		if fromTransport.TLSClientConfig == nil {
+			fromTransport.TLSClientConfig = &tls.Config{}
+		}
+		if cfg.TLSCertFile != "" && cfg.TLSKey != "" {
 			cert, err = tls.LoadX509KeyPair(*&cfg.TLSCertFile, *&cfg.TLSKey)
 			if err != nil {
-				return nil, fmt.Errorf("Error creating x509 keypair from client cert file %s and client key file %s", *&cfg.TLSCertFile, *&cfg.TLSKey)
+				return nil, fmt.Errorf("error creating x509 keypair from client cert file %s and client key file %s", cfg.TLSCertFile, cfg.TLSKey)
 			}
 		}
 
