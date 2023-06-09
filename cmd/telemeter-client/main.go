@@ -51,7 +51,7 @@ func main() {
 
 	// TLS flags
 	cmd.Flags().StringVar(&opt.TLSCertFile, "tls-cert-file", "", "File containing the x509 public certificate to use when connecting to the Prometheus server.")
-	cmd.Flags().StringVar(&opt.TLSKey, "tls-private-key-file", "", "File containing the default x509 private key matching --tls-cert-file.")
+	cmd.Flags().StringVar(&opt.TLSKey, "tls-private-key-file", "", "File containing the  x509 private key to use when connecting to the Prometheus server. It should match with --tls-cert-file.")
 
 	cmd.Flags().StringVar(&opt.FromToken, "from-token", opt.FromToken, "A bearer token to use when authenticating to the source Prometheus server.")
 	cmd.Flags().StringVar(&opt.FromCAFile, "from-ca-file", opt.FromCAFile, "A file containing the CA certificate to use to verify the --from URL in addition to the system roots certificates.")
