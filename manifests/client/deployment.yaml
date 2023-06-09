@@ -32,8 +32,6 @@ spec:
         - --listen=localhost:8080
         - --anonymize-salt-file=/etc/telemeter/salt
         - --anonymize-labels=$(ANONYMIZE_LABELS)
-        - --log-level=debug 
-        - -v
         env:
         - name: ANONYMIZE_LABELS
           value: ""
@@ -49,7 +47,7 @@ spec:
           value: ""
         - name: NO_PROXY
           value: ""
-        image: quay.io/mariofer/origin-telemeter:new_cert_v2
+        image: quay.io/openshift/origin-telemeter:v4.0
         name: telemeter-client
         ports:
         - containerPort: 8080
@@ -66,7 +64,7 @@ spec:
           name: secret-telemeter-client
           readOnly: false
         - mountPath: /etc/tls/private
-          name: telemeter-client-tls
+          name: federate-client-tls
           readOnly: false
       - args:
         - --webhook-url=http://localhost:8080/-/reload
@@ -111,5 +109,8 @@ spec:
         secret:
           secretName: telemeter-client
       - name: telemeter-client-tls
+        secret:
+          secretName: telemeter-client-certs
+      - name: federate-client-tls
         secret:
           secretName: federate-client-certs
