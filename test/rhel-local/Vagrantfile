@@ -1,0 +1,29 @@
+$script = <<-SCRIPT
+cd /tmp
+wget 'https://github.com/prometheus/prometheus/releases/download/v2.44.0/prometheus-2.44.0.linux-amd64.tar.gz'
+tar -xvzf 'prometheus-2.44.0.linux-amd64.tar.gz'
+mv prometheus-2.44.0.linux-amd64/prometheus .
+cat > /tmp/prometheus.yml << EOF
+global:
+  scrape_interval: 15s
+  external_labels:
+    source: "some_rhel_box"
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+remote_write:
+  - url: http://10.0.2.2:9090/api/v1/write
+    name: test
+EOF
+./prometheus &
+SCRIPT
+
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "generic/rhel7"
+  config.registration.username = 'your-test-account'
+  config.registration.password = 'YOUR-PASSWORD'
+  config.registration.unregister_on_halt = false
+  config.vm.provision "shell", inline: $script
+end

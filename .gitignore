@@ -1,6 +1,7 @@
 /telemeter-benchmark
 /telemeter-client
 /telemeter-server
+/telemeter-rhel-server
 /authorization-server
 /_output
 telemeter-bench
@@ -14,3 +15,4 @@ benchmark.pdf
 # container needds to be rebuild
 .hack-*-image
 .idea/
+.vagrant/

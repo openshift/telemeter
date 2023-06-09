@@ -31,6 +31,7 @@ BENCHMARK_RESULTS=$(shell find ./benchmark -type f -name '*.json')
 BENCHMARK_GOAL?=5000
 JSONNET_VENDOR=jsonnet/jsonnetfile.lock.json jsonnet/vendor
 DOCS=$(shell grep -rlF [embedmd] docs)
+TEST_E2E_CERTS_DIR=./cmd/telemeter-rhel-server/testdata
 
 export PATH := $(BIN_DIR):$(PATH)
 
@@ -65,6 +66,7 @@ build:
 	go build ./cmd/telemeter-server
 	go build ./cmd/authorization-server
 	go build ./cmd/telemeter-benchmark
+	go build ./cmd/telemeter-rhel-server
 
 .PHONY: image
 image: .hack-operator-image
@@ -168,9 +170,7 @@ test-generate:
 test-format:
 	make --always-make format && git diff --exit-code
 
-test-integration: build | $(THANOS_BIN) $(UP_BIN) $(MEMCACHED_BIN) $(PROMETHEUS_BIN)
-	@echo "Running integration tests: V1"
-	PATH=$$PATH:$$(pwd)/$(BIN_DIR) ./test/integration.sh
+test-integration: build | $(THANOS_BIN) $(UP_BIN) $(PROMETHEUS_BIN)
 	@echo "Running integration tests: V2"
 	PATH=$$PATH:$$(pwd)/$(BIN_DIR) LD_LIBRARY_PATH=$$LD_LIBRARY_PATH:$$(pwd)/$(LIB_DIR) ./test/integration-v2.sh
 
@@ -196,6 +196,13 @@ test/timeseries.txt:
 	$$query >> $@ ; \
 	jobs -p | xargs -r kill
 
+.PHONY: test-generate-e2e-certs
+test-rhel-generate-e2e-certs:
+	./test/generate-e2e-certs.sh $(TEST_E2E_CERTS_DIR)
+
+test-rhel-integration: build | $(THANOS_BIN) $(UP_BIN) $(PROMETHEUS_BIN)
+	@echo "Running integration tests: V2"
+	PATH=$$PATH:$$(pwd)/$(BIN_DIR) LD_LIBRARY_PATH=$$LD_LIBRARY_PATH:$$(pwd)/$(LIB_DIR) ./test/integration-rhel.sh
 
 ############
 # Binaries #
@@ -216,7 +223,7 @@ $(MEMCACHED_BIN): | $(BIN_DIR) $(LIB_DIR)
 
 $(PROMETHEUS_BIN): $(BIN_DIR)
 	@echo "Downloading Prometheus"
-	curl -L "https://github.com/prometheus/prometheus/releases/download/v2.3.2/prometheus-2.3.2.$$(go env GOOS)-$$(go env GOARCH).tar.gz" | tar --strip-components=1 -xzf - -C $(BIN_DIR)
+	curl -L "https://github.com/prometheus/prometheus/releases/download/v2.44.0/prometheus-2.44.0.$$(go env GOOS)-$$(go env GOARCH).tar.gz" | tar --strip-components=1 -xzf - -C $(BIN_DIR)
 
 $(GOLANGCI_LINT_BIN): $(BIN_DIR)
 	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/$(GOLANGCI_LINT_VERSION)/install.sh \
