@@ -15,6 +15,7 @@ trap 'kill $(jobs -p); exit $result' EXIT
     --remote-write.address=127.0.0.1:9105 \
     --grpc-address=127.0.0.1:9106 \
     --http-address=127.0.0.1:9116 \
+    --log.level=warn \
     --receive.default-tenant-id="FB870BF3-9F3A-44FF-9BF7-D7A047A52F43"
 ) &
 
@@ -22,6 +23,7 @@ trap 'kill $(jobs -p); exit $result' EXIT
   thanos query \
     --grpc-address=127.0.0.1:9107 \
     --http-address=127.0.0.1:9108 \
+    --log.level=warn \
     --store=127.0.0.1:9106
 ) &
 
@@ -46,7 +48,7 @@ done
     --tls-key cmd/telemeter-rhel-server/testdata/server-private-key.pem \
     --tls-crt cmd/telemeter-rhel-server/testdata/server-cert.pem \
     --tls-ca-crt cmd/telemeter-rhel-server/testdata/ca-cert.pem \
-    --log-level=debug \
+    --log-level=warn \
     -v
 ) &
 
@@ -57,25 +59,40 @@ until curl --output /dev/null --silent --connect-timeout 5 http://localhost:9103
   sleep 1
 done
 
+client_key=cmd/telemeter-rhel-server/testdata/client-private-key.pem
+client_crt=cmd/telemeter-rhel-server/testdata/client-cert.pem
+ca_crt=cmd/telemeter-rhel-server/testdata/ca-cert.pem
+write_url=https://localhost:9103/metrics/v1/receive
+
+if
+  curl --cert "$client_crt" \
+    --key "$client_key" \
+    --cacert "$ca_crt" \
+   "$write_url" \
+   -o /dev/null -s -S
+then
+  echo "---> mTLS test: ok"
+fi
+
 if
   up \
     --endpoint-type=metrics \
-    --endpoint-write=http://127.0.0.1:9103/metrics/v1/receive \
+    --endpoint-write=https://127.0.0.1:9103/metrics/v1/receive \
     --endpoint-read=http://127.0.0.1:9108/api/v1/query \
     --period=500ms \
     --initial-query-delay=250ms \
     --threshold=1 \
     --latency=10s \
     --duration=10s \
-    --log.level=debug \
+    --log.level=warn \
     --name cluster_installer \
     --labels '_id="test"' \
-    --tls-ca-file cmd/telemeter-rhel-server/testdata/ca-cert.pem \
-    --tls-client-cert-file cmd/telemeter-rhel-server/testdata/client-cert.pem \
-    --tls-client-private-key-file cmd/telemeter-rhel-server/testdata/client-private-key.pem 
+    --tls-ca-file "$ca_crt" \
+    --tls-client-cert-file "$client_crt" \
+    --tls-client-private-key-file "$client_key" 
 then
   result=0
-  echo "tests: ok"
+  echo "---> tests: ok"
   exit 0
 fi
 
