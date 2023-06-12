@@ -15,15 +15,25 @@ scrape_configs:
 remote_write:
   - url: http://10.0.2.2:9090/api/v1/write
     name: test
+    tls_config:
+      ca_file: /tmp/ca-cert.pem
+      cert_file: /tmp/client-cert.pem
+      key_file: /tmp/client-private-key.pem
 EOF
-./prometheus &
+./prometheus
 SCRIPT
 
 
 Vagrant.configure("2") do |config|
-  config.vm.box = "generic/rhel7"
-  config.registration.username = 'your-test-account'
-  config.registration.password = 'YOUR-PASSWORD'
+  config.vm.box = "generic/rhel9"
+
+  puts "RHEL username is: #{ENV['RHEL_USERNAME']}"
+  config.registration.username = ENV['RHEL_USERNAME']
+  config.registration.password = ENV['RHEL_PASSWORD']
   config.registration.unregister_on_halt = false
+
+  config.vm.provision "file", source: "./certs/client-private-key.pem", destination: "/tmp/client-private-key.pem"
+  config.vm.provision "file", source: "./certs/client-cert.pem", destination: "/tmp/client-cert.pem"
+  config.vm.provision "file", source: "./certs/ca-cert.pem", destination: "/tmp/ca-cert.pem"
   config.vm.provision "shell", inline: $script
 end
