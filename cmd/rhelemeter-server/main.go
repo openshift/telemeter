@@ -261,7 +261,6 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 
 		telemeter_http.DebugRoutes(internal)
 		telemeter_http.MetricRoutes(internal)
-		telemeter_http.HealthRoutes(internal)
 
 		r := chi.NewRouter()
 		r.Mount("/", internal)
@@ -308,9 +307,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 
 		// rhelemeter routes
 		{
-			v2ForwardClient := forwardClient
-
-			receiver, err := receive.NewHandler(o.Logger, o.ForwardURL, v2ForwardClient, prometheus.DefaultRegisterer, o.TenantID, o.Whitelist, o.ElideLabels)
+			receiver, err := receive.NewHandler(o.Logger, o.ForwardURL, forwardClient, prometheus.DefaultRegisterer, o.TenantID, o.Whitelist, o.ElideLabels)
 			if err != nil {
 				level.Error(o.Logger).Log("msg", "could not initialize receive handler", "err", err)
 			}
