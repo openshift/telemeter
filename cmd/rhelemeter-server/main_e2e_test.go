@@ -131,14 +131,6 @@ func TestServerRHEL(t *testing.T) {
 
 					for i := 0; i < 1; i++ {
 						t.Run("upload", func(t *testing.T) {
-							// Generate mock prometheus metrics.
-							// metricFamilies := readMetrics(t, sampleMetrics, cluster)
-
-							// buf := &bytes.Buffer{}
-							// encoder := expfmt.NewEncoder(buf, expfmt.FmtProtoDelim)
-							// for _, f := range metricFamilies {
-							// 	testutil.Ok(t, encoder.Encode(f))
-							// }
 							var wr prompb.WriteRequest
 							wr.Timeseries = expectedTimeSeries
 							data, err := proto.Marshal(&wr)
@@ -196,7 +188,6 @@ func makeMTLSClient() (*http.Client, error) {
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		RootCAs:      caCertPool,
-		// InsecureSkipVerify: true, // Skip SAN verification
 	}
 
 	transport := &http.Transport{TLSClientConfig: tlsConfig}
