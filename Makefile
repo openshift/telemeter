@@ -170,9 +170,9 @@ test-generate:
 test-format:
 	make --always-make format && git diff --exit-code
 
-test-integration: build | $(THANOS_BIN) $(UP_BIN) $(PROMETHEUS_BIN)
-	@echo "Running integration tests: V2"
-	PATH=$$PATH:$$(pwd)/$(BIN_DIR) LD_LIBRARY_PATH=$$LD_LIBRARY_PATH:$$(pwd)/$(LIB_DIR) ./test/integration-v2.sh
+test-integration: build | $(THANOS_BIN) $(UP_BIN) $(MEMCACHED_BIN) $(PROMETHEUS_BIN)
+	@echo "Running integration tests: V1"
+	PATH=$$PATH:$$(pwd)/$(BIN_DIR) ./test/integration.sh
 
 test-benchmark: build $(GOJSONTOYAML_BIN)
 	# Allow the image to be overridden when running in CI.
@@ -223,7 +223,7 @@ $(MEMCACHED_BIN): | $(BIN_DIR) $(LIB_DIR)
 
 $(PROMETHEUS_BIN): $(BIN_DIR)
 	@echo "Downloading Prometheus"
-	curl -L "https://github.com/prometheus/prometheus/releases/download/v2.44.0/prometheus-2.44.0.$$(go env GOOS)-$$(go env GOARCH).tar.gz" | tar --strip-components=1 -xzf - -C $(BIN_DIR)
+	curl -L "https://github.com/prometheus/prometheus/releases/download/v2.3.2/prometheus-2.3.2.$$(go env GOOS)-$$(go env GOARCH).tar.gz" | tar --strip-components=1 -xzf - -C $(BIN_DIR)
 
 $(GOLANGCI_LINT_BIN): $(BIN_DIR)
 	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/$(GOLANGCI_LINT_VERSION)/install.sh \
