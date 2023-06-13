@@ -50,7 +50,11 @@ func (rt *debugRoundTripper) RoundTrip(req *http.Request) (res *http.Response, e
 	resd, _ := httputil.DumpResponse(res, false)
 	resBody := bodyToString(&res.Body)
 
-	level.Debug(rt.logger).Log("msg", "round trip", "url", req.URL, "requestdump", string(reqd), "requestbody", reqBody, "responsedump", string(resd), "responsebody", resBody)
+	level.Debug(rt.logger).Log("msg", "round trip", "url", req.URL)
+	level.Debug(rt.logger).Log("msg", "round trip", "requestdump", string(reqd))
+	level.Debug(rt.logger).Log("msg", "round trip", "requestbody", reqBody)
+	level.Debug(rt.logger).Log("msg", "round trip", "responsedump", string(resd))
+	level.Debug(rt.logger).Log("msg", "round trip", "responsebody", resBody)
 	return
 }
 
