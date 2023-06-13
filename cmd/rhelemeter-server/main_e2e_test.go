@@ -171,7 +171,6 @@ func setTestDefaultOpts() *Options {
 	opts := defaultOpts()
 
 	opts.Labels = map[string]string{"cluster": "test"}
-	opts.clusterIDKey = "cluster"
 	opts.Logger = log.NewLogfmtLogger(os.Stderr)
 	opts.Whitelist = []string{"up"}
 	opts.Ratelimit = 0

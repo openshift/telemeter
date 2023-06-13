@@ -40,14 +40,20 @@ until curl --output /dev/null --silent --fail http://localhost:9108/-/ready; do
   sleep 1
 done
 
+certs_dir=cmd/rhelemeter-server/testdata
+client_key=${certs_dir}/client-private-key.pem
+client_crt=${certs_dir}/client-cert.pem
+ca_crt=${certs_dir}/ca-cert.pem
+write_url=https://localhost:9103/metrics/v1/receive
+
 (
-  ./telemeter-rhel-server \
+  ./rhelemeter-server \
     --listen localhost:9103 \
     --listen-internal localhost:9104 \
     --forward-url=http://localhost:9105/api/v1/receive \
-    --tls-key cmd/telemeter-rhel-server/testdata/server-private-key.pem \
-    --tls-crt cmd/telemeter-rhel-server/testdata/server-cert.pem \
-    --tls-ca-crt cmd/telemeter-rhel-server/testdata/ca-cert.pem \
+    --tls-key ${certs_dir}/server-private-key.pem \
+    --tls-crt ${certs_dir}/server-cert.pem \
+    --tls-ca-crt ${certs_dir}/ca-cert.pem \
     --log-level=warn \
     -v
 ) &
@@ -58,11 +64,6 @@ until curl --output /dev/null --silent --connect-timeout 5 http://localhost:9103
   printf '.'
   sleep 1
 done
-
-client_key=cmd/telemeter-rhel-server/testdata/client-private-key.pem
-client_crt=cmd/telemeter-rhel-server/testdata/client-cert.pem
-ca_crt=cmd/telemeter-rhel-server/testdata/ca-cert.pem
-write_url=https://localhost:9103/metrics/v1/receive
 
 if
   curl --cert "$client_crt" \

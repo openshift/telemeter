@@ -11,10 +11,12 @@ import (
 	stdlog "log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/coreos/go-oidc"
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-kit/kit/log"
@@ -26,6 +28,7 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/clientcredentials"
 
 	telemeter_http "github.com/openshift/telemeter/pkg/http"
 	"github.com/openshift/telemeter/pkg/logger"
@@ -42,7 +45,6 @@ func defaultOpts() *Options {
 	return &Options{
 		LimitBytes:        500 * 1024,
 		LimitReceiveBytes: receive.DefaultRequestLimit,
-		clusterIDKey:      "_id",
 		Ratelimit:         4*time.Minute + 30*time.Second,
 	}
 }
@@ -75,20 +77,25 @@ func main() {
 
 	cmd.Flags().StringVar(&opt.TLSKeyPath, "tls-key", opt.TLSKeyPath, "Path to a private key to serve TLS for external traffic.")
 	cmd.Flags().StringVar(&opt.TLSCertificatePath, "tls-crt", opt.TLSCertificatePath, "Path to a certificate to serve TLS for external traffic.")
-	cmd.Flags().StringVar(&opt.TLSCACertificatePath, "tls-ca-crt", opt.TLSCACertificatePath, "Path to the trusted Certificate Authority of the telemeter client for mTLS.")
+	cmd.Flags().StringVar(&opt.TLSCACertificatePath, "tls-ca-crt", opt.TLSCACertificatePath, "Path to the trusted Certificate Authority of the rhelemeter client for mTLS.")
 
 	cmd.Flags().StringVar(&opt.InternalTLSKeyPath, "internal-tls-key", opt.InternalTLSKeyPath, "Path to a private key to serve TLS for internal traffic.")
 	cmd.Flags().StringVar(&opt.InternalTLSCertificatePath, "internal-tls-crt", opt.InternalTLSCertificatePath, "Path to a certificate to serve TLS for internal traffic.")
 
 	cmd.Flags().StringSliceVar(&opt.LabelFlag, "label", opt.LabelFlag, "Labels to add to each outgoing metric, in key=value form.")
-	cmd.Flags().StringVar(&opt.clusterIDKey, "partition-label", opt.clusterIDKey, "The label to separate incoming data on. This label will be required for callers to include.")
 
-	cmd.Flags().DurationVar(&opt.Ratelimit, "ratelimit", opt.Ratelimit, "The rate limit of metric uploads per cluster ID. Uploads happening more often than this limit will be rejected.")
+	cmd.Flags().StringVar(&opt.OIDCIssuer, "oidc-issuer", opt.OIDCIssuer, "The OIDC issuer URL, see https://openid.net/specs/openid-connect-discovery-1_0.html#IssuerDiscovery.")
+	cmd.Flags().StringVar(&opt.OIDCClientSecret, "client-secret", opt.OIDCClientSecret, "The OIDC client secret, see https://tools.ietf.org/html/rfc6749#section-2.3.")
+	cmd.Flags().StringVar(&opt.OIDCClientID, "client-id", opt.OIDCClientID, "The OIDC client ID, see https://tools.ietf.org/html/rfc6749#section-2.3.")
+	cmd.Flags().StringVar(&opt.OIDCAudienceEndpoint, "oidc-audience", opt.OIDCAudienceEndpoint, "The OIDC audience some providers like Auth0 need.")
+	cmd.Flags().StringVar(&opt.TenantKey, "tenant-key", opt.TenantKey, "The JSON key in the bearer token whose value to use as the tenant ID.")
+	cmd.Flags().StringVar(&opt.TenantID, "tenant-id", opt.TenantID, "Tenant ID to use for the system forwarded to.")
+
+	cmd.Flags().DurationVar(&opt.Ratelimit, "ratelimit", opt.Ratelimit, "The rate limit of metric uploads per client. Uploads happening more often than this limit will be rejected.")
 	cmd.Flags().StringVar(&opt.ForwardURL, "forward-url", opt.ForwardURL, "All written metrics will be written to this URL additionally")
 
 	cmd.Flags().BoolVarP(&opt.Verbose, "verbose", "v", opt.Verbose, "Show verbose output.")
 
-	cmd.Flags().StringSliceVar(&opt.RequiredLabelFlag, "required-label", opt.RequiredLabelFlag, "Labels that must be present on each incoming metric, in key=value form.")
 	cmd.Flags().StringArrayVar(&opt.Whitelist, "whitelist", opt.Whitelist, "Allowed rules for incoming metrics. If one of these rules is not matched, the metric is dropped.")
 	cmd.Flags().StringVar(&opt.WhitelistFile, "whitelist-file", opt.WhitelistFile, "A file of allowed rules for incoming metrics. If one of these rules is not matched, the metric is dropped; one label key per line.")
 	cmd.Flags().StringArrayVar(&opt.ElideLabels, "elide-label", opt.ElideLabels, "A list of labels to be elided from incoming metrics.")
@@ -97,7 +104,7 @@ func main() {
 
 	cmd.Flags().StringVar(&opt.LogLevel, "log-level", opt.LogLevel, "Log filtering level. e.g info, debug, warn, error")
 
-	cmd.Flags().StringVar(&opt.TracingServiceName, "internal.tracing.service-name", "telemeter-server",
+	cmd.Flags().StringVar(&opt.TracingServiceName, "internal.tracing.service-name", "rhelemeter-server",
 		"The service name to report to the tracing backend.")
 	cmd.Flags().StringVar(&opt.TracingEndpoint, "internal.tracing.endpoint", "",
 		"The full URL of the trace collector. If it's not set, tracing will be disabled.")
@@ -112,7 +119,7 @@ func main() {
 	stdlog.SetOutput(log.NewStdlibAdapter(l))
 	opt.Logger = l
 
-	level.Info(l).Log("msg", "RHEL telemeter server initialized.")
+	level.Info(l).Log("msg", "Rhelemeter server initialized.")
 	if err := cmd.Execute(); err != nil {
 		level.Error(l).Log("err", err)
 		os.Exit(1)
@@ -129,7 +136,14 @@ type Options struct {
 	InternalTLSKeyPath         string
 	InternalTLSCertificatePath string
 
-	clusterIDKey      string
+	OIDCIssuer           string
+	OIDCClientID         string
+	OIDCClientSecret     string
+	OIDCAudienceEndpoint string
+
+	TenantKey string
+	TenantID  string
+
 	LabelFlag         []string
 	Labels            map[string]string
 	LimitBytes        int64
@@ -209,6 +223,38 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 
 	forwardClient := &http.Client{
 		Transport: telemeter_http.NewInstrumentedRoundTripper("forward", transport),
+	}
+
+	if o.OIDCIssuer != "" {
+		provider, err := oidc.NewProvider(ctx, o.OIDCIssuer)
+		if err != nil {
+			return fmt.Errorf("OIDC provider initialization failed: %v", err)
+		}
+
+		ctx = context.WithValue(ctx, oauth2.HTTPClient,
+			&http.Client{
+				// Note, that e.g forward timeouts after 5s.
+				Timeout:   20 * time.Second,
+				Transport: telemeter_http.NewInstrumentedRoundTripper("oauth", transport),
+			},
+		)
+
+		cfg := clientcredentials.Config{
+			ClientID:     o.OIDCClientID,
+			ClientSecret: o.OIDCClientSecret,
+			TokenURL:     provider.Endpoint().TokenURL,
+		}
+
+		if o.OIDCAudienceEndpoint != "" {
+			cfg.EndpointParams = url.Values{"audience": []string{o.OIDCAudienceEndpoint}}
+		}
+
+		s := cfg.TokenSource(ctx)
+
+		forwardClient.Transport = &oauth2.Transport{
+			Base:   forwardClient.Transport,
+			Source: s,
+		}
 	}
 
 	var g run.Group
@@ -351,7 +397,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 		gcancel()
 	})
 
-	level.Info(o.Logger).Log("msg", "starting telemeter-server", "external", externalListener.Addr().String(), "internal", internalListener.Addr().String())
+	level.Info(o.Logger).Log("msg", "starting rhelemeter-server", "external", externalListener.Addr().String(), "internal", internalListener.Addr().String())
 
 	return g.Run()
 }

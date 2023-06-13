@@ -1,7 +1,7 @@
 /telemeter-benchmark
 /telemeter-client
 /telemeter-server
-/telemeter-rhel-server
+/rhelemeter-server
 /authorization-server
 /_output
 telemeter-bench

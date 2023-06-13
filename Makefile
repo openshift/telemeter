@@ -31,7 +31,7 @@ BENCHMARK_RESULTS=$(shell find ./benchmark -type f -name '*.json')
 BENCHMARK_GOAL?=5000
 JSONNET_VENDOR=jsonnet/jsonnetfile.lock.json jsonnet/vendor
 DOCS=$(shell grep -rlF [embedmd] docs)
-TEST_E2E_CERTS_DIR=./cmd/telemeter-rhel-server/testdata
+TEST_E2E_CERTS_DIR=./cmd/rhelemeter-server/testdata
 
 export PATH := $(BIN_DIR):$(PATH)
 
@@ -66,7 +66,7 @@ build:
 	go build ./cmd/telemeter-server
 	go build ./cmd/authorization-server
 	go build ./cmd/telemeter-benchmark
-	go build ./cmd/telemeter-rhel-server
+	go build ./cmd/rhelemeter-server
 
 .PHONY: image
 image: .hack-operator-image
@@ -200,9 +200,9 @@ test/timeseries.txt:
 test-rhel-generate-e2e-certs:
 	./test/generate-e2e-certs.sh $(TEST_E2E_CERTS_DIR)
 
-test-rhel-integration: build | $(THANOS_BIN) $(UP_BIN) $(PROMETHEUS_BIN)
-	@echo "Running integration tests: V2"
-	PATH=$$PATH:$$(pwd)/$(BIN_DIR) LD_LIBRARY_PATH=$$LD_LIBRARY_PATH:$$(pwd)/$(LIB_DIR) ./test/integration-rhel.sh
+test-rhelemeter-integration: build | $(THANOS_BIN) $(UP_BIN) $(PROMETHEUS_BIN)
+	@echo "Running rhelemeter integration tests"
+	PATH=$$PATH:$$(pwd)/$(BIN_DIR) LD_LIBRARY_PATH=$$LD_LIBRARY_PATH:$$(pwd)/$(LIB_DIR) ./test/integration-rhelemeter.sh
 
 ############
 # Binaries #
