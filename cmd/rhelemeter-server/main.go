@@ -88,7 +88,6 @@ func main() {
 	cmd.Flags().StringVar(&opt.OIDCClientSecret, "client-secret", opt.OIDCClientSecret, "The OIDC client secret, see https://tools.ietf.org/html/rfc6749#section-2.3.")
 	cmd.Flags().StringVar(&opt.OIDCClientID, "client-id", opt.OIDCClientID, "The OIDC client ID, see https://tools.ietf.org/html/rfc6749#section-2.3.")
 	cmd.Flags().StringVar(&opt.OIDCAudienceEndpoint, "oidc-audience", opt.OIDCAudienceEndpoint, "The OIDC audience some providers like Auth0 need.")
-	cmd.Flags().StringVar(&opt.TenantKey, "tenant-key", opt.TenantKey, "The JSON key in the bearer token whose value to use as the tenant ID.")
 	cmd.Flags().StringVar(&opt.TenantID, "tenant-id", opt.TenantID, "Tenant ID to use for the system forwarded to.")
 
 	cmd.Flags().DurationVar(&opt.Ratelimit, "ratelimit", opt.Ratelimit, "The rate limit of metric uploads per client. Uploads happening more often than this limit will be rejected.")
@@ -141,8 +140,7 @@ type Options struct {
 	OIDCClientSecret     string
 	OIDCAudienceEndpoint string
 
-	TenantKey string
-	TenantID  string
+	TenantID string
 
 	LabelFlag         []string
 	Labels            map[string]string
@@ -313,7 +311,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 		{
 			v2ForwardClient := forwardClient
 
-			receiver, err := receive.NewHandler(o.Logger, o.ForwardURL, v2ForwardClient, prometheus.DefaultRegisterer, "tenantid", o.Whitelist, o.ElideLabels)
+			receiver, err := receive.NewHandler(o.Logger, o.ForwardURL, v2ForwardClient, prometheus.DefaultRegisterer, o.TenantID, o.Whitelist, o.ElideLabels)
 			if err != nil {
 				level.Error(o.Logger).Log("msg", "could not initialize receive handler", "err", err)
 			}
@@ -321,7 +319,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 			external.Handle("/metrics/v1/receive", server.InstrumentedHandler("receive", http.HandlerFunc(receiver.Receive)))
 		}
 
-		externalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/authorize", "/upload", "/healthz", "/healthz/ready", "/metrics/v1/receive"}}, "", "  ")
+		externalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/healthz", "/healthz/ready", "/metrics/v1/receive"}}, "", "  ")
 
 		external.Get("/", func(w http.ResponseWriter, req *http.Request) {
 			w.Header().Add("Content-Type", "application/json")
