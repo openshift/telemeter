@@ -259,7 +259,6 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 	{
 		internal := http.NewServeMux()
 
-		// TODO: Refactor to not take *http.Mux
 		telemeter_http.DebugRoutes(internal)
 		telemeter_http.MetricRoutes(internal)
 		telemeter_http.HealthRoutes(internal)
