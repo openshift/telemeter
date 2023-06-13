@@ -306,7 +306,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 		telemeter_http.HealthRoutes(mux)
 		external.Mount("/", mux)
 
-		// v2 routes
+		// rhelemeter routes
 		{
 			v2ForwardClient := forwardClient
 
