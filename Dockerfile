@@ -4,6 +4,7 @@ COPY . /go/src/github.com/openshift/telemeter
 RUN cd /go/src/github.com/openshift/telemeter && \
     go build ./cmd/telemeter-client && \
     go build ./cmd/telemeter-server && \
+    go build ./cmd/rhelemeter-server && \
     go build ./cmd/authorization-server
 
 FROM registry.ci.openshift.org/ocp/4.14:base
@@ -15,4 +16,5 @@ LABEL io.k8s.display-name="OpenShift Telemeter" \
 
 COPY --from=0 /go/src/github.com/openshift/telemeter/telemeter-client /usr/bin/
 COPY --from=0 /go/src/github.com/openshift/telemeter/telemeter-server /usr/bin/
+COPY --from=0 /go/src/github.com/openshift/telemeter/rhelemeter-server /usr/bin/
 COPY --from=0 /go/src/github.com/openshift/telemeter/authorization-server /usr/bin/
