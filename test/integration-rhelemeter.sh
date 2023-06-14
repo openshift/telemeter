@@ -60,7 +60,7 @@ write_url=https://localhost:9103/metrics/v1/receive
 
 echo "up: waiting for dependencies to come up..."
 
-until curl --output /dev/null --silent --connect-timeout 5 http://localhost:9103/healthz/ready; do
+until curl --output /dev/null --silent --connect-timeout 5 http://localhost:9104/healthz/ready; do
   printf '.'
   sleep 1
 done

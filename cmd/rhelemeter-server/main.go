@@ -261,6 +261,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 
 		telemeter_http.DebugRoutes(internal)
 		telemeter_http.MetricRoutes(internal)
+		telemeter_http.HealthRoutes(internal)
 
 		r := chi.NewRouter()
 		r.Mount("/", internal)
@@ -302,7 +303,6 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 		external.Use(middleware.RequestID)
 
 		mux := http.NewServeMux()
-		telemeter_http.HealthRoutes(mux)
 		external.Mount("/", mux)
 
 		// rhelemeter routes
