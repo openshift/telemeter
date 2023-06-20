@@ -153,7 +153,7 @@ func New(cfg Config) (*Worker, error) {
 	fromClient := &http.Client{Transport: fromTransport}
 
 	if len(cfg.FromCAFile) > 0 {
-		level.Info(logger).Log("msg", "TLS configuration", "ca_file", cfg.FromCAFile, "cert_file", cfg.TLSCertFile, "key_file", cfg.TLSKey)
+		level.Debug(logger).Log("msg", "TLS configuration", "ca_file", cfg.FromCAFile, "cert_file", cfg.TLSCertFile, "key_file", cfg.TLSKey)
 
 		var cert tls.Certificate
 		var err error
@@ -186,11 +186,11 @@ func New(cfg Config) (*Worker, error) {
 		}
 	}
 	if cfg.Debug {
-		level.Info(logger).Log("msg", "fromClient transport: Debug ")
+		level.Debug(logger).Log("msg", "fromClient transport: Debug ")
 		fromClient.Transport = telemeterhttp.NewDebugRoundTripper(logger, fromClient.Transport)
 	}
 	if len(cfg.FromToken) == 0 && len(cfg.FromTokenFile) > 0 {
-		level.Info(logger).Log("msg", "fromClient transport FromTokenFile")
+		level.Debug(logger).Log("msg", "fromClient transport FromTokenFile")
 		data, err := ioutil.ReadFile(cfg.FromTokenFile)
 		if err != nil {
 			return nil, fmt.Errorf("unable to read from-token-file: %v", err)
@@ -198,7 +198,7 @@ func New(cfg Config) (*Worker, error) {
 		cfg.FromToken = strings.TrimSpace(string(data))
 	}
 	if len(cfg.FromToken) > 0 {
-		level.Info(logger).Log("msg", "fromClient transport FromToken")
+		level.Debug(logger).Log("msg", "fromClient transport FromToken")
 		fromClient.Transport = telemeterhttp.NewBearerRoundTripper(cfg.FromToken, fromClient.Transport)
 	}
 	w.fromClient = metricsclient.New(logger, fromClient, cfg.LimitBytes, w.interval, "federate_from")
