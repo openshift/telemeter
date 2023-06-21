@@ -27,7 +27,7 @@ JSONNET_LOCAL_OR_INSTALLED=$(if $(shell which jsonnet 2>/dev/null),$(shell which
 JSONNETFMT_LOCAL_OR_INSTALLED=$(if $(shell which jsonnetfmt 2>/dev/null),$(shell which jsonnetfmt 2>/dev/null),$(JSONNETFMT_BIN))
 JB_BIN=$(BIN_DIR)/jb
 JSONNET_SRC=$(shell find ./jsonnet -path ./jsonnet/vendor -prune -false -o -type f \( -name "*.jsonnet" -o -name "*.libsonnet" \))
-BENCHMARK_RESULTS=$(shell find ./benchmark -type f -name '*.json')
+BENCHMARK_RESULTS=$(shell find ./telemeter-benchmark -type f -name '*.json')
 BENCHMARK_GOAL?=5000
 JSONNET_VENDOR=jsonnet/jsonnetfile.lock.json jsonnet/vendor
 DOCS=$(shell grep -rlF [embedmd] docs)
@@ -125,7 +125,7 @@ manifests: $(JSONNET_LOCAL_OR_INSTALLED) $(JSONNET_SRC) $(JSONNET_VENDOR) $(GOJS
 	done
 
 benchmark.pdf: $(BENCHMARK_RESULTS)
-	find ./benchmark -type f -name '*.json' -print0 | xargs -l -0 python3 test/plot.py && gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -sOutputFile=$@ benchmark/*.pdf
+	find ./telemeter-benchmark -type f -name '*.json' -print0 | xargs -l -0 python3 test/plot.py && gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -sOutputFile=$@ benchmark/*.pdf
 
 
 ##############
