@@ -63,11 +63,10 @@ This is [planned](https://github.com/openshift/cluster-monitoring-operator/pull/
 To see this in action, run
 
 ```
-make
-./test/integration.sh http://localhost:9005
+make test-integration
 ```
 
-The command launches a two instance `telemeter-server` cluster and a single `telemeter-client` to talk to that server, along with a Prometheus instance running on http://localhost:9005 that shows the federated metrics.
+The command launches a two instance `telemeter-server` cluster and a single `telemeter-client` to talk to that server, along with a Prometheus instance running on http://localhost:9090 that shows the federated metrics.
 The client will scrape metrics from the local Prometheus, then send those to the telemeter-server, which will then forward metrics to Thanos Receive, which can be queried via a Thanos Querier.
 
 To build binaries, run
