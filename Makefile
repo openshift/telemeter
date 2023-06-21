@@ -175,7 +175,7 @@ test-integration: build | $(THANOS_BIN) $(UP_BIN) $(MEMCACHED_BIN) $(PROMETHEUS_
 	PATH=$$PATH:$$(pwd)/$(BIN_DIR) LD_LIBRARY_PATH=$$LD_LIBRARY_PATH:$$(pwd)/$(LIB_DIR) ./test/integration-v2.sh
 
 test-benchmark: build $(GOJSONTOYAML_BIN)
-	# Allow the image to be overridten when running in CI.
+	# Allow the image to be overridden when running in CI.
 	# The CI_TELEMETER_IMAGE environment variable is injected by the
 	# ci-operator. Check the configuration of the job in
 	# https://github.com/openshift/release.
