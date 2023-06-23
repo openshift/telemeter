@@ -11,7 +11,6 @@ local federateMountPath = '/etc/tls/private';
 local servingCertsCABundle = 'serving-certs-ca-bundle';
 local servingCertsCABundleFileName = 'service-ca.crt';
 local servingCertsCABundleMountPath = '/etc/%s' % servingCertsCABundle;
-local fromTokenFile = '/var/run/secrets/kubernetes.io/serviceaccount/token';
 local insecurePort = 8080;
 local securePort = 8443;
 
@@ -127,7 +126,6 @@ local securePort = 8443;
           '--tls-cert-file=/etc/tls/private/tls.crt',
           '--tls-private-key-file=/etc/tls/private/tls.key',
           '--from-ca-file=%s/%s' % [servingCertsCABundleMountPath, servingCertsCABundleFileName],
-          '--from-token-file=' + fromTokenFile,
           '--to=$(TO)',
           '--to-token-file=%s/token' % secretMountPath,
           '--listen=localhost:' + insecurePort,
