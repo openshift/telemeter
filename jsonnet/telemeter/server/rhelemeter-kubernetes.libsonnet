@@ -1,9 +1,9 @@
 local k = import 'ksonnet/ksonnet.beta.4/k.libsonnet';
 local secretName = 'rhelemeter-server';
 local secretVolumeName = 'secret-rhelemeter-server';
-local caSecretName = 'rhelemeter-server-ca';
-local caSecretVolumeName = 'secret-rhelemeter-server-ca';
-local caMountPath = '/etc/pki/ca';
+local externalMtlsSecretName = 'rhelemeter-server-external-mtls';
+local externalMtlsSecretVolumeName = 'rhelemeter-server-external-mtls';
+local externalMtlsMountPath = '/etc/pki/external';
 local tlsSecret = 'rhelemeter-server-shared';
 local tlsVolumeName = 'rhelemeter-server-tls';
 local tlsMountPath = '/etc/pki/service';
@@ -45,10 +45,10 @@ local internalPort = 8081;
       local containerEnv = container.envType;
 
       local podLabels = { 'k8s-app': 'rhelemeter-server' };
-      local caMount = containerVolumeMount.new(caSecretVolumeName, caMountPath);
-      local caVolume = volume.fromSecret(caSecretVolumeName, caSecretName);
       local tlsMount = containerVolumeMount.new(tlsVolumeName, tlsMountPath);
       local tlsVolume = volume.fromSecret(tlsVolumeName, tlsSecret);
+      local externalMtlsMount = containerVolumeMount.new(externalMtlsSecretVolumeName, externalMtlsMountPath);
+      local externalMtlsVolume = volume.fromSecret(externalMtlsSecretVolumeName, externalMtlsMount);
       local oidcIssuer = containerEnv.fromSecretRef('OIDC_ISSUER', secretName, 'oidc_issuer');
       local clientSecret = containerEnv.fromSecretRef('CLIENT_SECRET', secretName, 'client_secret');
       local clientID = containerEnv.fromSecretRef('CLIENT_ID', secretName, 'client_id');
@@ -71,9 +71,9 @@ local internalPort = 8081;
           '/usr/bin/rhelemeter-server',
           '--listen=0.0.0.0:8443',
           '--listen-internal=0.0.0.0:8081',
-          '--tls-key=%s/tls.key' % tlsMountPath,
-          '--tls-crt=%s/tls.crt' % tlsMountPath,
-          '--tls-ca-crt=%s/ca.crt' % caMountPath,
+          '--tls-key=%s/tls.key' % externalMtlsMountPath,
+          '--tls-crt=%s/tls.crt' % externalMtlsMountPath,
+          '--tls-ca-crt=%s/ca.crt' % externalMtlsMountPath,
           '--internal-tls-key=%s/tls.key' % tlsMountPath,
           '--internal-tls-crt=%s/tls.crt' % tlsMountPath,
           '--oidc-issuer=$(OIDC_ISSUER)',
@@ -86,7 +86,7 @@ local internalPort = 8081;
         ]) +
         container.mixin.resources.withLimitsMixin($._config.rhelemeterServer.resourceLimits) +
         container.mixin.resources.withRequestsMixin($._config.rhelemeterServer.resourceRequests) +
-        container.withVolumeMounts([tlsMount, caMount]) +
+        container.withVolumeMounts([tlsMount, externalMtlsMount]) +
         container.withEnv([oidcIssuer, clientSecret, clientID]) + {
           livenessProbe: {
             httpGet: {
@@ -108,7 +108,7 @@ local internalPort = 8081;
       deployment.mixin.metadata.withNamespace($._config.namespace) +
       deployment.mixin.spec.selector.withMatchLabels(podLabels) +
       deployment.mixin.spec.template.spec.withServiceAccountName('rhelemeter-server') +
-      deployment.mixin.spec.template.spec.withVolumes([secretVolume, tlsVolume, caVolume]) +
+      deployment.mixin.spec.template.spec.withVolumes([secretVolume, tlsVolume, externalMtlsVolume]) +
       {
         spec+: {
           volumeClaimTemplates:: null,
@@ -127,15 +127,15 @@ local internalPort = 8081;
       secret.mixin.metadata.withLabels({ 'k8s-app': 'rhelemeter-server' }),
 
     externalMtlsSecret:
-      local caSecret = k.core.v1.secret;
-      caSecret.new(caSecretName) +
-      caSecret.withStringData({
+      local mtlsSecret = k.core.v1.secret;
+      mtlsSecret.new(externalMtlsSecretName) +
+      mtlsSecret.withStringData({
         'ca.crt': $._config.rhelemeterServer.externalMtlsCa,
         'tls.key': $._config.rhelemeterServer.externalMtlsKey,
         'tls.crt': $._config.rhelemeterServer.externalMtlsCrt,
       }) +
-      caSecret.mixin.metadata.withNamespace($._config.namespace) +
-      caSecret.mixin.metadata.withLabels({ 'k8s-app': 'rhelemeter-server' }),
+      mtlsSecret.mixin.metadata.withNamespace($._config.namespace) +
+      mtlsSecret.mixin.metadata.withLabels({ 'k8s-app': 'rhelemeter-server' }),
 
     service:
       local service = k.core.v1.service;
