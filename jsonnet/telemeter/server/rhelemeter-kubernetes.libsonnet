@@ -132,7 +132,7 @@ local internalPort = 8081;
       caSecret.withStringData({
         'ca.crt': $._config.rhelemeterServer.externalMtlsCa,
         'tls.key': $._config.rhelemeterServer.externalMtlsKey,
-        'tls.crt': $._config.rhelemeterServer.externalMtlsCert,
+        'tls.crt': $._config.rhelemeterServer.externalMtlsCrt,
       }) +
       caSecret.mixin.metadata.withNamespace($._config.namespace) +
       caSecret.mixin.metadata.withLabels({ 'k8s-app': 'rhelemeter-server' }),
