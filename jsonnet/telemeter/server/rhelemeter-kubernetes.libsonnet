@@ -1,56 +1,14 @@
 local k = import 'ksonnet/ksonnet.beta.4/k.libsonnet';
 local secretName = 'rhelemeter-server';
 local secretVolumeName = 'secret-rhelemeter-server';
-local caSecretName = 'rhelemeter-server-ca';
-local caSecretVolumeName = 'secret-rhelemeter-server-ca';
-local caMountPath = '/etc/pki/ca';
+local externalMtlsSecretName = 'rhelemeter-server-external-mtls';
+local externalMtlsSecretVolumeName = 'rhelemeter-server-external-mtls';
+local externalMtlsMountPath = '/etc/pki/external';
 local tlsSecret = 'rhelemeter-server-shared';
 local tlsVolumeName = 'rhelemeter-server-tls';
 local tlsMountPath = '/etc/pki/service';
 local externalPort = 8443;
 local internalPort = 8081;
-local caCert = |||
-  -----BEGIN CERTIFICATE-----
-  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
-  E6/lvbR33zc=
-  -----END CERTIFICATE-----
-|||;
 
 {
   _config+:: {
@@ -87,10 +45,10 @@ local caCert = |||
       local containerEnv = container.envType;
 
       local podLabels = { 'k8s-app': 'rhelemeter-server' };
-      local caMount = containerVolumeMount.new(caSecretVolumeName, caMountPath);
-      local caVolume = volume.fromSecret(caSecretVolumeName, caSecretName);
       local tlsMount = containerVolumeMount.new(tlsVolumeName, tlsMountPath);
       local tlsVolume = volume.fromSecret(tlsVolumeName, tlsSecret);
+      local externalMtlsMount = containerVolumeMount.new(externalMtlsSecretVolumeName, externalMtlsMountPath);
+      local externalMtlsVolume = volume.fromSecret(externalMtlsSecretVolumeName, externalMtlsMount);
       local oidcIssuer = containerEnv.fromSecretRef('OIDC_ISSUER', secretName, 'oidc_issuer');
       local clientSecret = containerEnv.fromSecretRef('CLIENT_SECRET', secretName, 'client_secret');
       local clientID = containerEnv.fromSecretRef('CLIENT_ID', secretName, 'client_id');
@@ -113,9 +71,9 @@ local caCert = |||
           '/usr/bin/rhelemeter-server',
           '--listen=0.0.0.0:8443',
           '--listen-internal=0.0.0.0:8081',
-          '--tls-key=%s/tls.key' % tlsMountPath,
-          '--tls-crt=%s/tls.crt' % tlsMountPath,
-          '--tls-ca-crt=%s/ca.crt' % caMountPath,
+          '--tls-key=%s/tls.key' % externalMtlsMountPath,
+          '--tls-crt=%s/tls.crt' % externalMtlsMountPath,
+          '--tls-ca-crt=%s/ca.crt' % externalMtlsMountPath,
           '--internal-tls-key=%s/tls.key' % tlsMountPath,
           '--internal-tls-crt=%s/tls.crt' % tlsMountPath,
           '--oidc-issuer=$(OIDC_ISSUER)',
@@ -128,7 +86,7 @@ local caCert = |||
         ]) +
         container.mixin.resources.withLimitsMixin($._config.rhelemeterServer.resourceLimits) +
         container.mixin.resources.withRequestsMixin($._config.rhelemeterServer.resourceRequests) +
-        container.withVolumeMounts([tlsMount, caMount]) +
+        container.withVolumeMounts([tlsMount, externalMtlsMount]) +
         container.withEnv([oidcIssuer, clientSecret, clientID]) + {
           livenessProbe: {
             httpGet: {
@@ -150,7 +108,7 @@ local caCert = |||
       deployment.mixin.metadata.withNamespace($._config.namespace) +
       deployment.mixin.spec.selector.withMatchLabels(podLabels) +
       deployment.mixin.spec.template.spec.withServiceAccountName('rhelemeter-server') +
-      deployment.mixin.spec.template.spec.withVolumes([secretVolume, tlsVolume, caVolume]) +
+      deployment.mixin.spec.template.spec.withVolumes([secretVolume, tlsVolume, externalMtlsVolume]) +
       {
         spec+: {
           volumeClaimTemplates:: null,
@@ -168,14 +126,16 @@ local caCert = |||
       secret.mixin.metadata.withNamespace($._config.namespace) +
       secret.mixin.metadata.withLabels({ 'k8s-app': 'rhelemeter-server' }),
 
-    caSecret:
-      local caSecret = k.core.v1.secret;
-      caSecret.new(caSecretName) +
-      caSecret.withStringData({
-        'ca.crt': caCert,
+    externalMtlsSecret:
+      local mtlsSecret = k.core.v1.secret;
+      mtlsSecret.new(externalMtlsSecretName) +
+      mtlsSecret.withStringData({
+        'ca.crt': $._config.rhelemeterServer.externalMtlsCa,
+        'tls.key': $._config.rhelemeterServer.externalMtlsKey,
+        'tls.crt': $._config.rhelemeterServer.externalMtlsCrt,
       }) +
-      caSecret.mixin.metadata.withNamespace($._config.namespace) +
-      caSecret.mixin.metadata.withLabels({ 'k8s-app': 'rhelemeter-server' }),
+      mtlsSecret.mixin.metadata.withNamespace($._config.namespace) +
+      mtlsSecret.mixin.metadata.withLabels({ 'k8s-app': 'rhelemeter-server' }),
 
     service:
       local service = k.core.v1.service;
