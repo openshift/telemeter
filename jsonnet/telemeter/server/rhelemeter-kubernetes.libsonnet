@@ -9,48 +9,6 @@ local tlsVolumeName = 'rhelemeter-server-tls';
 local tlsMountPath = '/etc/pki/service';
 local externalPort = 8443;
 local internalPort = 8081;
-local caCert = |||
-  -----BEGIN CERTIFICATE-----
-  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
-  E6/lvbR33zc=
-  -----END CERTIFICATE-----
-|||;
 
 {
   _config+:: {
@@ -168,11 +126,13 @@ local caCert = |||
       secret.mixin.metadata.withNamespace($._config.namespace) +
       secret.mixin.metadata.withLabels({ 'k8s-app': 'rhelemeter-server' }),
 
-    caSecret:
+    externalMtlsSecret:
       local caSecret = k.core.v1.secret;
       caSecret.new(caSecretName) +
       caSecret.withStringData({
-        'ca.crt': caCert,
+        'ca.crt': $._config.rhelemeterServer.externalMtlsCa,
+        'tls.key': $._config.rhelemeterServer.externalMtlsKey,
+        'tls.crt': $._config.rhelemeterServer.externalMtlsCert,
       }) +
       caSecret.mixin.metadata.withNamespace($._config.namespace) +
       caSecret.mixin.metadata.withLabels({ 'k8s-app': 'rhelemeter-server' }),
@@ -187,8 +147,10 @@ local caCert = |||
       service.new('rhelemeter-server', $.rhelemeterServer.deployment.spec.selector.matchLabels, [servicePortExternal, servicePortInternal]) +
       service.mixin.metadata.withNamespace($._config.namespace) +
       service.mixin.metadata.withLabels({ 'k8s-app': 'rhelemeter-server' }) +
-      service.mixin.spec.withClusterIp('None'),
-
+      service.mixin.spec.withClusterIp('None') +
+      service.mixin.metadata.withAnnotations({
+        'service.alpha.openshift.io/serving-cert-secret-name': tlsSecret,
+      }),
 
     serviceAccount:
       local serviceAccount = k.core.v1.serviceAccount;
