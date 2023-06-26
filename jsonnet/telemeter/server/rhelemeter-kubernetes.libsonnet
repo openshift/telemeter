@@ -187,10 +187,8 @@ local caCert = |||
       service.new('rhelemeter-server', $.rhelemeterServer.deployment.spec.selector.matchLabels, [servicePortExternal, servicePortInternal]) +
       service.mixin.metadata.withNamespace($._config.namespace) +
       service.mixin.metadata.withLabels({ 'k8s-app': 'rhelemeter-server' }) +
-      service.mixin.spec.withClusterIp('None') +
-      service.mixin.metadata.withAnnotations({
-        'service.alpha.openshift.io/serving-cert-secret-name': tlsSecret,
-      }),
+      service.mixin.spec.withClusterIp('None'),
+
 
     serviceAccount:
       local serviceAccount = k.core.v1.serviceAccount;
