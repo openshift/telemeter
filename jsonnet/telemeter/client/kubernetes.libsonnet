@@ -2,12 +2,9 @@ local k = import 'ksonnet/ksonnet.beta.4/k.libsonnet';
 local secretName = 'telemeter-client';
 local secretVolumeName = 'secret-telemeter-client';
 local secretMountPath = '/etc/telemeter';
-local tlsSecret = 'telemeter-client-certs';
+local tlsSecret = 'telemeter-client-tls';
 local tlsVolumeName = 'telemeter-client-tls';
 local tlsMountPath = '/etc/tls/private';
-local federateSecret = 'federate-client-certs';
-local federateVolumeName = 'federate-client-tls';
-local federateMountPath = '/etc/tls/private';
 local servingCertsCABundle = 'serving-certs-ca-bundle';
 local servingCertsCABundleFileName = 'service-ca.crt';
 local servingCertsCABundleMountPath = '/etc/%s' % servingCertsCABundle;
@@ -21,7 +18,7 @@ local securePort = 8443;
 
     telemeterClient+:: {
       anonymizeLabels: [],
-      from: 'https://prometheus-k8s.%(namespace)s.svc:9092' % $._config,
+      from: 'https://prometheus-k8s.%(namespace)s.svc:9091' % $._config,
       id: '',
       matchRules: [],
       salt: '',
@@ -101,8 +98,6 @@ local securePort = 8443;
       local secretVolume = volume.fromSecret(secretVolumeName, secretName);
       local tlsMount = containerVolumeMount.new(tlsVolumeName, tlsMountPath);
       local tlsVolume = volume.fromSecret(tlsVolumeName, tlsSecret);
-      local federateMount = containerVolumeMount.new(federateVolumeName, federateMountPath);
-      local federateVolume = volume.fromSecret(federateVolumeName, federateSecret);
       local sccabMount = containerVolumeMount.new(servingCertsCABundle, servingCertsCABundleMountPath);
       local sccabVolume = volume.withName(servingCertsCABundle) + volume.mixin.configMap.withName('telemeter-client-serving-certs-ca-bundle');
       local anonymize = containerEnv.new('ANONYMIZE_LABELS', std.join(',', $._config.telemeterClient.anonymizeLabels));
@@ -124,8 +119,6 @@ local securePort = 8443;
           '/usr/bin/telemeter-client',
           '--id=$(ID)',
           '--from=$(FROM)',
-          '--tls-cert-file=/etc/tls/private/tls.crt',
-          '--tls-private-key-file=/etc/tls/private/tls.key',
           '--from-ca-file=%s/%s' % [servingCertsCABundleMountPath, servingCertsCABundleFileName],
           '--from-token-file=' + fromTokenFile,
           '--to=$(TO)',
@@ -135,7 +128,7 @@ local securePort = 8443;
           '--anonymize-labels=$(ANONYMIZE_LABELS)',
         ] + matchRules) +
         container.withPorts(containerPort.newNamed(insecurePort, 'http')) +
-        container.withVolumeMounts([sccabMount, secretMount, federateMount]) +
+        container.withVolumeMounts([sccabMount, secretMount]) +
         container.withEnv([anonymize, from, id, to, httpProxy, httpsProxy, noProxy]) +
         container.mixin.resources.withRequests({ cpu: '1m', memory: '40Mi' });
 
@@ -170,7 +163,7 @@ local securePort = 8443;
       deployment.mixin.spec.template.spec.withServiceAccountName('telemeter-client') +
       deployment.mixin.spec.template.spec.withPriorityClassName('system-cluster-critical') +
       deployment.mixin.spec.template.spec.withNodeSelector({ 'kubernetes.io/os': 'linux' }) +
-      deployment.mixin.spec.template.spec.withVolumes([sccabVolume, secretVolume, tlsVolume, federateVolume]),
+      deployment.mixin.spec.template.spec.withVolumes([sccabVolume, secretVolume, tlsVolume]),
 
     secret:
       local secret = k.core.v1.secret;

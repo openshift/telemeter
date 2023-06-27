@@ -67,8 +67,6 @@ type Config struct {
 	FromTokenFile string
 	ToTokenFile   string
 	FromCAFile    string
-	TLSCertFile   string
-	TLSKey        string
 
 	AnonymizeLabels   []string
 	AnonymizeSalt     string
@@ -150,24 +148,10 @@ func New(cfg Config) (*Worker, error) {
 
 	// Create the `fromClient`.
 	fromTransport := metricsclient.DefaultTransport()
-	fromClient := &http.Client{Transport: fromTransport}
-
 	if len(cfg.FromCAFile) > 0 {
-		level.Debug(logger).Log("msg", "TLS configuration", "ca_file", cfg.FromCAFile, "cert_file", cfg.TLSCertFile, "key_file", cfg.TLSKey)
-
-		var cert tls.Certificate
-		var err error
-
 		if fromTransport.TLSClientConfig == nil {
 			fromTransport.TLSClientConfig = &tls.Config{}
 		}
-		if cfg.TLSCertFile != "" && cfg.TLSKey != "" {
-			cert, err = tls.LoadX509KeyPair(*&cfg.TLSCertFile, *&cfg.TLSKey)
-			if err != nil {
-				return nil, fmt.Errorf("creating client x509 keypair from cert file %s and key file %s: %w", cfg.TLSCertFile, cfg.TLSKey, err)
-			}
-		}
-
 		pool, err := x509.SystemCertPool()
 		if err != nil {
 			return nil, fmt.Errorf("failed to read system certificates: %v", err)
@@ -179,16 +163,13 @@ func New(cfg Config) (*Worker, error) {
 		if !pool.AppendCertsFromPEM(data) {
 			level.Warn(logger).Log("msg", "no certs found in from-ca-file")
 		}
-
-		fromTransport.TLSClientConfig.Certificates = []tls.Certificate{cert}
 		fromTransport.TLSClientConfig.RootCAs = pool
 	}
+	fromClient := &http.Client{Transport: fromTransport}
 	if cfg.Debug {
-		level.Debug(logger).Log("msg", "enabling the debug round tripper for the fromClient transport")
 		fromClient.Transport = telemeterhttp.NewDebugRoundTripper(logger, fromClient.Transport)
 	}
 	if len(cfg.FromToken) == 0 && len(cfg.FromTokenFile) > 0 {
-		level.Debug(logger).Log("msg", "enabling the token file round tripper for the fromClient transport")
 		data, err := ioutil.ReadFile(cfg.FromTokenFile)
 		if err != nil {
 			return nil, fmt.Errorf("unable to read from-token-file: %v", err)
@@ -196,7 +177,6 @@ func New(cfg Config) (*Worker, error) {
 		cfg.FromToken = strings.TrimSpace(string(data))
 	}
 	if len(cfg.FromToken) > 0 {
-		level.Debug(logger).Log("msg", "enabling the token round tripper for the fromClient transport")
 		fromClient.Transport = telemeterhttp.NewBearerRoundTripper(cfg.FromToken, fromClient.Transport)
 	}
 	w.fromClient = metricsclient.New(logger, fromClient, cfg.LimitBytes, w.interval, "federate_from")
