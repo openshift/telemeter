@@ -10,12 +10,10 @@ local list = import 'lib/list.libsonnet';
   rhelemeterServer+:: {
     list: list.asList('rhelemeter', {}, []) + {
       objects:
-        tsList.objects +
-        mList.objects,
+        tsList.objects,
 
       parameters:
-        tsList.parameters +
-        mList.parameters,
+        tsList.parameters,
     },
   },
 } + {
