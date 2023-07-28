@@ -13,7 +13,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 
 	"github.com/openshift/telemeter/pkg/authorize"
 )
