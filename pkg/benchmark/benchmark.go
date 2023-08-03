@@ -18,8 +18,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
@@ -295,7 +295,7 @@ func (w *worker) generate() []*clientmodel.MetricFamily {
 	mfs := make([]*clientmodel.MetricFamily, len(w.metrics))
 	now := time.Now().UnixNano() / int64(time.Millisecond)
 	for i := range w.metrics {
-		mf := *w.metrics[i]
+		mf := *w.metrics[i] //nolint:govet
 		mf.Metric = make([]*clientmodel.Metric, len(w.metrics[i].Metric))
 		for j := range w.metrics[i].Metric {
 			m := randomize(w.metrics[i].Metric[j])
@@ -314,7 +314,7 @@ func (w *worker) generate() []*clientmodel.MetricFamily {
 
 // randomize copies and randomizes the values of a metric.
 func randomize(metric *clientmodel.Metric) *clientmodel.Metric {
-	m := *metric
+	m := *metric //nolint:govet
 	if m.GetUntyped() != nil {
 		v := *m.GetUntyped()
 		f := math.Round(rand.Float64() * v.GetValue())

@@ -33,10 +33,9 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	pkgerrors "github.com/pkg/errors"
-	tsdberrors "github.com/prometheus/prometheus/tsdb/errors"
 )
 
 // CloseWithLogOnErr is making sure we log every error, even those from best effort tiny closers.
@@ -66,31 +65,6 @@ func ExhaustCloseWithLogOnErr(logger log.Logger, r io.ReadCloser, format string,
 	}
 
 	CloseWithLogOnErr(logger, r, format, a...)
-}
-
-// CloseWithErrCapture runs function and on error return error by argument including the given error (usually
-// from caller function).
-func CloseWithErrCapture(err *error, closer io.Closer, format string, a ...interface{}) {
-	merr := tsdberrors.MultiError{}
-
-	merr.Add(*err)
-	merr.Add(pkgerrors.Wrapf(closer.Close(), format, a...))
-
-	*err = merr.Err()
-}
-
-// ExhaustCloseWithErrCapture closes the io.ReadCloser with error capture but exhausts the reader before.
-func ExhaustCloseWithErrCapture(err *error, r io.ReadCloser, format string, a ...interface{}) {
-	_, copyErr := io.Copy(ioutil.Discard, r)
-
-	CloseWithErrCapture(err, r, format, a...)
-
-	// Prepend the io.Copy error.
-	merr := tsdberrors.MultiError{}
-	merr.Add(copyErr)
-	merr.Add(*err)
-
-	*err = merr.Err()
 }
 
 // ExhaustCloseRequestBodyHandler ensures that request body is well closed and exhausted at the end of server call.
