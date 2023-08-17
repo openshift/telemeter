@@ -1,0 +1,8 @@
+{
+  "secret": "super-secret",
+  "config": {
+    "secret_header": "x-secret",
+    "common_name_header": "x-common-name",
+    "issuer_header": "x-issuer"
+  }
+}

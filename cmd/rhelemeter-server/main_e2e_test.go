@@ -7,7 +7,7 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -56,7 +56,7 @@ var expectedTimeSeries = []prompb.TimeSeries{
 	},
 }
 
-func TestServerRHEL(t *testing.T) {
+func TestServerRhelMtls(t *testing.T) {
 	defer goleak.VerifyNone(t)
 
 	receiveServer := httptest.NewServer(mockedReceiver(t))
@@ -103,7 +103,7 @@ func TestServerRHEL(t *testing.T) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				if err := opts.Run(ctx, ext, local); err != context.Canceled {
+				if err := opts.Run(ctx, ext, local); !errors.Is(err, context.Canceled) {
 					t.Fatal(err)
 				}
 			}()
@@ -147,10 +147,170 @@ func TestServerRHEL(t *testing.T) {
 
 							defer resp.Body.Close()
 
-							body, err := ioutil.ReadAll(resp.Body)
+							body, err := io.ReadAll(resp.Body)
 							testutil.Ok(t, err)
 
 							testutil.Equals(t, http.StatusOK, resp.StatusCode, string(body))
+						})
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestServerRhelWithClientInfoFromHeaders(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	receiveServer := httptest.NewServer(mockedReceiver(t))
+	defer receiveServer.Close()
+
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	telemeterClient := &http.Client{
+		Transport: tr,
+	}
+
+	testCases := []struct {
+		name         string
+		extraOpts    func(opts *Options)
+		makeRequest  func(url string, withBody io.Reader) *http.Request
+		expectStatus int
+	}{
+		{
+			name: "Test client info from headers with no header set",
+			extraOpts: func(opts *Options) {
+				opts.ClientInfoFromRequestConfigFile = "testdata/client-info.json"
+				opts.TLSKeyPath = "testdata/server-private-key.pem"
+				opts.TLSCertificatePath = "testdata/server-cert.pem"
+				opts.TLSCACertificatePath = "testdata/ca-cert.pem"
+			},
+			makeRequest: func(url string, withBody io.Reader) *http.Request {
+				req, err := http.NewRequest(http.MethodPost, url, withBody)
+				testutil.Ok(t, err)
+				req.Header.Set("Content-Type", string(expfmt.FmtProtoDelim))
+				return req
+			},
+			expectStatus: http.StatusForbidden,
+		},
+		{
+			name: "Test client info from headers with empty header set",
+			extraOpts: func(opts *Options) {
+				opts.ClientInfoFromRequestConfigFile = "testdata/client-info.json"
+				opts.TLSKeyPath = "testdata/server-private-key.pem"
+				opts.TLSCertificatePath = "testdata/server-cert.pem"
+				opts.TLSCACertificatePath = "testdata/ca-cert.pem"
+			},
+			makeRequest: func(url string, withBody io.Reader) *http.Request {
+				req, err := http.NewRequest(http.MethodPost, url, withBody)
+				testutil.Ok(t, err)
+				req.Header.Set("Content-Type", string(expfmt.FmtProtoDelim))
+				req.Header.Set("x-secret", "")
+				return req
+			},
+			expectStatus: http.StatusForbidden,
+		},
+		{
+			name: "Test client info from headers with bad header set",
+			extraOpts: func(opts *Options) {
+				opts.ClientInfoFromRequestConfigFile = "testdata/client-info.json"
+				opts.TLSKeyPath = "testdata/server-private-key.pem"
+				opts.TLSCertificatePath = "testdata/server-cert.pem"
+				opts.TLSCACertificatePath = "testdata/ca-cert.pem"
+			},
+			makeRequest: func(url string, withBody io.Reader) *http.Request {
+				req, err := http.NewRequest(http.MethodPost, url, withBody)
+				testutil.Ok(t, err)
+				req.Header.Set("Content-Type", string(expfmt.FmtProtoDelim))
+				req.Header.Set("x-secret", "wrong")
+				return req
+			},
+			expectStatus: http.StatusForbidden,
+		},
+		{
+			name: "Test client info from headers with correct PSK",
+			extraOpts: func(opts *Options) {
+				opts.ClientInfoFromRequestConfigFile = "testdata/client-info.json"
+				opts.TLSKeyPath = "testdata/server-private-key.pem"
+				opts.TLSCertificatePath = "testdata/server-cert.pem"
+				opts.TLSCACertificatePath = "testdata/ca-cert.pem"
+			},
+			makeRequest: func(url string, withBody io.Reader) *http.Request {
+				req, err := http.NewRequest(http.MethodPost, url, withBody)
+				testutil.Ok(t, err)
+				req.Header.Set("Content-Type", string(expfmt.FmtProtoDelim))
+				req.Header.Set("x-secret", "super-secret")
+				return req
+			},
+			expectStatus: http.StatusOK,
+		},
+	}
+
+	for _, tcase := range testCases {
+		t.Run(tcase.name, func(t *testing.T) {
+			prometheus.DefaultRegisterer = prometheus.NewRegistry()
+
+			ext, err := net.Listen("tcp", "127.0.0.1:0")
+			testutil.Ok(t, err)
+
+			var wg sync.WaitGroup
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer func() {
+				cancel()
+				wg.Wait()
+			}()
+
+			opts := setTestDefaultOpts()
+			opts.ForwardURL = receiveServer.URL
+			tcase.extraOpts(opts)
+
+			local, err := net.Listen("tcp", "127.0.0.1:0")
+			testutil.Ok(t, err)
+
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				if err := opts.Run(ctx, ext, local); !errors.Is(err, context.Canceled) {
+					t.Fatal(err)
+				}
+			}()
+
+			// Wait for server to start by pinging it.
+			for i := 0; i < 30; i++ {
+				time.Sleep(100 * time.Millisecond)
+
+				res, err := telemeterClient.Get("https://" + ext.Addr().String() + "/")
+				if err != nil {
+					fmt.Println("Waiting for server to start...", err)
+					continue
+				}
+
+				res.Body.Close()
+			}
+
+			for _, cluster := range []string{"cluster1"} {
+				t.Run(cluster, func(t *testing.T) {
+
+					for i := 0; i < 1; i++ {
+						t.Run("upload", func(t *testing.T) {
+							var wr prompb.WriteRequest
+							wr.Timeseries = expectedTimeSeries
+							data, err := proto.Marshal(&wr)
+							testutil.Ok(t, err)
+
+							compressedData := snappy.Encode(nil, data)
+							url := "https://" + ext.Addr().String() + "/metrics/v1/receive"
+							req := tcase.makeRequest(url, bytes.NewReader(compressedData))
+
+							resp, err := telemeterClient.Do(req.WithContext(ctx))
+							testutil.Ok(t, err)
+
+							defer resp.Body.Close()
+
+							body, err := io.ReadAll(resp.Body)
+							testutil.Ok(t, err)
+							testutil.Equals(t, tcase.expectStatus, resp.StatusCode, string(body))
 						})
 					}
 				})
@@ -175,7 +335,7 @@ func makeMTLSClient() (*http.Client, error) {
 		return nil, err
 	}
 
-	caCert, err := ioutil.ReadFile("testdata/ca-cert.pem")
+	caCert, err := os.ReadFile("testdata/ca-cert.pem")
 	if err != nil {
 		return nil, err
 	}
@@ -198,7 +358,7 @@ func makeMTLSClient() (*http.Client, error) {
 // and asserts the seeing contents against the pre-defined expectedTimeSeries from the top.
 func mockedReceiver(t *testing.T) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Errorf("failed reading body from forward request: %v", err)
 		}
