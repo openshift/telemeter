@@ -12,29 +12,33 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/go-chi/chi/middleware"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 )
 
-func NewAuthorizeClientHandler(authorizer ClientAuthorizer, next http.Handler) http.Handler {
+func NewAuthorizeClientHandler(logger log.Logger, authorizer ClientAuthorizer, next http.Handler) http.Handler {
+	logger = log.With(logger, "component", "authorize")
+
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		logger := log.With(logger, "request", middleware.GetReqID(req.Context()))
+
 		auth := strings.SplitN(req.Header.Get("Authorization"), " ", 2)
 		if strings.ToLower(auth[0]) != "bearer" {
 			http.Error(w, "Only bearer authorization allowed", http.StatusUnauthorized)
+			level.Debug(logger).Log("msg", "Only bearer authorization allowed", "auth", auth[0])
 			return
 		}
 		if len(auth) != 2 || len(strings.TrimSpace(auth[1])) == 0 {
 			http.Error(w, "Invalid Authorization header", http.StatusUnauthorized)
+			level.Debug(logger).Log("msg", "Invalid Authorization header", "auth", auth)
 			return
 		}
 
-		client, ok, err := authorizer.AuthorizeClient(auth[1])
+		client, err := authorizer.AuthorizeClient(auth[1])
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Not authorized: %v", err), http.StatusUnauthorized)
-			return
-		}
-		if !ok {
-			http.Error(w, "Not authorized", http.StatusUnauthorized)
+			level.Warn(logger).Log("msg", "Not authorized", "err", err)
 			return
 		}
 
@@ -111,8 +115,7 @@ func AgainstEndpoint(logger log.Logger, client *http.Client, endpoint *url.URL, 
 	case http.StatusOK, http.StatusCreated:
 		return body, nil
 	default:
-		level.Warn(logger).Log("msg", "upstream server rejected request", "cluster", cluster, "body", string(body))
-		return body, NewErrorWithCode(fmt.Errorf("upstream rejected request with code %d", res.StatusCode), res.StatusCode)
+		return body, fmt.Errorf("upstream rejected request with code %d and body %q", res.StatusCode, string(body))
 	}
 }
 
@@ -121,7 +124,10 @@ func AgainstEndpoint(logger log.Logger, client *http.Client, endpoint *url.URL, 
 // base64-encoded JSON object containing "authorization_token" and "cluster_id" fields.
 func NewHandler(logger log.Logger, client *http.Client, endpoint *url.URL, tenantKey string, next http.Handler) http.HandlerFunc {
 	logger = log.With(logger, "component", "authorize")
+
 	return func(w http.ResponseWriter, r *http.Request) {
+		logger := log.With(logger, "request", middleware.GetReqID(r.Context()))
+
 		authHeader := r.Header.Get("Authorization")
 		authParts := strings.Split(string(authHeader), " ")
 		if len(authParts) != 2 || strings.ToLower(authParts[0]) != "bearer" {
@@ -146,11 +152,17 @@ func NewHandler(logger log.Logger, client *http.Client, endpoint *url.URL, tenan
 			}
 			tenant = fields[tenantKey]
 		}
+
+		logger = log.With(logger, "tenant", tenant)
+
 		if _, err := AgainstEndpoint(logger, client, endpoint, token, tenant, nil); err != nil {
 			level.Warn(logger).Log("msg", "unauthorized request made:", "err", err)
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
+
+		// Log the tenant for debugging purposes.
+		level.Info(logger).Log("msg", "authorized request")
 
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), TenantKey, tenant)))
 	}

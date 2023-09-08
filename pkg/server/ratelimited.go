@@ -37,6 +37,8 @@ func Ratelimit(logger log.Logger, limit time.Duration, now func() time.Time, nex
 			return
 		}
 
+		rlogger = log.With(rlogger, "cluster", clusterID)
+
 		if err := s.limit(limit, now(), clusterID); err != nil {
 			level.Debug(rlogger).Log("msg", "rate limited", "err", err)
 			http.Error(w, err.Error(), http.StatusTooManyRequests)

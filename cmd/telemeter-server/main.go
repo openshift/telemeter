@@ -389,6 +389,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 	{
 		external := chi.NewRouter()
 		external.Use(middleware.RequestID)
+		external.Use(server.RequestLogger(o.Logger)) // Added after RequestID to log the request ID.
 
 		// TODO: Refactor HealthRoutes to not take *http.Mux
 		mux := http.NewServeMux()
@@ -496,7 +497,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 			external.Post("/upload",
 				runutil.ExhaustCloseRequestBodyHandler(o.Logger,
 					server.InstrumentedHandler("upload",
-						authorize.NewAuthorizeClientHandler(jwtAuthorizer,
+						authorize.NewAuthorizeClientHandler(o.Logger, jwtAuthorizer,
 							server.ClusterID(o.Logger, o.clusterIDKey,
 								server.Ratelimit(o.Logger, o.Ratelimit, time.Now,
 									server.Snappy(
