@@ -67,7 +67,7 @@ func (a *authorizeClusterHandler) ServeHTTP(w http.ResponseWriter, req *http.Req
 		return
 	}
 
-	logger = log.With(a.logger, "cluster", clusterID)
+	logger = log.With(logger, "cluster", clusterID)
 
 	auth := strings.SplitN(req.Header.Get("Authorization"), " ", 2)
 	if strings.ToLower(auth[0]) != "bearer" {
