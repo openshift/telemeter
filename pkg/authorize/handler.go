@@ -162,7 +162,7 @@ func NewHandler(logger log.Logger, client *http.Client, endpoint *url.URL, tenan
 		}
 
 		// Log the tenant for debugging purposes.
-		level.Info(logger).Log("msg", "authorized request")
+		level.Debug(logger).Log("msg", "authorized request")
 
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), TenantKey, tenant)))
 	}

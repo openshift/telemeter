@@ -110,7 +110,7 @@ func (a *authorizeClusterHandler) ServeHTTP(w http.ResponseWriter, req *http.Req
 
 	// Log the subject for debugging purposes
 	logger = log.With(logger, "subject", subject)
-	level.Info(logger).Log("msg", "authorized request")
+	level.Debug(logger).Log("msg", "authorized request")
 
 	labels := map[string]string{
 		a.clusterIDKey: clusterID,
