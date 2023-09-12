@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	stdlog "log"
 	"net"
 	"net/http"
@@ -30,6 +29,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 
+	"github.com/openshift/telemeter/pkg/authorize/ssl"
 	telemeter_http "github.com/openshift/telemeter/pkg/http"
 	"github.com/openshift/telemeter/pkg/logger"
 	"github.com/openshift/telemeter/pkg/receive"
@@ -78,6 +78,9 @@ func main() {
 	cmd.Flags().StringVar(&opt.TLSKeyPath, "tls-key", opt.TLSKeyPath, "Path to a private key to serve TLS for external traffic.")
 	cmd.Flags().StringVar(&opt.TLSCertificatePath, "tls-crt", opt.TLSCertificatePath, "Path to a certificate to serve TLS for external traffic.")
 	cmd.Flags().StringVar(&opt.TLSCACertificatePath, "tls-ca-crt", opt.TLSCACertificatePath, "Path to the trusted Certificate Authority of the rhelemeter client for mTLS.")
+
+	cmd.Flags().StringVar(&opt.ClientInfoFromRequestConfigFile, "client-info-data-file", opt.ClientInfoFromRequestConfigFile,
+		"Path to the file containing the PSK and information about how to extract the client cert from the request")
 
 	cmd.Flags().StringVar(&opt.InternalTLSKeyPath, "internal-tls-key", opt.InternalTLSKeyPath, "Path to a private key to serve TLS for internal traffic.")
 	cmd.Flags().StringVar(&opt.InternalTLSCertificatePath, "internal-tls-crt", opt.InternalTLSCertificatePath, "Path to a certificate to serve TLS for internal traffic.")
@@ -130,6 +133,10 @@ type Options struct {
 	TLSKeyPath           string
 	TLSCertificatePath   string
 	TLSCACertificatePath string
+
+	// ClientInfoFromRequestConfigFile is the path to the file containing the PSK
+	// and information about how to extract the client cert like info from the request
+	ClientInfoFromRequestConfigFile string
 
 	// Internal server TLS configuration
 	InternalTLSKeyPath         string
@@ -299,8 +306,30 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 		})
 	}
 	{
+		var hasClientCertConfig bool
 		external := chi.NewRouter()
 		external.Use(middleware.RequestID)
+
+		if o.ClientInfoFromRequestConfigFile != "" {
+			hasClientCertConfig = true
+			b, err := os.ReadFile(o.ClientInfoFromRequestConfigFile)
+			if err != nil {
+				level.Error(o.Logger).Log("msg", "cannot read client info config file", "err", err)
+				return err
+			}
+
+			var conf ssl.ClientCertConfig
+			if err := json.Unmarshal(b, &conf); err != nil {
+				level.Error(o.Logger).Log("msg", "cannot unmarshal client info config file", "err", err)
+				return err
+			}
+
+			if err := conf.Validate(); err != nil {
+				level.Error(o.Logger).Log("msg", "cannot validate client info config file", "err", err)
+				return err
+			}
+			external.Use(ssl.ClientCertInfoAsHeaders(conf, o.Logger))
+		}
 
 		mux := http.NewServeMux()
 		external.Mount("/", mux)
@@ -344,7 +373,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 					return err
 				}
 
-				caCert, err := ioutil.ReadFile(o.TLSCACertificatePath)
+				caCert, err := os.ReadFile(o.TLSCACertificatePath)
 				if err != nil {
 					return err
 				}
@@ -353,8 +382,11 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 
 				tlsConfig := &tls.Config{
 					Certificates: []tls.Certificate{cert},
-					ClientAuth:   tls.RequireAndVerifyClientCert,
 					ClientCAs:    caCertPool,
+				}
+				// if not explicitly set, require and verify client cert from the request directly
+				if !hasClientCertConfig {
+					tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 				}
 
 				externalTLSListener := tls.NewListener(externalListener, tlsConfig)
