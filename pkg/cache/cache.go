@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 
+	"github.com/go-chi/chi/middleware"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/pkg/errors"
@@ -36,13 +37,17 @@ type RoundTripper struct {
 
 // RoundTrip implements the RoundTripper interface.
 func (r *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	logger := log.With(r.l, "request", middleware.GetReqID(req.Context()))
+
 	key, err := r.key(req)
 	if err != nil {
+		level.Error(logger).Log("msg", "failed to generate key from request", "err", err)
 		return nil, errors.Wrap(err, "failed to generate key from request")
 	}
 
 	raw, ok, err := r.c.Get(key)
 	if err != nil {
+		level.Error(logger).Log("msg", "failed to retrieve value from cache", "err", err)
 		r.cacheReadsTotal.WithLabelValues("error").Inc()
 		return nil, errors.Wrap(err, "failed to retrieve value from cache")
 	}
@@ -50,27 +55,32 @@ func (r *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	if ok {
 		r.cacheReadsTotal.WithLabelValues("hit").Inc()
 		resp, err := http.ReadResponse(bufio.NewReader(bytes.NewBuffer(raw)), req)
-		return resp, errors.Wrap(err, "failed to read response")
+		if err != nil {
+			level.Error(logger).Log("msg", "failed to read response from cache", "err", err)
+		}
+
+		return resp, errors.Wrap(err, "failed to read response from cache")
 	}
 
 	r.cacheReadsTotal.WithLabelValues("miss").Inc()
 	resp, err := r.next.RoundTrip(req)
-	if err == nil && resp.StatusCode/200 == 1 {
+	if err == nil && resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		// Try to cache the response but don't block.
 		defer func() {
 			raw, err := httputil.DumpResponse(resp, true)
 			if err != nil {
-				level.Error(r.l).Log("msg", "failed to dump response", "err", err)
+				level.Error(logger).Log("msg", "failed to dump response", "err", err)
 				return
 			}
 			if err := r.c.Set(key, raw); err != nil {
 				r.cacheWritesTotal.WithLabelValues("error").Inc()
-				level.Error(r.l).Log("msg", "failed to set value in cache", "err", err)
+				level.Error(logger).Log("msg", "failed to set value in cache", "err", err)
 				return
 			}
 			r.cacheWritesTotal.WithLabelValues("success").Inc()
 		}()
 	}
+
 	return resp, err
 }
 
