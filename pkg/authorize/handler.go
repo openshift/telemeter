@@ -106,6 +106,8 @@ func AgainstEndpoint(logger log.Logger, client *http.Client, endpoint *url.URL, 
 	switch res.StatusCode {
 	case http.StatusUnauthorized:
 		return body, NewErrorWithCode(fmt.Errorf("unauthorized"), http.StatusUnauthorized)
+	case http.StatusForbidden:
+		return body, NewErrorWithCode(fmt.Errorf("forbidden"), http.StatusForbidden)
 	case http.StatusTooManyRequests:
 		return body, NewErrorWithCode(fmt.Errorf("rate limited, please try again later"), http.StatusTooManyRequests)
 	case http.StatusConflict:
@@ -115,6 +117,14 @@ func AgainstEndpoint(logger log.Logger, client *http.Client, endpoint *url.URL, 
 	case http.StatusOK, http.StatusCreated:
 		return body, nil
 	default:
+		// Safety net for upstream 4xx responses that are not handled above
+		// to avoid returning 500s to the client that result in retries.
+		if res.StatusCode >= 400 && res.StatusCode < 500 {
+			return body, NewErrorWithCode(fmt.Errorf("upstream rejected request with code %d", res.StatusCode), res.StatusCode)
+		}
+
+		// Unhandled upstream codes return standard errors that shoud be logged by the calling function
+		// and result in 500s to the client.
 		return body, fmt.Errorf("upstream rejected request with code %d and body %q", res.StatusCode, string(body))
 	}
 }
