@@ -127,21 +127,20 @@ local internalPort = 8081;
       secret.mixin.metadata.withLabels({ 'k8s-app': 'rhelemeter-server' }),
 
 
-
     clientInfoSecret:
-      local cInfo =  {
-        secret:  $._config.rhelemeterServer.clientInfoPSK,
+      local cInfo = {
+        secret: $._config.rhelemeterServer.clientInfoPSK,
         config: {
-            secret_header: 'x-rh-rhelemeter-gateway-secret',
-            common_name_header: 'x-rh-certauth-cn',
-            issuer_header: 'x-rh-certauth-issuer',
+          secret_header: 'x-rh-rhelemeter-gateway-secret',
+          common_name_header: 'x-rh-certauth-cn',
+          issuer_header: 'x-rh-certauth-issuer',
         },
       };
 
       local cInfoSecret = k.core.v1.secret;
       cInfoSecret.new(clientInfoSecretName) +
       cInfoSecret.withStringData({
-        'client-info.json': std.manifestJson(cInfo)
+        'client-info.json': std.manifestJson(cInfo),
       }) +
       cInfoSecret.mixin.metadata.withNamespace($._config.namespace) +
       cInfoSecret.mixin.metadata.withLabels({ 'k8s-app': 'rhelemeter-server' }),
