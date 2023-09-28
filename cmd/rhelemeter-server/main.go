@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	stdlog "log"
@@ -373,30 +374,33 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 					return err
 				}
 
-				caCert, err := os.ReadFile(o.TLSCACertificatePath)
-				if err != nil {
-					return err
-				}
-				caCertPool := x509.NewCertPool()
-				caCertPool.AppendCertsFromPEM(caCert)
-
 				tlsConfig := &tls.Config{
 					Certificates: []tls.Certificate{cert},
-					ClientCAs:    caCertPool,
 				}
+
+				if o.TLSCACertificatePath != "" {
+					caCert, err := os.ReadFile(o.TLSCACertificatePath)
+					if err != nil {
+						return err
+					}
+					caCertPool := x509.NewCertPool()
+					caCertPool.AppendCertsFromPEM(caCert)
+					tlsConfig.ClientCAs = caCertPool
+				}
+
 				// if not explicitly set, require and verify client cert from the request directly
 				if !hasClientCertConfig {
 					tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 				}
 
 				externalTLSListener := tls.NewListener(externalListener, tlsConfig)
-				if err := s.Serve(externalTLSListener); err != nil && err != http.ErrServerClosed {
+				if err := s.Serve(externalTLSListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 					level.Error(o.Logger).Log("msg", "external HTTPS server exited", "err", err)
 					return err
 				}
 
 			} else {
-				if err := s.Serve(externalListener); err != nil && err != http.ErrServerClosed {
+				if err := s.Serve(externalListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 					level.Error(o.Logger).Log("msg", "external HTTP server exited", "err", err)
 					return err
 				}

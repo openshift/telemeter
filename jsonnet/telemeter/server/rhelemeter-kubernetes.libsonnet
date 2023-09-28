@@ -1,12 +1,12 @@
 local k = import 'ksonnet/ksonnet.beta.4/k.libsonnet';
 local secretName = 'rhelemeter-server';
 local secretVolumeName = 'secret-rhelemeter-server';
-local externalMtlsSecretName = 'rhelemeter-server-external-mtls';
-local externalMtlsSecretVolumeName = 'rhelemeter-server-external-mtls';
-local externalMtlsMountPath = '/etc/pki/external';
 local tlsSecret = 'rhelemeter-server-shared';
 local tlsVolumeName = 'rhelemeter-server-tls';
 local tlsMountPath = '/etc/pki/service';
+local clientInfoSecretName = 'rhelemeter-server-client-info';
+local clientInfoSecretNameSecretVolumeName = 'rhelemeter-server-client-info';
+local clientInfoSecretMountPath = '/etc/external';
 local externalPort = 8443;
 local internalPort = 8081;
 
@@ -47,8 +47,8 @@ local internalPort = 8081;
       local podLabels = { 'k8s-app': 'rhelemeter-server' };
       local tlsMount = containerVolumeMount.new(tlsVolumeName, tlsMountPath);
       local tlsVolume = volume.fromSecret(tlsVolumeName, tlsSecret);
-      local externalMtlsMount = containerVolumeMount.new(externalMtlsSecretVolumeName, externalMtlsMountPath);
-      local externalMtlsVolume = volume.fromSecret(externalMtlsSecretVolumeName, externalMtlsSecretName);
+      local clientInfoMount = containerVolumeMount.new(clientInfoSecretNameSecretVolumeName, clientInfoSecretMountPath);
+      local clientInfoVolume = volume.fromSecret(clientInfoSecretNameSecretVolumeName, clientInfoSecretName);
       local oidcIssuer = containerEnv.fromSecretRef('OIDC_ISSUER', secretName, 'oidc_issuer');
       local clientSecret = containerEnv.fromSecretRef('CLIENT_SECRET', secretName, 'client_secret');
       local clientID = containerEnv.fromSecretRef('CLIENT_ID', secretName, 'client_id');
@@ -71,11 +71,11 @@ local internalPort = 8081;
           '/usr/bin/rhelemeter-server',
           '--listen=0.0.0.0:8443',
           '--listen-internal=0.0.0.0:8081',
-          '--tls-key=%s/tls.key' % externalMtlsMountPath,
-          '--tls-crt=%s/tls.crt' % externalMtlsMountPath,
-          '--tls-ca-crt=%s/ca.crt' % externalMtlsMountPath,
+          '--tls-key=%s/tls.key' % tlsMountPath,
+          '--tls-crt=%s/tls.crt' % tlsMountPath,
           '--internal-tls-key=%s/tls.key' % tlsMountPath,
           '--internal-tls-crt=%s/tls.crt' % tlsMountPath,
+          '--client-info-data-file=%s/client-info.json' % clientInfoSecretMountPath,
           '--oidc-issuer=$(OIDC_ISSUER)',
           '--client-id=$(CLIENT_ID)',
           '--client-secret=$(CLIENT_SECRET)',
@@ -86,7 +86,7 @@ local internalPort = 8081;
         ]) +
         container.mixin.resources.withLimitsMixin($._config.rhelemeterServer.resourceLimits) +
         container.mixin.resources.withRequestsMixin($._config.rhelemeterServer.resourceRequests) +
-        container.withVolumeMounts([tlsMount, externalMtlsMount]) +
+        container.withVolumeMounts([tlsMount, clientInfoMount]) +
         container.withEnv([oidcIssuer, clientSecret, clientID]) + {
           livenessProbe: {
             httpGet: {
@@ -108,7 +108,7 @@ local internalPort = 8081;
       deployment.mixin.metadata.withNamespace($._config.namespace) +
       deployment.mixin.spec.selector.withMatchLabels(podLabels) +
       deployment.mixin.spec.template.spec.withServiceAccountName('rhelemeter-server') +
-      deployment.mixin.spec.template.spec.withVolumes([secretVolume, tlsVolume, externalMtlsVolume]) +
+      deployment.mixin.spec.template.spec.withVolumes([secretVolume, tlsVolume, clientInfoVolume]) +
       {
         spec+: {
           volumeClaimTemplates:: null,
@@ -126,16 +126,24 @@ local internalPort = 8081;
       secret.mixin.metadata.withNamespace($._config.namespace) +
       secret.mixin.metadata.withLabels({ 'k8s-app': 'rhelemeter-server' }),
 
-    externalMtlsSecret:
-      local mtlsSecret = k.core.v1.secret;
-      mtlsSecret.new(externalMtlsSecretName) +
-      mtlsSecret.withStringData({
-        'ca.crt': $._config.rhelemeterServer.externalMtlsCa,
-        'tls.key': $._config.rhelemeterServer.externalMtlsKey,
-        'tls.crt': $._config.rhelemeterServer.externalMtlsCrt,
+
+    clientInfoSecret:
+      local cInfo = {
+        secret: $._config.rhelemeterServer.clientInfoPSK,
+        config: {
+          secret_header: 'x-rh-rhelemeter-gateway-secret',
+          common_name_header: 'x-rh-certauth-cn',
+          issuer_header: 'x-rh-certauth-issuer',
+        },
+      };
+
+      local cInfoSecret = k.core.v1.secret;
+      cInfoSecret.new(clientInfoSecretName) +
+      cInfoSecret.withStringData({
+        'client-info.json': std.manifestJson(cInfo),
       }) +
-      mtlsSecret.mixin.metadata.withNamespace($._config.namespace) +
-      mtlsSecret.mixin.metadata.withLabels({ 'k8s-app': 'rhelemeter-server' }),
+      cInfoSecret.mixin.metadata.withNamespace($._config.namespace) +
+      cInfoSecret.mixin.metadata.withLabels({ 'k8s-app': 'rhelemeter-server' }),
 
     service:
       local service = k.core.v1.service;
