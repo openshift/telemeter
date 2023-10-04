@@ -20,6 +20,10 @@ trap 'kill $(jobs -p); exit $result' EXIT
 ) &
 
 (
+  otelcol-contrib --config hack/otelcol.yaml
+) &
+
+(
   thanos query \
     --grpc-address=127.0.0.1:9107 \
     --http-address=127.0.0.1:9108 \
