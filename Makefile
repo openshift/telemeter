@@ -225,7 +225,7 @@ $(MEMCACHED_BIN): | $(BIN_DIR) $(LIB_DIR)
 
 $(PROMETHEUS_BIN): $(BIN_DIR)
 	@echo "Downloading Prometheus"
-	curl -L "https://github.com/prometheus/prometheus/releases/download/v2.3.2/prometheus-2.3.2.$$(go env GOOS)-$$(go env GOARCH).tar.gz" | tar --strip-components=1 -xzf - -C $(BIN_DIR)
+	curl -L "https://github.com/prometheus/prometheus/releases/download/v2.35.0/prometheus-2.35.0.$$(go env GOOS)-$$(go env GOARCH).tar.gz" | tar --strip-components=1 -xzf - -C $(BIN_DIR)
 
 $(GOLANGCI_LINT_BIN): $(BIN_DIR)
 	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/$(GOLANGCI_LINT_VERSION)/install.sh \
