@@ -10,6 +10,8 @@ import (
 	propjaeger "go.opentelemetry.io/contrib/propagators/jaeger"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -25,6 +27,7 @@ type EndpointType string
 const (
 	EndpointTypeCollector EndpointType = "collector"
 	EndpointTypeAgent     EndpointType = "agent"
+	EndpointTypeOTel      EndpointType = "otel"
 )
 
 // InitTracer creates an OTel TracerProvider that exports the traces to a Jaeger agent/collector.
@@ -34,19 +37,60 @@ func InitTracer(
 	endpoint string,
 	endpointTypeRaw string,
 	samplingFraction float64,
-) (tp trace.TracerProvider, err error) {
-	tp = trace.NewNoopTracerProvider()
+) (trace.TracerProvider, error) {
+	nopTracerProvider := trace.NewNoopTracerProvider()
+	otel.SetTracerProvider(nopTracerProvider)
 
 	if endpoint == "" {
-		return tp, nil
+		return nopTracerProvider, nil
 	}
 
+	r, err := resource.New(ctx, resource.WithAttributes(semconv.ServiceNameKey.String(serviceName)))
+	if err != nil {
+		return nopTracerProvider, fmt.Errorf("create resource: %w", err)
+	}
+
+	var exporter sdktrace.SpanExporter
+	endpointType := EndpointType(endpointTypeRaw)
+
+	switch endpointType {
+	case EndpointTypeAgent, EndpointTypeCollector:
+		exporter, err = setUpJaegerExporter(endpointType, endpoint)
+		if err != nil {
+			return nopTracerProvider, fmt.Errorf("setup jaeger exporter: %w", err)
+		}
+	case EndpointTypeOTel:
+		exporter, err = setUpOtelExporter(endpoint)
+		if err != nil {
+			return nopTracerProvider, fmt.Errorf("setup otel exporter: %w", err)
+		}
+	default:
+		return nopTracerProvider, fmt.Errorf("invalid endpoint type: %s", endpointTypeRaw)
+	}
+
+	provider := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exporter),
+		sdktrace.WithResource(r),
+		sdktrace.WithSampler(sdktrace.TraceIDRatioBased(samplingFraction)),
+	)
+
+	otel.SetTracerProvider(provider)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propjaeger.Jaeger{},
+		propagation.Baggage{},
+	))
+
+	return provider, nil
+}
+
+func setUpJaegerExporter(endpointType EndpointType, endpoint string) (*jaeger.Exporter, error) {
 	var endpointOption jaeger.EndpointOption
-	switch EndpointType(endpointTypeRaw) {
+	switch endpointType {
 	case EndpointTypeAgent:
 		host, port, err := net.SplitHostPort(endpoint)
 		if err != nil {
-			return tp, fmt.Errorf("cannot parse tracing endpoint host and port: %w", err)
+			return nil, fmt.Errorf("cannot parse tracing endpoint host and port: %w", err)
 		}
 		endpointOption = jaeger.WithAgentEndpoint(
 			jaeger.WithAgentHost(host),
@@ -57,35 +101,24 @@ func InitTracer(
 			jaeger.WithEndpoint(endpoint),
 		)
 	default:
-		return tp, fmt.Errorf("unknown tracing endpoint type provided")
+		return nil, fmt.Errorf("unknown tracing endpoint type provided")
 	}
 
 	exp, err := jaeger.New(
 		endpointOption,
 	)
 	if err != nil {
-		return tp, fmt.Errorf("create jaeger exporter: %w", err)
+		return nil, fmt.Errorf("create jaeger exporter: %w", err)
 	}
+	return exp, nil
+}
 
-	r, err := resource.New(ctx, resource.WithAttributes(semconv.ServiceNameKey.String(serviceName)))
+func setUpOtelExporter(endoint string) (*otlptrace.Exporter, error) {
+	exp, err := otlptracehttp.New(context.TODO(), otlptracehttp.WithEndpoint(endoint), otlptracehttp.WithInsecure())
 	if err != nil {
-		return tp, fmt.Errorf("create resource: %w", err)
+		return nil, fmt.Errorf("create otel exporter: %w", err)
 	}
-
-	tp = sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exp),
-		sdktrace.WithResource(r),
-		sdktrace.WithSampler(sdktrace.TraceIDRatioBased(samplingFraction)),
-	)
-
-	otel.SetTracerProvider(tp)
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
-		propagation.TraceContext{},
-		propjaeger.Jaeger{},
-		propagation.Baggage{},
-	))
-
-	return tp, nil
+	return exp, nil
 }
 
 type OtelErrorHandler struct {
