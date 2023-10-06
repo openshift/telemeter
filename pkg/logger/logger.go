@@ -36,10 +36,10 @@ func RequestLoggerWithTraceInfo(logger log.Logger) func(http.Handler) http.Handl
 
 			// Wrap the responseWriter to capture the HTTP status code.
 			aw := &server.AccessLogResponseWriter{ResponseWriter: w, StatusCode: http.StatusOK}
+			spanContext := trace.SpanFromContext(r.Context()).SpanContext()
 
 			next.ServeHTTP(aw, r)
 
-			spanContext := trace.SpanFromContext(r.Context()).SpanContext()
 			level.Info(logger).Log(
 				"trace_id", spanContext.TraceID().String(),
 				"span_id", spanContext.SpanID().String(),
