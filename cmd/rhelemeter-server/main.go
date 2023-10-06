@@ -18,17 +18,17 @@ import (
 
 	"github.com/coreos/go-oidc"
 	"github.com/go-chi/chi"
-	"github.com/go-chi/chi/middleware"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/oklog/run"
-	"github.com/openshift/telemeter/pkg/tracing"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
+
+	"github.com/openshift/telemeter/pkg/tracing"
 
 	"github.com/openshift/telemeter/pkg/authorize/ssl"
 	telemeter_http "github.com/openshift/telemeter/pkg/http"
@@ -312,7 +312,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 	{
 		var hasClientCertConfig bool
 		external := chi.NewRouter()
-		external.Use(middleware.RequestID)
+		external.Use(logger.RequestLoggerWithTraceInfo(o.Logger))
 
 		if o.ClientInfoFromRequestConfigFile != "" {
 			hasClientCertConfig = true
