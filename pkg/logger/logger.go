@@ -46,7 +46,7 @@ func RequestLoggerWithTraceInfo(logger log.Logger) func(http.Handler) http.Handl
 			}
 
 			if spanContext.HasSpanID() {
-				reqLogger = log.WithPrefx(reqLogger, "span_id", spanContext.SpanID().String())
+				reqLogger = log.WithPrefix(reqLogger, "span_id", spanContext.SpanID().String())
 			}
 
 			level.Info(reqLogger).Log(
