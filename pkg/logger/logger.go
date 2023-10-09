@@ -42,16 +42,14 @@ func RequestLoggerWithTraceInfo(logger log.Logger) func(http.Handler) http.Handl
 
 			reqLogger := logger
 			if spanContext.HasTraceID() {
-				reqLogger = log.With(logger, "trace_id", spanContext.TraceID().String())
+				reqLogger = log.WithPrefix(reqLogger, "trace_id", spanContext.TraceID().String())
 			}
 
 			if spanContext.HasSpanID() {
-				reqLogger = log.With(logger, "span_id", spanContext.SpanID().String())
+				reqLogger = log.WithPrefx(reqLogger, "span_id", spanContext.SpanID().String())
 			}
 
 			level.Info(reqLogger).Log(
-				"trace_id",
-				"span_id", spanContext.SpanID().String(),
 				"msg", "request log",
 				"method", r.Method,
 				"path", r.URL.Path,
