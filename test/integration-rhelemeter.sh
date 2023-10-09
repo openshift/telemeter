@@ -20,7 +20,7 @@ trap 'kill $(jobs -p); exit $result' EXIT
 ) &
 
 (
-  otelcol-contrib --config hack/otelcol.yaml
+  otelcol --config hack/otelcol_test.yaml
 ) &
 
 (
