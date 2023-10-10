@@ -20,6 +20,10 @@ trap 'kill $(jobs -p); exit $result' EXIT
 ) &
 
 (
+  otelcol --config hack/otelcol_test.yaml
+) &
+
+(
   thanos query \
     --grpc-address=127.0.0.1:9107 \
     --http-address=127.0.0.1:9108 \
@@ -50,6 +54,10 @@ write_url=https://localhost:9103/metrics/v1/receive
   ./rhelemeter-server \
     --listen localhost:9103 \
     --listen-internal localhost:9104 \
+    --internal.tracing.endpoint-type otel \
+    --internal.tracing.sampling-fraction 1.0 \
+    --internal.tracing.service-name rhelemeter \
+    --internal.tracing.endpoint localhost:4318 \
     --forward-url=http://localhost:9105/api/v1/receive \
     --tls-key ${certs_dir}/server-private-key.pem \
     --tls-crt ${certs_dir}/server-cert.pem \
@@ -90,7 +98,7 @@ if
     --labels '_id="test"' \
     --tls-ca-file "$ca_crt" \
     --tls-client-cert-file "$client_crt" \
-    --tls-client-private-key-file "$client_key" 
+    --tls-client-private-key-file "$client_key"
 then
   result=0
   echo "---> tests: ok"

@@ -18,17 +18,17 @@ import (
 
 	"github.com/coreos/go-oidc"
 	"github.com/go-chi/chi"
-	"github.com/go-chi/chi/middleware"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/oklog/run"
-	"github.com/openshift/telemeter/pkg/tracing"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
+
+	"github.com/openshift/telemeter/pkg/tracing"
 
 	"github.com/openshift/telemeter/pkg/authorize/ssl"
 	telemeter_http "github.com/openshift/telemeter/pkg/http"
@@ -38,7 +38,7 @@ import (
 )
 
 const desc = `
-Server for receiving Prometheus metrics through the remote_write API. Clients are authenticated 
+Server for receiving Prometheus metrics through the remote_write API. Clients are authenticated
 with mTLS.
 `
 
@@ -111,6 +111,8 @@ func main() {
 		"The service name to report to the tracing backend.")
 	cmd.Flags().StringVar(&opt.TracingEndpoint, "internal.tracing.endpoint", "",
 		"The full URL of the trace collector. If it's not set, tracing will be disabled.")
+	cmd.Flags().BoolVar(&opt.TracingInsecure, "internal.tracing.insecure", false,
+		"Allow insecure connections to the tracing endpoint.")
 	cmd.Flags().Float64Var(&opt.TracingSamplingFraction, "internal.tracing.sampling-fraction", 0.1,
 		"The fraction of traces to sample. Thus, if you set this to .5, half of traces will be sampled.")
 	cmd.Flags().StringVar(&opt.TracingEndpointType, "internal.tracing.endpoint-type", string(tracing.EndpointTypeAgent),
@@ -170,6 +172,7 @@ type Options struct {
 	TracingEndpoint         string
 	TracingEndpointType     string
 	TracingSamplingFraction float64
+	TracingInsecure         bool
 
 	Verbose bool
 }
@@ -309,7 +312,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 	{
 		var hasClientCertConfig bool
 		external := chi.NewRouter()
-		external.Use(middleware.RequestID)
+		external.Use(logger.RequestLoggerWithTraceInfo(o.Logger))
 
 		if o.ClientInfoFromRequestConfigFile != "" {
 			hasClientCertConfig = true

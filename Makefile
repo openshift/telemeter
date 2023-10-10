@@ -17,6 +17,7 @@ GOLANGCI_LINT_VERSION=v1.51.0
 EMBEDMD_BIN=$(BIN_DIR)/embedmd
 THANOS_BIN=$(BIN_DIR)/thanos
 UP_BIN=$(BIN_DIR)/up
+OTELCOL_BIN=$(BIN_DIR)/otelcol
 MEMCACHED_BIN=$(BIN_DIR)/memcached
 PROMETHEUS_BIN=$(BIN_DIR)/prometheus
 GOJSONTOYAML_BIN=$(BIN_DIR)/gojsontoyaml
@@ -202,7 +203,7 @@ test/timeseries.txt:
 test-rhel-generate-e2e-certs:
 	./test/generate-e2e-certs.sh $(TEST_E2E_CERTS_DIR)
 
-test-rhelemeter-integration: build | $(THANOS_BIN) $(UP_BIN) $(PROMETHEUS_BIN)
+test-rhelemeter-integration: build | $(THANOS_BIN) $(UP_BIN) $(PROMETHEUS_BIN) $(OTELCOL_BIN)
 	@echo "Running rhelemeter integration tests"
 	PATH=$$PATH:$$(pwd)/$(BIN_DIR) LD_LIBRARY_PATH=$$LD_LIBRARY_PATH:$$(pwd)/$(LIB_DIR) ./test/integration-rhelemeter.sh
 
@@ -226,6 +227,10 @@ $(MEMCACHED_BIN): | $(BIN_DIR) $(LIB_DIR)
 $(PROMETHEUS_BIN): $(BIN_DIR)
 	@echo "Downloading Prometheus"
 	curl -L "https://github.com/prometheus/prometheus/releases/download/v2.3.2/prometheus-2.3.2.$$(go env GOOS)-$$(go env GOARCH).tar.gz" | tar --strip-components=1 -xzf - -C $(BIN_DIR)
+
+$(OTELCOL_BIN): $(BIN_DIR)
+	@echo "Downloading the OTEL collector"
+	curl -L "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v0.86.0/otelcol_0.86.0_$$(go env GOOS)_$$(go env GOARCH).tar.gz" | tar -xzf - -C $(BIN_DIR)
 
 $(GOLANGCI_LINT_BIN): $(BIN_DIR)
 	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/$(GOLANGCI_LINT_VERSION)/install.sh \

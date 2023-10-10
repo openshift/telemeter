@@ -4,19 +4,19 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-chi/chi/middleware"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // AccessLogResponseWriter wrps the responseWriter to capture the HTTP status code.
 type AccessLogResponseWriter struct {
 	http.ResponseWriter
-	statusCode int
+	StatusCode int
 }
 
 func (a *AccessLogResponseWriter) WriteHeader(code int) {
-	a.statusCode = code
+	a.StatusCode = code
 	a.ResponseWriter.WriteHeader(code)
 }
 
@@ -31,13 +31,15 @@ func RequestLogger(logger log.Logger) func(http.Handler) http.Handler {
 
 			next.ServeHTTP(aw, r)
 
+			spanContext := trace.SpanFromContext(r.Context()).SpanContext()
 			level.Info(logger).Log(
+				"trace_id", spanContext.TraceID().String(),
+				"span_id", spanContext.SpanID().String(),
 				"msg", "request log",
 				"method", r.Method,
 				"path", r.URL.Path,
-				"status", aw.statusCode,
+				"status", aw.StatusCode,
 				"duration", time.Since(start),
-				"request", middleware.GetReqID(r.Context()),
 			)
 		})
 	}

@@ -23,18 +23,18 @@ import (
 
 	"github.com/coreos/go-oidc"
 	"github.com/go-chi/chi"
-	"github.com/go-chi/chi/middleware"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/oklog/run"
-	"github.com/openshift/telemeter/pkg/runutil"
-	"github.com/openshift/telemeter/pkg/tracing"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
+
+	"github.com/openshift/telemeter/pkg/runutil"
+	"github.com/openshift/telemeter/pkg/tracing"
 
 	"github.com/openshift/telemeter/pkg/authorize"
 	"github.com/openshift/telemeter/pkg/authorize/jwt"
@@ -388,8 +388,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 	}
 	{
 		external := chi.NewRouter()
-		external.Use(middleware.RequestID)
-		external.Use(server.RequestLogger(o.Logger)) // Added after RequestID to log the request ID.
+		external.Use(logger.RequestLoggerWithTraceInfo(o.Logger))
 
 		// TODO: Refactor HealthRoutes to not take *http.Mux
 		mux := http.NewServeMux()
