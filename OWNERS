@@ -5,9 +5,7 @@ reviewers:
 - jan--f
 - raptorsun
 - slashpai
-- sthaha
 - PhilipGough
-- juanrh
 - saswatamcode
 - danielmellado
 - douglascamata
@@ -15,15 +13,14 @@ reviewers:
 - thibaultmg
 - rexagod
 - machine424
+- marioferh
 
 approvers:
 - simonpasquier
 - jan--f
 - raptorsun
 - slashpai
-- sthaha
 - PhilipGough
-- juanrh
 - saswatamcode
 - danielmellado
 - douglascamata
@@ -31,6 +28,7 @@ approvers:
 - thibaultmg
 - rexagod
 - machine424
+- marioferh
 
 emeritus_approvers:
 - squat
@@ -50,3 +48,5 @@ emeritus_approvers:
 - matej-g
 - jessicalins
 - JoaoBraveCoding
+- sthaha
+- juanrh
