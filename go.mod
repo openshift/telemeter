@@ -30,6 +30,7 @@ require (
 	go.opentelemetry.io/otel/sdk v0.20.0
 	go.opentelemetry.io/otel/trace v0.20.0
 	go.uber.org/goleak v1.1.10
+	golang.org/x/net v0.17.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20210514164344-f6687ab2804c
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	gopkg.in/square/go-jose.v2 v2.0.0-20180411045311-89060dee6a84
