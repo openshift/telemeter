@@ -345,10 +345,10 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 		mux := http.NewServeMux()
 		external.Mount("/", mux)
 
-		labelValidator := make(map[string]string)
+		labelValidator := make(map[string]interface{})
 		if o.ClientInfoSubjectLabel != "" {
 			level.Info(o.Logger).Log("msg", "using client cert subject label", "label", o.ClientInfoSubjectLabel)
-			labelValidator[o.ClientInfoSubjectLabel] = ssl.CommonNameContextKey
+			labelValidator[o.ClientInfoSubjectLabel] = ssl.CommonNameContextKey{}
 		}
 
 		// rhelemeter routes

@@ -40,7 +40,7 @@ type Handler struct {
 
 	elideLabelSet       map[string]struct{}
 	matcherSets         [][]*labels.Matcher
-	requiredLabelValues map[string]string
+	requiredLabelValues map[string]interface{}
 	// Metrics.
 	forwardRequestsTotal        *prometheus.CounterVec
 	requestBodySizeLimited      prometheus.Counter
@@ -51,7 +51,7 @@ type Handler struct {
 
 // NewHandler returns a new Handler with a http client
 func NewHandler(logger log.Logger, forwardURL string, client *http.Client, reg prometheus.Registerer, tenantID string,
-	whitelistRules []string, elideLabels []string, requiredLabelValsFromCtx map[string]string) (*Handler, error) {
+	whitelistRules []string, elideLabels []string, requiredLabelValsFromCtx map[string]interface{}) (*Handler, error) {
 	h := &Handler{
 		ForwardURL: forwardURL,
 		tenantID:   tenantID,
@@ -311,11 +311,11 @@ func (h *Handler) TransformAndValidateWriteRequest(next http.Handler, labels ...
 			for _, l := range ts.GetLabels() {
 				// Check for required label values.
 				if required, ok := h.requiredLabelValues[l.Name]; ok {
-					value := r.Context().Value(required)
-					if value == nil || value.(string) != l.Value {
+					value, ok := r.Context().Value(required).(string)
+					if !ok || value != l.Value {
 						level.Warn(logger).Log(
 							"msg", "request is missing required label value",
-							"label", l.Name, "ctx_value", value.(string), "value", l.Value, "err", ErrRequiredLabelValueIncorrect,
+							"label", l.Name, "ctx_value", value, "label_value", l.Value, "err", ErrRequiredLabelValueIncorrect,
 						)
 						h.requestIncorrectLabelValues.Inc()
 						http.Error(w, ErrRequiredLabelValueIncorrect.Error(), http.StatusBadRequest)

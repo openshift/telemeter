@@ -24,12 +24,12 @@ func TestClientCertInfoAsHeaders(t *testing.T) {
 	testMiddleware := func(t *testing.T, name string) func(http.Handler) http.Handler {
 		return func(next http.Handler) http.Handler {
 			fn := func(w http.ResponseWriter, r *http.Request) {
-				expectCN, ok := r.Context().Value(CommonNameContextKey).(string)
-				if !ok || r.Context().Value(CommonNameContextKey) != expectCn {
+				expectCN, ok := r.Context().Value(CommonNameContextKey{}).(string)
+				if !ok || r.Context().Value(CommonNameContextKey{}) != expectCn {
 					t.Errorf("%s: expected %s, got %s", name, expectCn, expectCN)
 				}
-				expectOrg, ok := r.Context().Value(OrganizationContextKey).(string)
-				if !ok || r.Context().Value(OrganizationContextKey) != expectO {
+				expectOrg, ok := r.Context().Value(CommonNameContextKey{}).(string)
+				if !ok || r.Context().Value(OrganizationContextKey{}) != expectO {
 					t.Errorf("%s: expected %s, got %s", name, expectO, expectOrg)
 				}
 

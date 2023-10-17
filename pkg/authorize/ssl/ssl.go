@@ -11,10 +11,8 @@ import (
 	"github.com/go-kit/log/level"
 )
 
-const (
-	OrganizationContextKey = "org"
-	CommonNameContextKey   = "common_name"
-)
+type OrganizationContextKey struct{}
+type CommonNameContextKey struct{}
 
 // ClientCertConfig allows middleware to extract client information from the request
 type ClientCertConfig struct {
@@ -99,7 +97,7 @@ func ClientCertInfoAsHeaders(config ClientCertConfig, logger log.Logger) func(ht
 						return
 
 					}
-					ctx = context.WithValue(ctx, OrganizationContextKey, strings.TrimSpace(subPart[1]))
+					ctx = context.WithValue(ctx, OrganizationContextKey{}, strings.TrimSpace(subPart[1]))
 
 				case 1:
 					if strings.TrimSpace(subPart[0]) != "/CN" {
@@ -108,7 +106,7 @@ func ClientCertInfoAsHeaders(config ClientCertConfig, logger log.Logger) func(ht
 							config.Config.CommonNameHeader), http.StatusForbidden)
 						return
 					}
-					ctx = context.WithValue(ctx, CommonNameContextKey, strings.TrimSpace(subPart[1]))
+					ctx = context.WithValue(ctx, CommonNameContextKey{}, strings.TrimSpace(subPart[1]))
 				}
 
 			}
