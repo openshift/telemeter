@@ -23,23 +23,24 @@ import (
 	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"go.opentelemetry.io/otel"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/clientcredentials"
-
-	"github.com/openshift/telemeter/pkg/tracing"
 
 	"github.com/openshift/telemeter/pkg/authorize/ssl"
 	telemeter_http "github.com/openshift/telemeter/pkg/http"
 	"github.com/openshift/telemeter/pkg/logger"
 	"github.com/openshift/telemeter/pkg/receive"
+	"github.com/openshift/telemeter/pkg/runutil"
 	"github.com/openshift/telemeter/pkg/server"
+	"github.com/openshift/telemeter/pkg/tracing"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/clientcredentials"
 )
 
 const desc = `
 Server for receiving Prometheus metrics through the remote_write API. Clients are authenticated
-with mTLS.
+with mTLS or with client information extracted from the request with a pre-shared key.
 `
 
 func defaultOpts() *Options {
@@ -55,7 +56,7 @@ func main() {
 
 	var listen, listenInternal string
 	cmd := &cobra.Command{
-		Short:         "Proxy for Prometheus remote_write API with mTLS authentication.",
+		Short:         "Proxy for Prometheus remote_write API.",
 		Long:          desc,
 		SilenceErrors: true,
 		SilenceUsage:  true,
@@ -82,6 +83,8 @@ func main() {
 
 	cmd.Flags().StringVar(&opt.ClientInfoFromRequestConfigFile, "client-info-data-file", opt.ClientInfoFromRequestConfigFile,
 		"Path to the file containing the PSK and information about how to extract the client cert from the request")
+	cmd.Flags().StringVar(&opt.ClientInfoSubjectLabel, "client-info-subject-label", "_id",
+		"Label to validate against Subjects CommonName")
 
 	cmd.Flags().StringVar(&opt.InternalTLSKeyPath, "internal-tls-key", opt.InternalTLSKeyPath, "Path to a private key to serve TLS for internal traffic.")
 	cmd.Flags().StringVar(&opt.InternalTLSCertificatePath, "internal-tls-crt", opt.InternalTLSCertificatePath, "Path to a certificate to serve TLS for internal traffic.")
@@ -140,6 +143,10 @@ type Options struct {
 	// ClientInfoFromRequestConfigFile is the path to the file containing the PSK
 	// and information about how to extract the client cert like info from the request
 	ClientInfoFromRequestConfigFile string
+	// ClientInfoSubjectLabel is the label name to use for the client cert subject
+	// This label is checked from the remote write request to verify the subject
+	// matches the value in the client certificate or CN header value as appropriate
+	ClientInfoSubjectLabel string
 
 	// Internal server TLS configuration
 	InternalTLSKeyPath         string
@@ -293,12 +300,12 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 		// Run the internal server.
 		g.Add(func() error {
 			if len(o.InternalTLSCertificatePath) > 0 {
-				if err := s.ServeTLS(internalListener, o.InternalTLSCertificatePath, o.InternalTLSKeyPath); err != nil && err != http.ErrServerClosed {
+				if err := s.ServeTLS(internalListener, o.InternalTLSCertificatePath, o.InternalTLSKeyPath); err != nil && !errors.Is(err, http.ErrServerClosed) {
 					level.Error(o.Logger).Log("msg", "internal HTTPS server exited", "err", err)
 					return err
 				}
 			} else {
-				if err := s.Serve(internalListener); err != nil && err != http.ErrServerClosed {
+				if err := s.Serve(internalListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 					level.Error(o.Logger).Log("msg", "internal HTTP server exited", "err", err)
 					return err
 				}
@@ -338,14 +345,30 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 		mux := http.NewServeMux()
 		external.Mount("/", mux)
 
+		labelValidator := make(map[string]string)
+		if o.ClientInfoSubjectLabel != "" {
+			level.Info(o.Logger).Log("msg", "using client cert subject label", "label", o.ClientInfoSubjectLabel)
+			labelValidator[o.ClientInfoSubjectLabel] = ssl.CommonNameContextKey
+		}
+
 		// rhelemeter routes
 		{
-			receiver, err := receive.NewHandler(o.Logger, o.ForwardURL, forwardClient, prometheus.DefaultRegisterer, o.TenantID, o.Whitelist, o.ElideLabels)
+			receiver, err := receive.NewHandler(o.Logger, o.ForwardURL, forwardClient, prometheus.DefaultRegisterer, o.TenantID, o.Whitelist, o.ElideLabels, labelValidator)
 			if err != nil {
 				level.Error(o.Logger).Log("msg", "could not initialize receive handler", "err", err)
 			}
 
-			external.Handle("/metrics/v1/receive", server.InstrumentedHandler("receive", http.HandlerFunc(receiver.Receive)))
+			external.Handle("/metrics/v1/receive",
+				runutil.ExhaustCloseRequestBodyHandler(o.Logger,
+					server.InstrumentedHandler("receive",
+						receiver.LimitBodySize(o.LimitReceiveBytes,
+							receiver.TransformAndValidateWriteRequest(
+								http.HandlerFunc(receiver.Receive),
+							),
+						),
+					),
+				),
+			)
 		}
 
 		externalPathJSON, _ := json.MarshalIndent(Paths{Paths: []string{"/", "/healthz", "/healthz/ready", "/metrics/v1/receive"}}, "", "  ")

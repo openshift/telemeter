@@ -523,7 +523,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 				v2AuthorizeClient.Transport = cache.NewRoundTripper(mc, tollbooth.ExtractToken, v2AuthorizeClient.Transport, l, prometheus.DefaultRegisterer)
 			}
 
-			receiver, err := receive.NewHandler(o.Logger, o.ForwardURL, v2ForwardClient, prometheus.DefaultRegisterer, o.TenantID, o.Whitelist, o.ElideLabels)
+			receiver, err := receive.NewHandler(o.Logger, o.ForwardURL, v2ForwardClient, prometheus.DefaultRegisterer, o.TenantID, o.Whitelist, o.ElideLabels, nil)
 			if err != nil {
 				level.Error(o.Logger).Log("msg", "could not initialize receive handler", "err", err)
 			}
