@@ -64,8 +64,8 @@ func ClientCertInfoAsHeaders(config ClientCertConfig, logger log.Logger) func(ht
 
 			cnInfo := r.Header.Get(config.Config.CommonNameHeader)
 			if cnInfo == "" {
-				level.Info(logger).Log("msg", "invalid format for organisation and CN", "cnInfo", cnInfo)
-				http.Error(w, fmt.Sprintf("subject is empty. organisation and common name must be sent in request header %s",
+				level.Info(logger).Log("msg", "invalid format for O and CN", "cnInfo", cnInfo)
+				http.Error(w, fmt.Sprintf("subject is empty. Organisation and Common Name name must be sent in request header %s",
 					config.Config.CommonNameHeader), http.StatusForbidden)
 				return
 			}
@@ -74,7 +74,7 @@ func ClientCertInfoAsHeaders(config ClientCertConfig, logger log.Logger) func(ht
 			parts := strings.Split(cnInfo, ",")
 			if len(parts) != 2 {
 				level.Info(logger).Log("msg", "invalid format for organisation and CN", "cnInfo", cnInfo)
-				http.Error(w, fmt.Sprintf("invalid format for organisation and CN %s",
+				http.Error(w, fmt.Sprintf("invalid format for Organisation and Common Name in http header %s",
 					config.Config.CommonNameHeader), http.StatusForbidden)
 				return
 			}
@@ -83,8 +83,8 @@ func ClientCertInfoAsHeaders(config ClientCertConfig, logger log.Logger) func(ht
 			for i, part := range parts {
 				subPart := strings.Split(part, "=")
 				if len(subPart) != 2 {
-					level.Info(logger).Log("msg", "invalid format for organisation and CN", "cnInfo", cnInfo)
-					http.Error(w, fmt.Sprintf("invalid format for organisation and CN %s",
+					level.Info(logger).Log("msg", "invalid format for O and CN", "cnInfo", cnInfo)
+					http.Error(w, fmt.Sprintf("invalid format for Organisation and Common Name in http header %s",
 						config.Config.CommonNameHeader), http.StatusForbidden)
 					return
 				}
@@ -92,7 +92,7 @@ func ClientCertInfoAsHeaders(config ClientCertConfig, logger log.Logger) func(ht
 				case 0:
 					if strings.TrimSpace(subPart[0]) != "/O" {
 						level.Info(logger).Log("msg", "invalid format for organisation and CN", "cnInfo", cnInfo)
-						http.Error(w, fmt.Sprintf("invalid format for organisation and CN %s",
+						http.Error(w, fmt.Sprintf("invalid format for Organisation and Common Name in http header %s",
 							config.Config.CommonNameHeader), http.StatusForbidden)
 						return
 
@@ -102,7 +102,7 @@ func ClientCertInfoAsHeaders(config ClientCertConfig, logger log.Logger) func(ht
 				case 1:
 					if strings.TrimSpace(subPart[0]) != "/CN" {
 						level.Info(logger).Log("msg", "invalid format for organisation and CN", "cnInfo", cnInfo)
-						http.Error(w, fmt.Sprintf("invalid format for organisation and CN %s",
+						http.Error(w, fmt.Sprintf("invalid format for Organisation and Common Name in http header %s",
 							config.Config.CommonNameHeader), http.StatusForbidden)
 						return
 					}
