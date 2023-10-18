@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"sort"
 	"time"
@@ -39,17 +38,20 @@ type Handler struct {
 	client     *http.Client
 	logger     log.Logger
 
-	elideLabelSet map[string]struct{}
-	matcherSets   [][]*labels.Matcher
+	elideLabelSet       map[string]struct{}
+	matcherSets         [][]*labels.Matcher
+	requiredLabelValues map[string]interface{}
 	// Metrics.
-	forwardRequestsTotal   *prometheus.CounterVec
-	requestBodySizeLimited prometheus.Counter
-	requestMissingLabels   prometheus.Counter
-	seriesProcessedTotal   prometheus.Counter
+	forwardRequestsTotal        *prometheus.CounterVec
+	requestBodySizeLimited      prometheus.Counter
+	requestMissingLabels        prometheus.Counter
+	seriesProcessedTotal        prometheus.Counter
+	requestIncorrectLabelValues prometheus.Counter
 }
 
 // NewHandler returns a new Handler with a http client
-func NewHandler(logger log.Logger, forwardURL string, client *http.Client, reg prometheus.Registerer, tenantID string, whitelistRules []string, elideLabels []string) (*Handler, error) {
+func NewHandler(logger log.Logger, forwardURL string, client *http.Client, reg prometheus.Registerer, tenantID string,
+	whitelistRules []string, elideLabels []string, requiredLabelValsFromCtx map[string]interface{}) (*Handler, error) {
 	h := &Handler{
 		ForwardURL: forwardURL,
 		tenantID:   tenantID,
@@ -71,6 +73,12 @@ func NewHandler(logger log.Logger, forwardURL string, client *http.Client, reg p
 			prometheus.CounterOpts{
 				Name: "telemeter_receive_request_missing_labels_total",
 				Help: "The number of remote write requests dropped due to missing labels.",
+			},
+		),
+		requestIncorrectLabelValues: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "telemeter_receive_request_incorrect_label_values_total",
+				Help: "The number of remote write requests dropped due to missing incorrect label values.",
 			},
 		),
 		seriesProcessedTotal: prometheus.NewCounter(
@@ -102,6 +110,8 @@ func NewHandler(logger log.Logger, forwardURL string, client *http.Client, reg p
 		reg.MustRegister(h.requestMissingLabels)
 		reg.MustRegister(h.seriesProcessedTotal)
 	}
+
+	h.requiredLabelValues = requiredLabelValsFromCtx
 
 	return h, nil
 }
@@ -140,7 +150,7 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 
 	if resp.StatusCode/100 != 2 {
 		// Return upstream error as well.
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		msg := fmt.Sprintf("upstream response status is not 200 OK: %s", body)
 		if err != nil {
 			msg = fmt.Sprintf("upstream response status is not 200 OK: couldn't read body %v", err)
@@ -162,7 +172,7 @@ func (h *Handler) LimitBodySize(limit int64, next http.Handler) http.HandlerFunc
 		logger := log.With(logger, "request", middleware.GetReqID(r.Context()))
 
 		defer r.Body.Close()
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			h.forwardRequestsTotal.WithLabelValues("error").Inc()
 			level.Error(logger).Log("msg", "failed to read body", "err", err)
@@ -171,7 +181,7 @@ func (h *Handler) LimitBodySize(limit int64, next http.Handler) http.HandlerFunc
 		}
 
 		// Set body to this buffer for other handlers to read
-		r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+		r.Body = io.NopCloser(bytes.NewBuffer(body))
 
 		if len(body) >= int(limit) {
 			level.Warn(logger).Log("msg", "request is too big", "req_size", len(body))
@@ -184,7 +194,10 @@ func (h *Handler) LimitBodySize(limit int64, next http.Handler) http.HandlerFunc
 	}
 }
 
-var ErrRequiredLabelMissing = fmt.Errorf("a required label is missing from the metric")
+var (
+	ErrRequiredLabelMissing        = fmt.Errorf("a required label is missing from the metric")
+	ErrRequiredLabelValueIncorrect = fmt.Errorf("a required label value is incorrect")
+)
 
 func (h *Handler) TransformAndValidateWriteRequest(next http.Handler, labels ...string) http.HandlerFunc {
 	logger := log.With(h.logger, "middleware", "transformAndValidateWriteRequest")
@@ -294,6 +307,26 @@ func (h *Handler) TransformAndValidateWriteRequest(next http.Handler, labels ...
 			return
 		}
 
+		if len(h.requiredLabelValues) > 0 {
+			for _, ts := range wreq.GetTimeseries() {
+				for _, l := range ts.GetLabels() {
+					// Check for required label values.
+					if required, ok := h.requiredLabelValues[l.Name]; ok {
+						value, ok := r.Context().Value(required).(string)
+						if !ok || value != l.Value {
+							level.Warn(logger).Log(
+								"msg", "request is missing required label value",
+								"label", l.Name, "ctx_value", value, "label_value", l.Value, "err", ErrRequiredLabelValueIncorrect,
+							)
+							h.requestIncorrectLabelValues.Inc()
+							http.Error(w, ErrRequiredLabelValueIncorrect.Error(), http.StatusBadRequest)
+							return
+						}
+					}
+				}
+			}
+		}
+
 		data, err := proto.Marshal(&wreq)
 		if err != nil {
 			h.forwardRequestsTotal.WithLabelValues("error").Inc()
@@ -306,7 +339,7 @@ func (h *Handler) TransformAndValidateWriteRequest(next http.Handler, labels ...
 		compressed := snappy.Encode(nil, data)
 
 		// Set body to this buffer for other handlers to read.
-		r.Body = ioutil.NopCloser(bytes.NewBuffer(compressed))
+		r.Body = io.NopCloser(bytes.NewBuffer(compressed))
 
 		next.ServeHTTP(w, r)
 	}

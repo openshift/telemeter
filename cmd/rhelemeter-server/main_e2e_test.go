@@ -30,6 +30,7 @@ var expectedTimeSeries = []prompb.TimeSeries{
 	{
 		Labels: []prompb.Label{
 			{Name: "__name__", Value: "up"},
+			{Name: "_id", Value: "fixed"},
 			{Name: "cluster", Value: "dynamic"},
 			{Name: "job", Value: "test"},
 			{Name: "label", Value: "value0"},
@@ -39,6 +40,7 @@ var expectedTimeSeries = []prompb.TimeSeries{
 	{
 		Labels: []prompb.Label{
 			{Name: "__name__", Value: "up"},
+			{Name: "_id", Value: "fixed"},
 			{Name: "cluster", Value: "dynamic"},
 			{Name: "job", Value: "test"},
 			{Name: "label", Value: "value1"},
@@ -48,6 +50,7 @@ var expectedTimeSeries = []prompb.TimeSeries{
 	{
 		Labels: []prompb.Label{
 			{Name: "__name__", Value: "up"},
+			{Name: "_id", Value: "fixed"},
 			{Name: "cluster", Value: "dynamic"},
 			{Name: "job", Value: "test"},
 			{Name: "label", Value: "value2"},
@@ -229,6 +232,23 @@ func TestServerRhelWithClientInfoFromHeaders(t *testing.T) {
 			expectStatus: http.StatusForbidden,
 		},
 		{
+			name: "Test client info from headers with correct PSK but missing CN header",
+			extraOpts: func(opts *Options) {
+				opts.ClientInfoFromRequestConfigFile = "testdata/client-info.json"
+				opts.TLSKeyPath = "testdata/server-private-key.pem"
+				opts.TLSCertificatePath = "testdata/server-cert.pem"
+				opts.TLSCACertificatePath = "testdata/ca-cert.pem"
+			},
+			makeRequest: func(url string, withBody io.Reader) *http.Request {
+				req, err := http.NewRequest(http.MethodPost, url, withBody)
+				testutil.Ok(t, err)
+				req.Header.Set("Content-Type", string(expfmt.FmtProtoDelim))
+				req.Header.Set("x-secret", "super-secret")
+				return req
+			},
+			expectStatus: http.StatusForbidden,
+		},
+		{
 			name: "Test client info from headers with correct PSK",
 			extraOpts: func(opts *Options) {
 				opts.ClientInfoFromRequestConfigFile = "testdata/client-info.json"
@@ -241,6 +261,45 @@ func TestServerRhelWithClientInfoFromHeaders(t *testing.T) {
 				testutil.Ok(t, err)
 				req.Header.Set("Content-Type", string(expfmt.FmtProtoDelim))
 				req.Header.Set("x-secret", "super-secret")
+				req.Header.Set("x-common-name", fmt.Sprintf("/O = %s, /CN = %s", "test", "test"))
+				return req
+			},
+			expectStatus: http.StatusOK,
+		},
+		{
+			name: "Test client info from headers with correct PSK and incorrect label validation",
+			extraOpts: func(opts *Options) {
+				opts.ClientInfoFromRequestConfigFile = "testdata/client-info.json"
+				opts.TLSKeyPath = "testdata/server-private-key.pem"
+				opts.TLSCertificatePath = "testdata/server-cert.pem"
+				opts.TLSCACertificatePath = "testdata/ca-cert.pem"
+				opts.ClientInfoSubjectLabel = "_id"
+			},
+			makeRequest: func(url string, withBody io.Reader) *http.Request {
+				req, err := http.NewRequest(http.MethodPost, url, withBody)
+				testutil.Ok(t, err)
+				req.Header.Set("Content-Type", string(expfmt.FmtProtoDelim))
+				req.Header.Set("x-secret", "super-secret")
+				req.Header.Set("x-common-name", fmt.Sprintf("/O = %s, /CN = %s", "test", "test"))
+				return req
+			},
+			expectStatus: http.StatusBadRequest,
+		},
+		{
+			name: "Test client info from headers with correct PSK and valid label value",
+			extraOpts: func(opts *Options) {
+				opts.ClientInfoFromRequestConfigFile = "testdata/client-info.json"
+				opts.TLSKeyPath = "testdata/server-private-key.pem"
+				opts.TLSCertificatePath = "testdata/server-cert.pem"
+				opts.TLSCACertificatePath = "testdata/ca-cert.pem"
+				opts.ClientInfoSubjectLabel = "_id"
+			},
+			makeRequest: func(url string, withBody io.Reader) *http.Request {
+				req, err := http.NewRequest(http.MethodPost, url, withBody)
+				testutil.Ok(t, err)
+				req.Header.Set("Content-Type", string(expfmt.FmtProtoDelim))
+				req.Header.Set("x-secret", "super-secret")
+				req.Header.Set("x-common-name", fmt.Sprintf("/O = %s, /CN = %s", "test", "fixed"))
 				return req
 			},
 			expectStatus: http.StatusOK,
@@ -293,7 +352,7 @@ func TestServerRhelWithClientInfoFromHeaders(t *testing.T) {
 				t.Run(cluster, func(t *testing.T) {
 
 					for i := 0; i < 1; i++ {
-						t.Run("upload", func(t *testing.T) {
+						t.Run("receive", func(t *testing.T) {
 							var wr prompb.WriteRequest
 							wr.Timeseries = expectedTimeSeries
 							data, err := proto.Marshal(&wr)
