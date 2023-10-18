@@ -307,19 +307,21 @@ func (h *Handler) TransformAndValidateWriteRequest(next http.Handler, labels ...
 			return
 		}
 
-		for _, ts := range wreq.GetTimeseries() {
-			for _, l := range ts.GetLabels() {
-				// Check for required label values.
-				if required, ok := h.requiredLabelValues[l.Name]; ok {
-					value, ok := r.Context().Value(required).(string)
-					if !ok || value != l.Value {
-						level.Warn(logger).Log(
-							"msg", "request is missing required label value",
-							"label", l.Name, "ctx_value", value, "label_value", l.Value, "err", ErrRequiredLabelValueIncorrect,
-						)
-						h.requestIncorrectLabelValues.Inc()
-						http.Error(w, ErrRequiredLabelValueIncorrect.Error(), http.StatusBadRequest)
-						return
+		if len(h.requiredLabelValues) > 0 {
+			for _, ts := range wreq.GetTimeseries() {
+				for _, l := range ts.GetLabels() {
+					// Check for required label values.
+					if required, ok := h.requiredLabelValues[l.Name]; ok {
+						value, ok := r.Context().Value(required).(string)
+						if !ok || value != l.Value {
+							level.Warn(logger).Log(
+								"msg", "request is missing required label value",
+								"label", l.Name, "ctx_value", value, "label_value", l.Value, "err", ErrRequiredLabelValueIncorrect,
+							)
+							h.requestIncorrectLabelValues.Inc()
+							http.Error(w, ErrRequiredLabelValueIncorrect.Error(), http.StatusBadRequest)
+							return
+						}
 					}
 				}
 			}
