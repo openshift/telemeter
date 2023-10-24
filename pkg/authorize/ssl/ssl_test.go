@@ -23,7 +23,7 @@ func TestClientCertInfoAsHeaders(t *testing.T) {
 	// get a 200 response
 	buildRequest := func() *http.Request {
 		req := httptest.NewRequest(http.MethodGet, "http://test.com", nil)
-		req.Header.Set(xCn, fmt.Sprintf("/O = %s, /CN = %s", expectO, expectCn))
+		req.Header.Set(xCn, fmt.Sprintf("/O=%s/CN=%s", expectO, expectCn))
 		req.Header.Set(xSecret, secret)
 		return req
 	}
@@ -37,7 +37,7 @@ func TestClientCertInfoAsHeaders(t *testing.T) {
 				if !ok || r.Context().Value(CommonNameContextKey{}) != expectCn {
 					t.Errorf("%s: expected %s, got %s", name, expectCn, expectCN)
 				}
-				expectOrg, ok := r.Context().Value(CommonNameContextKey{}).(string)
+				expectOrg, ok := r.Context().Value(OrganizationContextKey{}).(string)
 				if !ok || r.Context().Value(OrganizationContextKey{}) != expectO {
 					t.Errorf("%s: expected %s, got %s", name, expectO, expectOrg)
 				}

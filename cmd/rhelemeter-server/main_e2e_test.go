@@ -175,6 +175,26 @@ func TestServerRhelWithClientInfoFromHeaders(t *testing.T) {
 		Transport: tr,
 	}
 
+	const (
+		secret  = "super-secret"
+		xSecret = "x-secret"
+		xCn     = "x-common-name"
+
+		expectO  = "test-O"
+		expectCn = "fixed"
+	)
+
+	// buildRequest builds a request with the expected headers that should
+	// get a 200 response
+	buildRequest := func(url string, withBody io.Reader) *http.Request {
+		req, err := http.NewRequest(http.MethodPost, url, withBody)
+		testutil.Ok(t, err)
+		req.Header.Set("Content-Type", string(expfmt.FmtProtoDelim))
+		req.Header.Set(xCn, fmt.Sprintf("/O=%s/CN=%s", expectO, expectCn))
+		req.Header.Set(xSecret, secret)
+		return req
+	}
+
 	testCases := []struct {
 		name         string
 		extraOpts    func(opts *Options)
@@ -190,9 +210,8 @@ func TestServerRhelWithClientInfoFromHeaders(t *testing.T) {
 				opts.TLSCACertificatePath = "testdata/ca-cert.pem"
 			},
 			makeRequest: func(url string, withBody io.Reader) *http.Request {
-				req, err := http.NewRequest(http.MethodPost, url, withBody)
-				testutil.Ok(t, err)
-				req.Header.Set("Content-Type", string(expfmt.FmtProtoDelim))
+				req := buildRequest(url, withBody)
+				req.Header.Del(xSecret)
 				return req
 			},
 			expectStatus: http.StatusForbidden,
@@ -206,10 +225,8 @@ func TestServerRhelWithClientInfoFromHeaders(t *testing.T) {
 				opts.TLSCACertificatePath = "testdata/ca-cert.pem"
 			},
 			makeRequest: func(url string, withBody io.Reader) *http.Request {
-				req, err := http.NewRequest(http.MethodPost, url, withBody)
-				testutil.Ok(t, err)
-				req.Header.Set("Content-Type", string(expfmt.FmtProtoDelim))
-				req.Header.Set("x-secret", "")
+				req := buildRequest(url, withBody)
+				req.Header.Set(xSecret, "")
 				return req
 			},
 			expectStatus: http.StatusForbidden,
@@ -223,10 +240,8 @@ func TestServerRhelWithClientInfoFromHeaders(t *testing.T) {
 				opts.TLSCACertificatePath = "testdata/ca-cert.pem"
 			},
 			makeRequest: func(url string, withBody io.Reader) *http.Request {
-				req, err := http.NewRequest(http.MethodPost, url, withBody)
-				testutil.Ok(t, err)
-				req.Header.Set("Content-Type", string(expfmt.FmtProtoDelim))
-				req.Header.Set("x-secret", "wrong")
+				req := buildRequest(url, withBody)
+				req.Header.Set(xSecret, "egertger")
 				return req
 			},
 			expectStatus: http.StatusForbidden,
@@ -240,10 +255,8 @@ func TestServerRhelWithClientInfoFromHeaders(t *testing.T) {
 				opts.TLSCACertificatePath = "testdata/ca-cert.pem"
 			},
 			makeRequest: func(url string, withBody io.Reader) *http.Request {
-				req, err := http.NewRequest(http.MethodPost, url, withBody)
-				testutil.Ok(t, err)
-				req.Header.Set("Content-Type", string(expfmt.FmtProtoDelim))
-				req.Header.Set("x-secret", "super-secret")
+				req := buildRequest(url, withBody)
+				req.Header.Del(xCn)
 				return req
 			},
 			expectStatus: http.StatusForbidden,
@@ -257,12 +270,7 @@ func TestServerRhelWithClientInfoFromHeaders(t *testing.T) {
 				opts.TLSCACertificatePath = "testdata/ca-cert.pem"
 			},
 			makeRequest: func(url string, withBody io.Reader) *http.Request {
-				req, err := http.NewRequest(http.MethodPost, url, withBody)
-				testutil.Ok(t, err)
-				req.Header.Set("Content-Type", string(expfmt.FmtProtoDelim))
-				req.Header.Set("x-secret", "super-secret")
-				req.Header.Set("x-common-name", fmt.Sprintf("/O = %s, /CN = %s", "test", "test"))
-				return req
+				return buildRequest(url, withBody)
 			},
 			expectStatus: http.StatusOK,
 		},
@@ -276,11 +284,8 @@ func TestServerRhelWithClientInfoFromHeaders(t *testing.T) {
 				opts.ClientInfoSubjectLabel = "_id"
 			},
 			makeRequest: func(url string, withBody io.Reader) *http.Request {
-				req, err := http.NewRequest(http.MethodPost, url, withBody)
-				testutil.Ok(t, err)
-				req.Header.Set("Content-Type", string(expfmt.FmtProtoDelim))
-				req.Header.Set("x-secret", "super-secret")
-				req.Header.Set("x-common-name", fmt.Sprintf("/O = %s, /CN = %s", "test", "test"))
+				req := buildRequest(url, withBody)
+				req.Header.Set(xCn, fmt.Sprintf("/O=%s/CN=%s", "test", "test"))
 				return req
 			},
 			expectStatus: http.StatusBadRequest,
@@ -295,12 +300,7 @@ func TestServerRhelWithClientInfoFromHeaders(t *testing.T) {
 				opts.ClientInfoSubjectLabel = "_id"
 			},
 			makeRequest: func(url string, withBody io.Reader) *http.Request {
-				req, err := http.NewRequest(http.MethodPost, url, withBody)
-				testutil.Ok(t, err)
-				req.Header.Set("Content-Type", string(expfmt.FmtProtoDelim))
-				req.Header.Set("x-secret", "super-secret")
-				req.Header.Set("x-common-name", fmt.Sprintf("/O = %s, /CN = %s", "test", "fixed"))
-				return req
+				return buildRequest(url, withBody)
 			},
 			expectStatus: http.StatusOK,
 		},
