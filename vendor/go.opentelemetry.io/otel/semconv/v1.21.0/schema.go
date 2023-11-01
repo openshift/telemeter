@@ -12,17 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package jaeger // import "go.opentelemetry.io/contrib/propagators/jaeger"
+package semconv // import "go.opentelemetry.io/otel/semconv/v1.21.0"
 
-// Version is the current release version of the Jaeger propagator.
-func Version() string {
-	return "1.19.0"
-	// This string is updated by the pre_release.sh script during release
-}
-
-// SemVersion is the semantic version to be supplied to tracer/meter creation.
-//
-// Deprecated: Use [Version] instead.
-func SemVersion() string {
-	return Version()
-}
+// SchemaURL is the schema URL that matches the version of the semantic conventions
+// that this package defines. Semconv packages starting from v1.4.0 must declare
+// non-empty schema URL in the form https://opentelemetry.io/schemas/<version>
+const SchemaURL = "https://opentelemetry.io/schemas/1.21.0"
