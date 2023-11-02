@@ -12,23 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package otlpconfig // import "go.opentelemetry.io/otel/exporters/otlp/otlptrace/internal/otlpconfig"
-
-import (
-	"crypto/tls"
-	"crypto/x509"
-	"errors"
-)
-
-// CreateTLSConfig creates a tls.Config from a raw certificate bytes
-// to verify a server certificate.
-func CreateTLSConfig(certBytes []byte) (*tls.Config, error) {
-	cp := x509.NewCertPool()
-	if ok := cp.AppendCertsFromPEM(certBytes); !ok {
-		return nil, errors.New("failed to append certificate to the cert pool")
-	}
-
-	return &tls.Config{
-		RootCAs: cp,
-	}, nil
-}
+// Package semconv implements OpenTelemetry semantic conventions.
+//
+// OpenTelemetry semantic conventions are agreed standardized naming
+// patterns for OpenTelemetry things. This package represents the conventions
+// as of the v1.21.0 version of the OpenTelemetry specification.
+package semconv // import "go.opentelemetry.io/otel/semconv/v1.21.0"
