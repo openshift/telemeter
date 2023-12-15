@@ -26,6 +26,7 @@ trap 'kill $(jobs -p); exit $result' EXIT
     --match '{__name__="scrape_samples_scraped"}'
 ) &
 
+#failing here
 ( 
 ./telemeter-server \
     --ratelimit=15s \
