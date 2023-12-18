@@ -23,37 +23,49 @@ import (
 )
 
 var (
+	// Deprecated metric, replaced by `requests`.
+	// TODO(simonpasquier): remove in the 4.18 release.
 	gaugeRequestRetrieve = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "metricsclient_request_retrieve",
 		Help: "Tracks the number of metrics retrievals",
 	}, []string{"client", "status_code"})
+
+	// Deprecated metric, replaced by `requests`.
+	// TODO(simonpasquier): remove in the 4.18 release.
 	gaugeRequestSend = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "metricsclient_request_send",
 		Help: "Tracks the number of metrics sends",
+	}, []string{"client", "status_code"})
+
+	requests = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "metricsclient_http_requests_total",
+		Help: "Total count of HTTP requests by client and HTTP status code.",
 	}, []string{"client", "status_code"})
 )
 
 func init() {
 	prometheus.MustRegister(
-		gaugeRequestRetrieve, gaugeRequestSend,
+		gaugeRequestRetrieve, gaugeRequestSend, requests,
 	)
 }
 
 type Client struct {
-	client      *http.Client
-	maxBytes    int64
-	timeout     time.Duration
-	metricsName string
-	logger      log.Logger
+	client          *http.Client
+	maxBytes        int64
+	timeout         time.Duration
+	metricsName     string
+	requestsCounter *prometheus.CounterVec
+	logger          log.Logger
 }
 
 func New(logger log.Logger, client *http.Client, maxBytes int64, timeout time.Duration, metricsName string) *Client {
 	return &Client{
-		client:      client,
-		maxBytes:    maxBytes,
-		timeout:     timeout,
-		metricsName: metricsName,
-		logger:      log.With(logger, "component", "metricsclient"),
+		client:          client,
+		maxBytes:        maxBytes,
+		timeout:         timeout,
+		metricsName:     metricsName,
+		requestsCounter: requests.MustCurryWith(prometheus.Labels{"client": metricsName}),
+		logger:          log.With(logger, "component", "metricsclient"),
 	}
 }
 
@@ -69,6 +81,8 @@ func (c *Client) Retrieve(ctx context.Context, req *http.Request) ([]*clientmode
 
 	families := make([]*clientmodel.MetricFamily, 0, 100)
 	err := withCancel(ctx, c.client, req, func(resp *http.Response) error {
+		c.requestsCounter.WithLabelValues(strconv.Itoa(resp.StatusCode)).Inc()
+
 		switch resp.StatusCode {
 		case http.StatusOK:
 			gaugeRequestRetrieve.WithLabelValues(c.metricsName, "200").Inc()
@@ -133,6 +147,8 @@ func (c *Client) Send(ctx context.Context, req *http.Request, families []*client
 			}
 			resp.Body.Close()
 		}()
+
+		c.requestsCounter.WithLabelValues(strconv.Itoa(resp.StatusCode)).Inc()
 
 		switch resp.StatusCode {
 		case http.StatusOK:
