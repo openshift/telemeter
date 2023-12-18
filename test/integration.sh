@@ -3,7 +3,7 @@
 # Runs a semi-realistic integration test with two servers, a stub authorization server, a 
 # prometheus that scrapes from them, and a single client that fetches "cluster" metrics.
 
-set -euo pipefail
+set -xeuo pipefail
 
 result=1
 trap 'kill $(jobs -p); exit $result' EXIT

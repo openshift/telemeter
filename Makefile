@@ -172,9 +172,9 @@ test-format:
 	make --always-make format && git diff --exit-code
 
 test-integration: build | $(THANOS_BIN) $(UP_BIN) $(MEMCACHED_BIN) $(PROMETHEUS_BIN)
-	@echo "Running integration tests: V1"
+	echo "Running integration tests: V1"
 	PATH=$$PATH:$$(pwd)/$(BIN_DIR) ./test/integration.sh
-	@echo "Running integration tests: V2"
+	echo "Running integration tests: V2"
 	PATH=$$PATH:$$(pwd)/$(BIN_DIR) LD_LIBRARY_PATH=$$LD_LIBRARY_PATH:$$(pwd)/$(LIB_DIR) ./test/integration-v2.sh
 
 test-benchmark: build $(GOJSONTOYAML_BIN)
