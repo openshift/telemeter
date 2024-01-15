@@ -171,42 +171,42 @@
               record: 'cluster:usage:workload:capacity_effective_cpu_cores',
               expr: |||
                 # worker ht amd64
-                sum by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum{label_node_openshift_io_os_id="rhcos",label_node_role_kubernetes_io_infra!="true",label_node_role_kubernetes_io_master!="true",label_kubernetes_io_arch="amd64",label_node_hyperthread_enabled="true"}) or (0 * max by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum))
+                (sum by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum{label_node_openshift_io_os_id="rhcos",label_node_role_kubernetes_io_infra!="true",label_node_role_kubernetes_io_master!="true",label_kubernetes_io_arch="amd64",label_node_hyperthread_enabled="true"}) or (0 * max by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum)))
 
                 +
 
                 # worker virt non-ht amd64
-                sum by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum{label_node_openshift_io_os_id="rhcos",label_node_role_kubernetes_io_infra!="true",label_node_role_kubernetes_io_master!="true",label_kubernetes_io_arch="amd64",label_node_hyperthread_enabled="false"}) * on(_id) cluster_infrastructure_provider{type!="BareMetal"}) / 2.0 or (0 * max by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum))
+                ((sum by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum{label_node_openshift_io_os_id="rhcos",label_node_role_kubernetes_io_infra!="true",label_node_role_kubernetes_io_master!="true",label_kubernetes_io_arch="amd64",label_node_hyperthread_enabled="false"}) * on(_id) cluster_infrastructure_provider{type!="BareMetal"}) / 2.0 or (0 * max by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum)))
 
                 +
 
                 # worker phys non-ht amd64
-                sum by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum{label_node_openshift_io_os_id="rhcos",label_node_role_kubernetes_io_infra!="true",label_node_role_kubernetes_io_master!="true",label_kubernetes_io_arch="amd64",label_node_hyperthread_enabled="false"})* on(_id) cluster_infrastructure_provider{type="BareMetal"} or (0 * max by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum))
+                (sum by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum{label_node_openshift_io_os_id="rhcos",label_node_role_kubernetes_io_infra!="true",label_node_role_kubernetes_io_master!="true",label_kubernetes_io_arch="amd64",label_node_hyperthread_enabled="false"})* on(_id) cluster_infrastructure_provider{type="BareMetal"} or (0 * max by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum)))
 
                 +
 
                 # worker non-amd64
-                sum by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum{label_node_openshift_io_os_id="rhcos",label_node_role_kubernetes_io_infra!="true",label_node_role_kubernetes_io_master!="true",label_kubernetes_io_arch!="amd64"}) or (0 * max by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum))
+                (sum by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum{label_node_openshift_io_os_id="rhcos",label_node_role_kubernetes_io_infra!="true",label_node_role_kubernetes_io_master!="true",label_kubernetes_io_arch!="amd64"}) or (0 * max by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum)))
 
                 +
 
                 # schedulable control plane ht amd64
-                sum by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum{label_node_openshift_io_os_id="rhcos",label_kubernetes_io_arch="amd64",label_node_hyperthread_enabled="true"})* on(_id) max by (_id) (cluster_master_schedulable) or (0 * max by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum))
+                (sum by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum{label_node_openshift_io_os_id="rhcos",label_kubernetes_io_arch="amd64",label_node_hyperthread_enabled="true"})* on(_id) max by (_id) (cluster_master_schedulable) or (0 * max by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum)))
 
                 +
 
                 # schedulable control plane virt non-ht amd64
-                sum by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum{label_node_openshift_io_os_id="rhcos",label_kubernetes_io_arch="amd64",label_node_hyperthread_enabled="false"})* on(_id) max by (_id) (cluster_master_schedulable) * on(_id) cluster_infrastructure_provider{type!="BareMetal"}) / 2.0 or (0 * max by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum))
+                ((sum by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum{label_node_openshift_io_os_id="rhcos",label_kubernetes_io_arch="amd64",label_node_hyperthread_enabled="false"})* on(_id) max by (_id) (cluster_master_schedulable) * on(_id) cluster_infrastructure_provider{type!="BareMetal"}) / 2.0 or (0 * max by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum)))
 
                 +
 
                 # schedulable control plane phys non-ht amd64
-                sum by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum{label_node_openshift_io_os_id="rhcos",label_kubernetes_io_arch="amd64",label_node_hyperthread_enabled="false"})* on(_id) max by (_id) (cluster_master_schedulable)* on(_id) cluster_infrastructure_provider{type="BareMetal"} or (0 * max by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum))
+                (sum by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum{label_node_openshift_io_os_id="rhcos",label_kubernetes_io_arch="amd64",label_node_hyperthread_enabled="false"})* on(_id) max by (_id) (cluster_master_schedulable)* on(_id) cluster_infrastructure_provider{type="BareMetal"} or (0 * max by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum)))
 
                 +
 
                 # schedulable control plane non-amd64
-                sum by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum{label_node_openshift_io_os_id="rhcos",label_kubernetes_io_arch!="amd64"})* on(_id) max by (_id) (cluster_master_schedulable) or (0 * max by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum))
+                (sum by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum{label_node_openshift_io_os_id="rhcos",label_kubernetes_io_arch!="amd64"})* on(_id) max by (_id) (cluster_master_schedulable) or (0 * max by (_id) (node_role_os_version_machine:cpu_capacity_cores:sum)))
               |||,
             },
           ],
