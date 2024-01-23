@@ -164,7 +164,7 @@
               // returns 0 for any cluster reporting core capacity, used to improve performance of cluster:capacity_effective_cpu_cores
               record: 'cluster:cpu_capacity_cores:_id',
               expr: |||
-                group by(_id) (node_role_os_version_machine:cpu_capacity_cores:sum) * 0
+                group by(_id) (node_role_os_version_machine:cpu_capacity_cores:sum{label_node_openshift_io_os_id="rhcos"}) * 0
               |||,
             },
             {
