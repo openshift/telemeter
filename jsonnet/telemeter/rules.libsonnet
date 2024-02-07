@@ -171,23 +171,18 @@
               // OpenShift Cluster effective cores for subscription usage.
               // This counts both worker nodes and, when the control plane is schedulable, control plane nodes.
               // Only CoreOS nodes are counted.
-              // 1. x86_64 nodes that show hyperthreading in the telemetry have an accurate cores value in node_role_os_version_machine:cpu_capacity_cores:sum.
-              // 2. x86_64 nodes that do not show hyperthreading need the cores value adjusted to account for 2 threads per core (* 0.5).
-              // 3. Other CPU architectures are assumed to have accurate values in node_role_os_version_machine:cpu_capacity_cores:sum.
+              // 1. x86_64 nodes need the cores value adjusted to account for 2 threads per core (* 0.5).
+              // 2. Other CPU architectures are assumed to have accurate values in cluster:capacity_cpu_cores:sum.
               record: 'cluster:capacity_effective_cpu_cores',
               expr: |||
-                # worker ht amd64
-                (sum by (_id, tenant_id) (node_role_os_version_machine:cpu_capacity_cores:sum{label_node_openshift_io_os_id="rhcos",label_node_role_kubernetes_io_infra!="true",label_node_role_kubernetes_io_master!="true",label_kubernetes_io_arch="amd64",label_node_hyperthread_enabled="true"}) or cluster:cpu_capacity_cores:_id)+
-                # worker non-ht amd64
-                (sum by (_id, tenant_id) (node_role_os_version_machine:cpu_capacity_cores:sum{label_node_openshift_io_os_id="rhcos",label_node_role_kubernetes_io_infra!="true",label_node_role_kubernetes_io_master!="true",label_kubernetes_io_arch="amd64",label_node_hyperthread_enabled="false"}) / 2.0 or cluster:cpu_capacity_cores:_id)+
+                # worker amd64
+                (sum by (_id, tenant_id) (cluster:capacity_cpu_cores:sum{label_node_openshift_io_os_id="rhcos",label_node_role_kubernetes_io!="master",label_node_role_kubernetes_io!="infra",label_kubernetes_io_arch="amd64"}) / 2.0 or cluster:cpu_capacity_cores:_id) +
                 # worker non-amd64
-                (sum by (_id, tenant_id) (node_role_os_version_machine:cpu_capacity_cores:sum{label_node_openshift_io_os_id="rhcos",label_node_role_kubernetes_io_infra!="true",label_node_role_kubernetes_io_master!="true",label_kubernetes_io_arch!="amd64"}) or cluster:cpu_capacity_cores:_id)+
-                # schedulable control plane ht amd64
-                (sum by (_id, tenant_id) (node_role_os_version_machine:cpu_capacity_cores:sum{label_node_openshift_io_os_id="rhcos",label_node_role_kubernetes_io_master="true",label_kubernetes_io_arch="amd64",label_node_hyperthread_enabled="true"}) * on(_id, tenant_id) group by(_id, tenant_id) (cluster_master_schedulable == 1) or cluster:cpu_capacity_cores:_id)+
-                # schedulable control plane non-ht amd64
-                (sum by (_id, tenant_id) (node_role_os_version_machine:cpu_capacity_cores:sum{label_node_openshift_io_os_id="rhcos",label_node_role_kubernetes_io_master="true",label_kubernetes_io_arch="amd64",label_node_hyperthread_enabled="false"}) * on(_id, tenant_id) group by(_id, tenant_id) (cluster_master_schedulable == 1) / 2.0 or cluster:cpu_capacity_cores:_id)+
+                (sum by (_id, tenant_id) (cluster:capacity_cpu_cores:sum{label_node_openshift_io_os_id="rhcos",label_node_role_kubernetes_io!="master",label_node_role_kubernetes_io!="infra",label_kubernetes_io_arch!="amd64"}) or cluster:cpu_capacity_cores:_id) +
+                # schedulable control plane amd64
+                (sum by (_id, tenant_id) (cluster:capacity_cpu_cores:sum{label_node_openshift_io_os_id="rhcos",label_node_role_kubernetes_io="master",label_kubernetes_io_arch="amd64"}) * on(_id, tenant_id) group by(_id, tenant_id) (cluster_master_schedulable == 1) / 2.0 or cluster:cpu_capacity_cores:_id) +
                 # schedulable control plane non-amd64
-                (sum by (_id, tenant_id) (node_role_os_version_machine:cpu_capacity_cores:sum{label_node_openshift_io_os_id="rhcos",label_node_role_kubernetes_io_master="true",label_kubernetes_io_arch!="amd64"}) * on(_id, tenant_id) group by(_id, tenant_id) (cluster_master_schedulable == 1) or cluster:cpu_capacity_cores:_id)
+                (sum by (_id, tenant_id) (cluster:capacity_cpu_cores:sum{label_node_openshift_io_os_id="rhcos",label_node_role_kubernetes_io="master",label_kubernetes_io_arch!="amd64"}) * on(_id, tenant_id) group by(_id, tenant_id) (cluster_master_schedulable == 1) or cluster:cpu_capacity_cores:_id)
               |||,
             },
           ],
