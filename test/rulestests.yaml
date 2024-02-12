@@ -9,53 +9,37 @@ tests:
           # amd64 worker node
           - series: 'cluster:capacity_cpu_cores:sum{label_node_openshift_io_os_id="rhcos",label_kubernetes_io_arch="amd64",_id="amd64_worker",tenant_id="tenant_id"}'
             values: '4'
-          - series: 'cluster:cpu_capacity_cores:_id{_id="amd64_worker",tenant_id="tenant_id"}'
-            values: '0'
           # non-amd64 worker node
           - series: 'cluster:capacity_cpu_cores:sum{label_node_openshift_io_os_id="rhcos",label_kubernetes_io_arch="arm64",_id="nonamd64_worker",tenant_id="tenant_id"}'
             values: '4'
-          - series: 'cluster:cpu_capacity_cores:_id{_id="nonamd64_worker",tenant_id="tenant_id"}'
-            values: '0'
           # amd64 schedulable control plane node
           - series: 'cluster:capacity_cpu_cores:sum{label_node_openshift_io_os_id="rhcos",label_kubernetes_io_arch="amd64",label_node_role_kubernetes_io="master",_id="amd64_control_plane_schedulable",tenant_id="tenant_id"}'
             values: '4'
-          - series: 'cluster:cpu_capacity_cores:_id{_id="amd64_control_plane_schedulable",tenant_id="tenant_id"}'
-            values: '0'
           - series: 'cluster_master_schedulable{_id="amd64_control_plane_schedulable",tenant_id="tenant_id"}'
             values: '1'
           # non-amd64 schedulable control plane node
           - series: 'cluster:capacity_cpu_cores:sum{label_node_openshift_io_os_id="rhcos",label_kubernetes_io_arch="arm64",label_node_role_kubernetes_io="master",_id="non-amd64_control_plane_schedulable",tenant_id="tenant_id"}'
             values: '4'
-          - series: 'cluster:cpu_capacity_cores:_id{_id="non-amd64_control_plane_schedulable",tenant_id="tenant_id"}'
-            values: '0'
           - series: 'cluster_master_schedulable{_id="non-amd64_control_plane_schedulable",tenant_id="tenant_id"}'
             values: '1'
           # amd64 non-schedulable control plane node
           - series: 'cluster:capacity_cpu_cores:sum{label_node_openshift_io_os_id="rhcos",label_kubernetes_io_arch="amd64",label_node_role_kubernetes_io="master",_id="amd64_control_plane_non_schedulable",tenant_id="tenant_id"}'
             values: '4'
-          - series: 'cluster:cpu_capacity_cores:_id{_id="amd64_control_plane_non_schedulable",tenant_id="tenant_id"}'
-            values: '0'
           - series: 'cluster_master_schedulable{_id="amd64_control_plane_non_schedulable",tenant_id="tenant_id"}'
             values: '0'
           # amd64 infra node
           - series: 'cluster:capacity_cpu_cores:sum{label_node_openshift_io_os_id="rhcos",label_kubernetes_io_arch="amd64",label_node_role_kubernetes_io="infra",_id="amd64_infra",tenant_id="tenant_id"}'
             values: '4'
-          - series: 'cluster:cpu_capacity_cores:_id{_id="amd64_infra",tenant_id="tenant_id"}'
-            values: '0'
           - series: 'cluster_master_schedulable{_id="amd64_infra",tenant_id="tenant_id"}'
             values: '1'
           # non-amd64 non-schedulable control plane node
           - series: 'cluster:capacity_cpu_cores:sum{label_node_openshift_io_os_id="rhcos",label_kubernetes_io_arch="arm64",label_node_role_kubernetes_io="master",_id="non-amd64_control_plane_non_schedulable",tenant_id="tenant_id"}'
             values: '4'
-          - series: 'cluster:cpu_capacity_cores:_id{_id="non-amd64_control_plane_non_schedulable",tenant_id="tenant_id"}'
-            values: '0'
           - series: 'cluster_master_schedulable{_id="non-amd64_control_plane_non_schedulable",tenant_id="tenant_id"}'
             values: '0'
           # non-amd64 infra node
           - series: 'cluster:capacity_cpu_cores:sum{label_node_openshift_io_os_id="rhcos",label_kubernetes_io_arch="amd64",label_node_role_kubernetes_io="infra",_id="non-amd64_infra",tenant_id="tenant_id"}'
             values: '4'
-          - series: 'cluster:cpu_capacity_cores:_id{_id="non-amd64_infra",tenant_id="tenant_id"}'
-            values: '0'
           - series: 'cluster_master_schedulable{_id="non-amd64_infra",tenant_id="tenant_id"}'
             values: '1'
       promql_expr_test:
