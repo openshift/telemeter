@@ -20,6 +20,7 @@ UP_BIN=$(BIN_DIR)/up
 OTELCOL_BIN=$(BIN_DIR)/otelcol
 MEMCACHED_BIN=$(BIN_DIR)/memcached
 PROMETHEUS_BIN=$(BIN_DIR)/prometheus
+PROMTOOL_BIN=$(BIN_DIR)/promtool
 GOJSONTOYAML_BIN=$(BIN_DIR)/gojsontoyaml
 JSONNET_BIN?=$(BIN_DIR)/jsonnet
 JSONNETFMT_BIN?=$(BIN_DIR)/jsonnetfmt
@@ -158,11 +159,26 @@ shellcheck:
 ###########
 
 .PHONY: test
-test: test-unit test-integration test-benchmark
+test: test-unit test-rules test-integration test-benchmark
 
 .PHONY: test-unit
 test-unit:
 	go test -race -short $(PKGS) -count=1
+
+tmp:
+	mkdir tmp
+
+tmp/rules.yaml: $(JSONNET_LOCAL_OR_INSTALLED) jsonnet/telemeter/rules.libsonnet tmp
+	$(JSONNET_LOCAL_OR_INSTALLED) -e "(import 'jsonnet/telemeter/rules.libsonnet')['prometheus']['recordingrules']" > tmp/rules.yaml
+
+.PHONY: check-rules
+check-rules: $(PROMTOOL_BIN) tmp/rules.yaml
+	rm -f tmp/"$@".out
+	$(PROMTOOL_BIN) check rules tmp/rules.yaml | tee "tmp/$@.out"
+
+.PHONY: test-rules
+test-rules: check-rules
+	$(PROMTOOL_BIN) test rules test/rulestests.yaml | tee "tmp/$@.out"
 
 # TODO(paulfantom): remove this target after removing it from Prow.
 test-generate:
@@ -231,7 +247,9 @@ $(MEMCACHED_BIN): | $(BIN_DIR) $(LIB_DIR)
 
 $(PROMETHEUS_BIN): $(BIN_DIR)
 	@echo "Downloading Prometheus"
-	curl -L "https://github.com/prometheus/prometheus/releases/download/v2.3.2/prometheus-2.3.2.$$(go env GOOS)-$$(go env GOARCH).tar.gz" | tar --strip-components=1 -xzf - -C $(BIN_DIR)
+	curl -L "https://github.com/prometheus/prometheus/releases/download/v2.49.1/prometheus-2.49.1.$$(go env GOOS)-$$(go env GOARCH).tar.gz" | tar --strip-components=1 -xzf - -C $(BIN_DIR)
+
+$(PROMTOOL_BIN): $(PROMETHEUS_BIN)
 
 $(OTELCOL_BIN): $(BIN_DIR)
 	@echo "Downloading the OTEL collector"

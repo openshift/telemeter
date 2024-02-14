@@ -84,3 +84,11 @@ make test-unit
 ## Adding new metrics to send via telemeter
 
 Docs on the process on why and how to send these metrics are available [here](https://docs.google.com/document/d/1a6n5iBGM2QaIQRg9Lw4-Npj6QY9--Hpx3XYut-BrUSY/edit?usp=sharing).
+
+## Testing recording rule changes
+
+Run
+
+```bash
+make test-rules
+```
