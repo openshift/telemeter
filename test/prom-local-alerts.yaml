@@ -1,5 +1,6 @@
 groups:
 - name: basic
+  interval: 1s
   rules:
   - alert: DeadMansSwitch
     expr: vector(1)

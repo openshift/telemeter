@@ -1,9 +1,9 @@
 rule_files:
-- prom-local-alerts.conf
+- prom-local-alerts.yaml
 
 scrape_configs:
 - job_name: 'telemeter-server'
-  scrape_interval: 30s
+  scrape_interval: 5s
 
   metrics_path: '/metrics'
 
