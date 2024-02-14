@@ -6,7 +6,8 @@
 set -euo pipefail
 
 result=1
-trap 'kill $(jobs -p); exit $result' EXIT
+# Force kill to avoid stuck jobs if a process doesn't honor SIGTERM.
+trap 'kill -9 $(jobs -p); exit $result' EXIT
 
 ( ./authorization-server localhost:9001 ./test/tokens.json ) &
 
@@ -43,7 +44,8 @@ trap 'kill $(jobs -p); exit $result' EXIT
 thanos receive \
     --tsdb.path="$(mktemp -d)" \
     --remote-write.address=127.0.0.1:9005 \
-    --grpc-address=127.0.0.1:9006
+    --grpc-address=127.0.0.1:9006 \
+    --label="receive_replica=\"0\""
 ) &
 
 (
