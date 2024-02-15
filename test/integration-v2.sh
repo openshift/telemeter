@@ -7,6 +7,7 @@
 set -euo pipefail
 
 result=1
+# Force kill in order to unblock ci lane when memcached get stuck and never finished
 trap 'kill -9 $(jobs -p); exit $result' EXIT
 
 (./authorization-server localhost:9101 ./test/tokens.json) &
