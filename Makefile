@@ -14,7 +14,6 @@ CACHE_DIR?=$(shell pwd)/_output/cache
 METRICS_JSON=./_output/metrics.json
 GOLANGCI_LINT_BIN=$(BIN_DIR)/golangci-lint
 GOLANGCI_LINT_VERSION=v1.51.0
-EMBEDMD_BIN=$(BIN_DIR)/embedmd
 THANOS_BIN=$(BIN_DIR)/thanos
 UP_BIN=$(BIN_DIR)/up
 OTELCOL_BIN=$(BIN_DIR)/otelcol
@@ -32,7 +31,6 @@ JSONNET_SRC=$(shell find ./jsonnet -path ./jsonnet/vendor -prune -false -o -type
 BENCHMARK_RESULTS=$(shell find ./telemeter-benchmark -type f -name '*.json')
 BENCHMARK_GOAL?=5000
 JSONNET_VENDOR=jsonnet/jsonnetfile.lock.json jsonnet/vendor
-DOCS=$(shell grep -rlF [embedmd] docs)
 TEST_E2E_CERTS_DIR=./cmd/rhelemeter-server/testdata
 
 export PATH := $(BIN_DIR):$(PATH)
@@ -47,7 +45,7 @@ CONTAINER_CMD:=docker run --rm \
 		quay.io/coreos/jsonnet-ci
 
 .PHONY: all
-all: build manifests $(DOCS)
+all: build manifests
 
 .PHONY: clean
 clean:
@@ -89,9 +87,6 @@ vendor:
 	go mod tidy
 	go mod verify
 
-.PHONY: generate
-generate: $(DOCS) manifests
-
 .PHONY: generate-in-docker
 generate-in-docker:
 	$(CONTAINER_CMD) $(MAKE) $(MFLAGS) generate
@@ -99,23 +94,9 @@ generate-in-docker:
 $(JSONNET_VENDOR): $(JB_BIN) jsonnet/jsonnetfile.json
 	cd jsonnet && $(JB_BIN) install
 
-# Can't add test/timeseries.txt as a dependency, otherwise
-# running make --always-make will try to regenerate the timeseries
-# on CI, which will fail because there is no OpenShift cluster.
-$(DOCS): $(JSONNET_SRC) $(EMBEDMD_BIN) docs/telemeter_query
-	$(EMBEDMD_BIN) -w $@
-
-docs/telemeter_query: $(JSONNET_SRC)
-	query=""; \
-	for rule in $$(jsonnet metrics.json | jq -r '.[]'); do \
-	    [ ! -z "$$query" ] && query="$$query or "; \
-	    query="$$query$$rule"; \
-	done; \
-	echo "$$query" > $@
-
-$(METRICS_JSON):
+-$(METRICS_JSON):
 	curl -L https://raw.githubusercontent.com/openshift/cluster-monitoring-operator/844e7afabfcfa4162c716ea18cd8e2d010789de1/manifests/0000_50_cluster_monitoring_operator_04-config.yaml | \
-	    $(GOJSONTOYAML_BIN) --yamltojson | jq -r '.data."metrics.yaml"' | $(GOJSONTOYAML_BIN) --yamltojson | jq -r '.matches' > $@
+		$(GOJSONTOYAML_BIN) --yamltojson | jq -r '.data."metrics.yaml"' | $(GOJSONTOYAML_BIN) --yamltojson | jq -r '.matches' > $@
 
 manifests: $(JSONNET_LOCAL_OR_INSTALLED) $(JSONNET_SRC) $(JSONNET_VENDOR) $(GOJSONTOYAML_BIN) $(METRICS_JSON)
 	rm -rf manifests
@@ -232,7 +213,7 @@ test-rhelemeter-integration: build | $(THANOS_BIN) $(UP_BIN) $(PROMETHEUS_BIN) $
 # Binaries #
 ############
 
-dependencies: $(JB_BIN) $(THANOS_BIN) $(UP_BIN) $(EMBEDMD_BIN) $(GOJSONTOYAML_BIN) | $(PROMETHEUS_BIN) $(GOLANGCI_LINT_BIN) $(MEMCACHED_BIN)
+dependencies: $(JB_BIN) $(THANOS_BIN) $(UP_BIN) $(GOJSONTOYAML_BIN) | $(PROMETHEUS_BIN) $(GOLANGCI_LINT_BIN) $(MEMCACHED_BIN)
 
 $(BIN_DIR):
 	mkdir -p $@
@@ -265,9 +246,6 @@ $(THANOS_BIN): $(BIN_DIR)
 
 $(UP_BIN): $(BIN_DIR)
 	GOBIN=$(BIN_DIR) go install -mod=readonly -modfile=tools/go.mod github.com/observatorium/up/cmd/up
-
-$(EMBEDMD_BIN): $(BIN_DIR)
-	GOBIN=$(BIN_DIR) go install -mod=readonly -modfile=tools/go.mod github.com/campoy/embedmd
 
 $(JSONNET_BIN): $(BIN_DIR)
 	GOBIN=$(BIN_DIR) go install -mod=readonly -modfile=tools/go.mod github.com/google/go-jsonnet/cmd/jsonnet
