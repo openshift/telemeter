@@ -7,7 +7,7 @@
 set -euo pipefail
 
 result=1
-trap 'kill $(jobs -p); exit $result' EXIT
+trap 'kill -9 $(jobs -p); exit $result' EXIT
 
 (./authorization-server localhost:9101 ./test/tokens.json) &
 
