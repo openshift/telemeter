@@ -185,6 +185,17 @@
                 (sum by (_id, tenant_id) (cluster:capacity_cpu_cores:sum{label_node_openshift_io_os_id="rhcos",label_node_role_kubernetes_io="master",label_kubernetes_io_arch!="amd64"}) * on(_id, tenant_id) group by(_id, tenant_id) (cluster_master_schedulable == 1) or cluster:cpu_capacity_cores:_id)
               |||,
             },
+            {
+              // ROSA HCP Cluster vCPU-hours for the last hour.
+              // The divisor of scalar(count_over_time(vector(1)[1h:5m])) allows us to get an effective average value having "absent data" treated as 0.
+              // sum(...) by (_id) is used ensure a single datapoint per cluster ID.
+              // NOTE: we need to filter out any metrics without the `_mc_id` label because ROSA HCP currently has two data flows for metrics, one for the
+              // data plane, and one for the management cluster. We prefer the management cluster's data (where the `_mc_id` lable is present).
+              record: 'rosa_hcp:capacity_virtual_cpu_hours',
+              expr: |||
+                sum(sum_over_time(cluster:capacity_cpu_cores:sum{label_node_role_kubernetes_io = '', _mc_id!=''}[1h:5m])) by (_id) / scalar(count_over_time(vector(1)[1h:5m]))
+              |||,
+            },
           ],
         },
       ],
