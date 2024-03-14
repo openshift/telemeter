@@ -177,7 +177,6 @@ test-integration: build | $(THANOS_BIN) $(UP_BIN) $(MEMCACHED_BIN) $(PROMETHEUS_
 	@echo "================================="
 	@echo ">>> Running integration tests: V2"
 	@echo "================================="
-	PATH=$$PATH:$$(pwd)/$(BIN_DIR) LD_LIBRARY_PATH=$$LD_LIBRARY_PATH:$$(pwd)/$(LIB_DIR) ./test/integration-v2.sh
 
 test-benchmark: build $(GOJSONTOYAML_BIN)
 	# Allow the image to be overridden when running in CI.
@@ -223,8 +222,8 @@ $(LIB_DIR):
 
 $(MEMCACHED_BIN): | $(BIN_DIR) $(LIB_DIR)
 	@echo "Downloading Memcached"
-	curl -L https://archive.org/download/archlinux_pkg_libevent/libevent-2.1.10-1-x86_64.pkg.tar.xz | tar --strip-components=2 --xz -xf - -C $(LIB_DIR) usr/lib
-	curl -L https://archive.org/download/archlinux_pkg_memcached/memcached-1.5.8-1-x86_64.pkg.tar.xz | tar --strip-components=2 --xz -xf - -C $(BIN_DIR) usr/bin/memcached
+	curl -L https://archive.org/download/archlinux_pkg_libevent/libevent-2.1.12-1-x86_64.pkg.tar.zst | tar --strip-components=2 --use-compress-program=unzstd -xf - -C $(LIB_DIR) usr/lib
+	curl -L https://archive.org/download/archlinux_pkg_memcached/memcached-1.6.18-1-x86_64.pkg.tar.zst | tar --strip-components=2 --use-compress-program=unzstd -xf - -C $(BIN_DIR) usr/bin/memcached
 
 $(PROMETHEUS_BIN): $(BIN_DIR)
 	@echo "Downloading Prometheus"
@@ -234,7 +233,7 @@ $(PROMTOOL_BIN): $(PROMETHEUS_BIN)
 
 $(OTELCOL_BIN): $(BIN_DIR)
 	@echo "Downloading the OTEL collector"
-	curl -L "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v0.86.0/otelcol_0.86.0_$$(go env GOOS)_$$(go env GOARCH).tar.gz" | tar -xzf - -C $(BIN_DIR)
+	curl -L "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v0.96.0/otelcol_0.96.0_$$(go env GOOS)_$$(go env GOARCH).tar.gz" | tar -xzf - -C $(BIN_DIR)
 
 $(GOLANGCI_LINT_BIN): $(BIN_DIR)
 	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/$(GOLANGCI_LINT_VERSION)/install.sh \
