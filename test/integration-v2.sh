@@ -20,7 +20,8 @@ trap 'kill -9 $(jobs -p); exit $result' EXIT
     --remote-write.address=127.0.0.1:9105 \
     --grpc-address=127.0.0.1:9106 \
     --http-address=127.0.0.1:9116 \
-    --receive.default-tenant-id="FB870BF3-9F3A-44FF-9BF7-D7A047A52F43"
+    --receive.default-tenant-id="FB870BF3-9F3A-44FF-9BF7-D7A047A52F43" \
+    --label="receive_replica=\"0\""
 ) &
 
 (
@@ -66,11 +67,8 @@ if
     --endpoint-type=metrics \
     --endpoint-write=http://127.0.0.1:9103/metrics/v1/receive \
     --endpoint-read=http://127.0.0.1:9108/api/v1/query \
-    --period=500ms \
-    --initial-query-delay=250ms \
     --threshold=1 \
-    --latency=10s \
-    --duration=10s \
+    --duration=60s \
     --log.level=debug \
     --name cluster_installer \
     --labels '_id="test"' \
