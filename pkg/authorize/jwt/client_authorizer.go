@@ -2,10 +2,7 @@ package jwt
 
 import (
 	"crypto"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/openshift/telemeter/pkg/authorize"
 	"gopkg.in/go-jose/go-jose.v2/jwt"
@@ -29,10 +26,6 @@ type clientAuthorizer struct {
 }
 
 func (j *clientAuthorizer) AuthorizeClient(tokenData string) (*authorize.Client, error) {
-	if err := j.hasCorrectIssuer(tokenData); err != nil {
-		return nil, err
-	}
-
 	tok, err := jwt.ParseSigned(tokenData)
 	if err != nil {
 		return nil, err
@@ -58,6 +51,10 @@ func (j *clientAuthorizer) AuthorizeClient(tokenData string) (*authorize.Client,
 		return nil, multipleErrors(errs)
 	}
 
+	if public.Issuer != j.iss {
+		return nil, fmt.Errorf("invalid JWT issuer, expected %q, got %q", j.iss, public.Issuer)
+	}
+
 	// If we get here, we have a token with a recognized signature and
 	// issuer string.
 	client, err := j.validator.Validate(tokenData, public, private)
@@ -66,36 +63,4 @@ func (j *clientAuthorizer) AuthorizeClient(tokenData string) (*authorize.Client,
 	}
 
 	return client, nil
-}
-
-// hasCorrectIssuer returns true if tokenData is a valid JWT in compact
-// serialization format and the "iss" claim matches the iss field of this token
-// authenticator, and otherwise returns false.
-//
-// Note: go-jose currently does not allow access to unverified JWS payloads.
-// See https://github.com/square/go-jose/issues/169
-func (j *clientAuthorizer) hasCorrectIssuer(tokenData string) error {
-	parts := strings.SplitN(tokenData, ".", 4)
-	if len(parts) != 3 {
-		return fmt.Errorf("invalid JWT token format, expected 3 parts, got %d", len(parts))
-	}
-
-	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return fmt.Errorf("invalid JWT payload, expected base64")
-	}
-
-	claims := struct {
-		// WARNING: this JWT is not verified. Do not trust these claims.
-		Issuer string `json:"iss"`
-	}{}
-	if err := json.Unmarshal(payload, &claims); err != nil {
-		return fmt.Errorf("invalid JWT payload, expected JSON object")
-	}
-
-	if claims.Issuer != j.iss {
-		return fmt.Errorf("invalid JWT issuer, expected %q, got %q", j.iss, claims.Issuer)
-	}
-
-	return nil
 }
