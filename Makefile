@@ -17,7 +17,6 @@ GOLANGCI_LINT_VERSION=v1.56.2
 THANOS_BIN=$(BIN_DIR)/thanos
 UP_BIN=$(BIN_DIR)/up
 OTELCOL_BIN=$(BIN_DIR)/otelcol
-MEMCACHED_BIN=$(BIN_DIR)/memcached
 PROMETHEUS_BIN=$(BIN_DIR)/prometheus
 PROMTOOL_BIN=$(BIN_DIR)/promtool
 GOJSONTOYAML_BIN=$(BIN_DIR)/gojsontoyaml
@@ -168,7 +167,7 @@ test-generate:
 test-format:
 	make --always-make format && git diff --exit-code
 
-test-integration: build | $(THANOS_BIN) $(UP_BIN) $(MEMCACHED_BIN) $(PROMETHEUS_BIN)
+test-integration: build | $(THANOS_BIN) $(UP_BIN) $(PROMETHEUS_BIN)
 	@echo "================================="
 	@echo ">>> Running integration tests: V1"
 	@echo "================================="
@@ -213,18 +212,13 @@ test-rhelemeter-integration: build | $(THANOS_BIN) $(UP_BIN) $(PROMETHEUS_BIN) $
 # Binaries #
 ############
 
-dependencies: $(JB_BIN) $(THANOS_BIN) $(UP_BIN) $(GOJSONTOYAML_BIN) | $(PROMETHEUS_BIN) $(GOLANGCI_LINT_BIN) $(MEMCACHED_BIN)
+dependencies: $(JB_BIN) $(THANOS_BIN) $(UP_BIN) $(GOJSONTOYAML_BIN) | $(PROMETHEUS_BIN) $(GOLANGCI_LINT_BIN)
 
 $(BIN_DIR):
 	mkdir -p $@
 
 $(LIB_DIR):
 	mkdir -p $@
-
-$(MEMCACHED_BIN): | $(BIN_DIR) $(LIB_DIR)
-	@echo "Downloading Memcached"
-	curl -L https://archive.org/download/archlinux_pkg_libevent/libevent-2.1.10-1-x86_64.pkg.tar.xz | tar --strip-components=2 --xz -xf - -C $(LIB_DIR) usr/lib
-	curl -L https://archive.org/download/archlinux_pkg_memcached/memcached-1.5.8-1-x86_64.pkg.tar.xz | tar --strip-components=2 --xz -xf - -C $(BIN_DIR) usr/bin/memcached
 
 $(PROMETHEUS_BIN): $(BIN_DIR)
 	@echo "Downloading Prometheus"
@@ -234,7 +228,7 @@ $(PROMTOOL_BIN): $(PROMETHEUS_BIN)
 
 $(OTELCOL_BIN): $(BIN_DIR)
 	@echo "Downloading the OTEL collector"
-	curl -L "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v0.86.0/otelcol_0.86.0_$$(go env GOOS)_$$(go env GOARCH).tar.gz" | tar -xzf - -C $(BIN_DIR)
+	curl -L "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v0.96.0/otelcol_0.96.0_$$(go env GOOS)_$$(go env GOARCH).tar.gz" | tar -xzf - -C $(BIN_DIR)
 
 $(GOLANGCI_LINT_BIN): $(BIN_DIR)
 	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/$(GOLANGCI_LINT_VERSION)/install.sh \
