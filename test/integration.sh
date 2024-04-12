@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# Runs a semi-realistic integration test with two servers, a stub authorization server, a 
-# prometheus that scrapes from them, and a single client that fetches "cluster" metrics.
+# Runs a semi-realistic integration test with metrics scraped from Prometheus by telemeter-client
+# and pushed to telemeter-server that connects to a stub authorization server and a memcached instance and Thanos Receive.
+# A client verifies the metrics are available via Thanos Query.
 
 set -euo pipefail
 
@@ -10,10 +11,50 @@ trap 'kill $(jobs -p); exit $result' EXIT
 
 ( ./authorization-server localhost:9001 ./test/tokens.json ) &
 
+(memcached -u "$(whoami)") &
+
 ( prometheus --config.file=./test/prom-local.yaml --web.listen-address=localhost:9090 "--storage.tsdb.path=$(mktemp -d)" --log.level=warn ) &
 
+
+echo "Waiting for Prometheus to come up"
+sleep 5
+
+until curl --output /dev/null --silent --fail http://localhost:9090/-/ready; do
+  printf '.'
+  sleep 1
+done
+
 (
-  sleep 5
+thanos receive \
+    --tsdb.path="$(mktemp -d)" \
+    --remote-write.address=127.0.0.1:9005 \
+    --grpc-address=127.0.0.1:9006 \
+    --http-address=127.0.0.1:9116 \
+    --label="receive_replica=\"0\""
+) &
+
+(
+thanos query \
+    --grpc-address=127.0.0.1:9007 \
+    --http-address=127.0.0.1:9008 \
+    --store=127.0.0.1:9006
+) &
+
+echo "Waiting for Thanos to come up"
+sleep 10
+
+until curl --output /dev/null --silent --fail http://localhost:9116/-/ready; do
+  printf '.'
+  sleep 1
+done
+
+until curl --output /dev/null --silent --fail http://localhost:9008/-/ready; do
+  printf '.'
+  sleep 1
+done
+
+
+(
   exec ./telemeter-client \
     --from "http://localhost:9090" \
     --to "http://localhost:9003" \
@@ -35,23 +76,9 @@ trap 'kill $(jobs -p); exit $result' EXIT
     --listen-internal localhost:9004 \
     --whitelist '{_id="test"}' \
     --elide-label '_elide' \
+    --memcached=localhost:11211 \
     --forward-url=http://localhost:9005/api/v1/receive \
     -v
-) &
-
-(
-thanos receive \
-    --tsdb.path="$(mktemp -d)" \
-    --remote-write.address=127.0.0.1:9005 \
-    --grpc-address=127.0.0.1:9006 \
-    --label="receive_replica=\"0\""
-) &
-
-(
-thanos query \
-    --grpc-address=127.0.0.1:9007 \
-    --http-address=127.0.0.1:9008 \
-    --store=127.0.0.1:9006
 ) &
 
 retries=1

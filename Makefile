@@ -15,7 +15,6 @@ METRICS_JSON=./_output/metrics.json
 GOLANGCI_LINT_BIN=$(BIN_DIR)/golangci-lint
 GOLANGCI_LINT_VERSION=v1.56.2
 THANOS_BIN=$(BIN_DIR)/thanos
-UP_BIN=$(BIN_DIR)/up
 OTELCOL_BIN=$(BIN_DIR)/otelcol
 PROMETHEUS_BIN=$(BIN_DIR)/prometheus
 PROMTOOL_BIN=$(BIN_DIR)/promtool
@@ -167,16 +166,12 @@ test-generate:
 test-format:
 	make --always-make format && git diff --exit-code
 
-test-integration: build | $(THANOS_BIN) $(UP_BIN) $(PROMETHEUS_BIN)
+test-integration: build | $(THANOS_BIN) $(PROMETHEUS_BIN)
 	@echo "================================="
-	@echo ">>> Running integration tests: V1"
+	@echo ">>> Running integration tests"
 	@echo "================================="
 	PATH=$$PATH:$$(pwd)/$(BIN_DIR) ./test/integration.sh 2>&1
-	@echo
-	@echo "================================="
-	@echo ">>> Running integration tests: V2"
-	@echo "================================="
-	PATH=$$PATH:$$(pwd)/$(BIN_DIR) LD_LIBRARY_PATH=$$LD_LIBRARY_PATH:$$(pwd)/$(LIB_DIR) ./test/integration-v2.sh
+
 
 test-benchmark: build $(GOJSONTOYAML_BIN)
 	# Allow the image to be overridden when running in CI.
@@ -204,7 +199,7 @@ test/timeseries.txt:
 test-rhel-generate-e2e-certs:
 	./test/generate-e2e-certs.sh $(TEST_E2E_CERTS_DIR)
 
-test-rhelemeter-integration: build | $(THANOS_BIN) $(UP_BIN) $(PROMETHEUS_BIN) $(OTELCOL_BIN)
+test-rhelemeter-integration: build | $(THANOS_BIN) $(PROMETHEUS_BIN) $(OTELCOL_BIN)
 	@echo "Running rhelemeter integration tests"
 	PATH=$$PATH:$$(pwd)/$(BIN_DIR) LD_LIBRARY_PATH=$$LD_LIBRARY_PATH:$$(pwd)/$(LIB_DIR) ./test/integration-rhelemeter.sh
 
@@ -212,7 +207,7 @@ test-rhelemeter-integration: build | $(THANOS_BIN) $(UP_BIN) $(PROMETHEUS_BIN) $
 # Binaries #
 ############
 
-dependencies: $(JB_BIN) $(THANOS_BIN) $(UP_BIN) $(GOJSONTOYAML_BIN) | $(PROMETHEUS_BIN) $(GOLANGCI_LINT_BIN)
+dependencies: $(JB_BIN) $(THANOS_BIN) $(GOJSONTOYAML_BIN) | $(PROMETHEUS_BIN) $(GOLANGCI_LINT_BIN)
 
 $(BIN_DIR):
 	mkdir -p $@
@@ -237,9 +232,6 @@ $(GOLANGCI_LINT_BIN): $(BIN_DIR)
 
 $(THANOS_BIN): $(BIN_DIR)
 	GOBIN=$(BIN_DIR) go install -mod=readonly -modfile=tools/go.mod github.com/thanos-io/thanos/cmd/thanos
-
-$(UP_BIN): $(BIN_DIR)
-	GOBIN=$(BIN_DIR) go install -mod=readonly -modfile=tools/go.mod github.com/observatorium/up/cmd/up
 
 $(JSONNET_BIN): $(BIN_DIR)
 	GOBIN=$(BIN_DIR) go install -mod=readonly -modfile=tools/go.mod github.com/google/go-jsonnet/cmd/jsonnet
