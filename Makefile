@@ -30,6 +30,7 @@ BENCHMARK_RESULTS=$(shell find ./telemeter-benchmark -type f -name '*.json')
 BENCHMARK_GOAL?=5000
 JSONNET_VENDOR=jsonnet/jsonnetfile.lock.json jsonnet/vendor
 TEST_E2E_CERTS_DIR=./cmd/rhelemeter-server/testdata
+PROMETHEUS_VERSION=2.49.1
 
 export PATH := $(BIN_DIR):$(PATH)
 
@@ -215,9 +216,14 @@ $(BIN_DIR):
 $(LIB_DIR):
 	mkdir -p $@
 
+PROM_BIN := $(shell $(BIN_DIR)/prometheus --version 2>/dev/null)
 $(PROMETHEUS_BIN): $(BIN_DIR)
+ifdef PROM_BIN
+	@echo "Found version of Prometheus"
+else
 	@echo "Downloading Prometheus"
-	curl -L "https://github.com/prometheus/prometheus/releases/download/v2.49.1/prometheus-2.49.1.$$(go env GOOS)-$$(go env GOARCH).tar.gz" | tar --strip-components=1 -xzf - -C $(BIN_DIR)
+	curl -L "https://github.com/prometheus/prometheus/releases/download/v$(PROMETHEUS_VERSION)/prometheus-$(PROMETHEUS_VERSION).$$(go env GOOS)-$$(go env GOARCH).tar.gz" | tar --strip-components=1 -xzf - -C $(BIN_DIR)
+endif
 
 $(PROMTOOL_BIN): $(PROMETHEUS_BIN)
 
