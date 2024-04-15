@@ -1,7 +1,8 @@
 #!/bin/bash
 
-# Runs a semi-realistic integration test with two servers, a stub authorization server, a 
-# prometheus that scrapes from them, and a single client that fetches "cluster" metrics.
+# Runs a semi-realistic integration test with metrics scraped from Prometheus by telemeter-client
+# and pushed to telemeter-server that connects to a stub authorization server and a memcached instance and Thanos Receive.
+# A client verifies the metrics are available via Thanos Query.
 
 set -euo pipefail
 
@@ -10,21 +11,50 @@ trap 'kill $(jobs -p); exit $result' EXIT
 
 ( ./authorization-server localhost:9001 ./test/tokens.json ) &
 
+(memcached -u "$(whoami)") &
+
 ( prometheus --config.file=./test/prom-local.yaml --web.listen-address=localhost:9090 "--storage.tsdb.path=$(mktemp -d)" --log.level=warn ) &
 
+
+echo "Waiting for Prometheus to come up"
+sleep 5
+
+until curl --output /dev/null --silent --fail http://localhost:9090/-/ready; do
+  printf '.'
+  sleep 1
+done
+
 (
-  sleep 5
-  exec ./telemeter-client \
-    --from "http://localhost:9090" \
-    --to "http://localhost:9003" \
-    --id "test" \
-    --to-token a \
-    --interval 5s \
-    --anonymize-labels "instance" --anonymize-salt "a-unique-value" \
-    --rename ALERTS=alerts --rename openshift_build_info=build_info --rename scrape_samples_scraped=scraped \
-    --match '{__name__="ALERTS",alertstate="firing"}' \
-    --match '{__name__="scrape_samples_scraped"}'
+thanos receive \
+    --tsdb.path="$(mktemp -d)" \
+    --remote-write.address=127.0.0.1:9005 \
+    --grpc-address=127.0.0.1:9006 \
+    --http-address=127.0.0.1:9116 \
+    --receive.default-tenant-id="FB870BF3-9F3A-44FF-9BF7-D7A047A52F43" \
+    --label="receive_replica=\"0\""
 ) &
+receive_pid=$!
+
+(
+thanos query \
+    --grpc-address=127.0.0.1:9007 \
+    --http-address=127.0.0.1:9008 \
+    --store=127.0.0.1:9006
+) &
+
+echo "Waiting for Thanos to come up"
+sleep 10
+
+until curl --output /dev/null --silent --fail http://localhost:9116/-/ready; do
+  printf '.'
+  sleep 1
+done
+
+until curl --output /dev/null --silent --fail http://localhost:9008/-/ready; do
+  printf '.'
+  sleep 1
+done
+
 
 (
 ./telemeter-server \
@@ -35,23 +65,29 @@ trap 'kill $(jobs -p); exit $result' EXIT
     --listen-internal localhost:9004 \
     --whitelist '{_id="test"}' \
     --elide-label '_elide' \
+    --memcached=localhost:11211 \
     --forward-url=http://localhost:9005/api/v1/receive \
     -v
 ) &
 
-(
-thanos receive \
-    --tsdb.path="$(mktemp -d)" \
-    --remote-write.address=127.0.0.1:9005 \
-    --grpc-address=127.0.0.1:9006 \
-    --label="receive_replica=\"0\""
-) &
+echo "Waiting for Telemeter server to come up"
+
+until curl --output /dev/null --silent --fail http://localhost:9003/healthz/ready; do
+  printf '.'
+  sleep 1
+done
 
 (
-thanos query \
-    --grpc-address=127.0.0.1:9007 \
-    --http-address=127.0.0.1:9008 \
-    --store=127.0.0.1:9006
+  ./telemeter-client \
+    --from "http://localhost:9090" \
+    --to "http://localhost:9003" \
+    --id "test" \
+    --to-token a \
+    --interval 5s \
+    --anonymize-labels "instance" --anonymize-salt "a-unique-value" \
+    --rename ALERTS=alerts --rename openshift_build_info=build_info --rename scrape_samples_scraped=scraped \
+    --match '{__name__="ALERTS",alertstate="firing"}' \
+    --match '{__name__="scrape_samples_scraped"}'
 ) &
 
 retries=1
@@ -93,6 +129,7 @@ done
 
 echo "info: tests ok"
 result=0
+kill -s SIGKILL $receive_pid
 exit 0
 
 echo "error: tests failed" 1>&2

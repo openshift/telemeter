@@ -15,7 +15,6 @@ METRICS_JSON=./_output/metrics.json
 GOLANGCI_LINT_BIN=$(BIN_DIR)/golangci-lint
 GOLANGCI_LINT_VERSION=v1.56.2
 THANOS_BIN=$(BIN_DIR)/thanos
-UP_BIN=$(BIN_DIR)/up
 OTELCOL_BIN=$(BIN_DIR)/otelcol
 PROMETHEUS_BIN=$(BIN_DIR)/prometheus
 PROMTOOL_BIN=$(BIN_DIR)/promtool
@@ -31,6 +30,7 @@ BENCHMARK_RESULTS=$(shell find ./telemeter-benchmark -type f -name '*.json')
 BENCHMARK_GOAL?=5000
 JSONNET_VENDOR=jsonnet/jsonnetfile.lock.json jsonnet/vendor
 TEST_E2E_CERTS_DIR=./cmd/rhelemeter-server/testdata
+PROMETHEUS_VERSION=2.49.1
 
 export PATH := $(BIN_DIR):$(PATH)
 
@@ -167,16 +167,12 @@ test-generate:
 test-format:
 	make --always-make format && git diff --exit-code
 
-test-integration: build | $(THANOS_BIN) $(UP_BIN) $(PROMETHEUS_BIN)
+test-integration: build | $(THANOS_BIN) $(PROMETHEUS_BIN)
 	@echo "================================="
-	@echo ">>> Running integration tests: V1"
+	@echo ">>> Running integration tests"
 	@echo "================================="
 	PATH=$$PATH:$$(pwd)/$(BIN_DIR) ./test/integration.sh 2>&1
-	@echo
-	@echo "================================="
-	@echo ">>> Running integration tests: V2"
-	@echo "================================="
-	PATH=$$PATH:$$(pwd)/$(BIN_DIR) LD_LIBRARY_PATH=$$LD_LIBRARY_PATH:$$(pwd)/$(LIB_DIR) ./test/integration-v2.sh
+
 
 test-benchmark: build $(GOJSONTOYAML_BIN)
 	# Allow the image to be overridden when running in CI.
@@ -204,7 +200,7 @@ test/timeseries.txt:
 test-rhel-generate-e2e-certs:
 	./test/generate-e2e-certs.sh $(TEST_E2E_CERTS_DIR)
 
-test-rhelemeter-integration: build | $(THANOS_BIN) $(UP_BIN) $(PROMETHEUS_BIN) $(OTELCOL_BIN)
+test-rhelemeter-integration: build | $(THANOS_BIN) $(PROMETHEUS_BIN) $(OTELCOL_BIN)
 	@echo "Running rhelemeter integration tests"
 	PATH=$$PATH:$$(pwd)/$(BIN_DIR) LD_LIBRARY_PATH=$$LD_LIBRARY_PATH:$$(pwd)/$(LIB_DIR) ./test/integration-rhelemeter.sh
 
@@ -212,7 +208,7 @@ test-rhelemeter-integration: build | $(THANOS_BIN) $(UP_BIN) $(PROMETHEUS_BIN) $
 # Binaries #
 ############
 
-dependencies: $(JB_BIN) $(THANOS_BIN) $(UP_BIN) $(GOJSONTOYAML_BIN) | $(PROMETHEUS_BIN) $(GOLANGCI_LINT_BIN)
+dependencies: $(JB_BIN) $(THANOS_BIN) $(GOJSONTOYAML_BIN) | $(PROMETHEUS_BIN) $(GOLANGCI_LINT_BIN)
 
 $(BIN_DIR):
 	mkdir -p $@
@@ -220,9 +216,14 @@ $(BIN_DIR):
 $(LIB_DIR):
 	mkdir -p $@
 
+PROM_BIN := $(shell $(BIN_DIR)/prometheus --version 2>/dev/null)
 $(PROMETHEUS_BIN): $(BIN_DIR)
+ifdef PROM_BIN
+	@echo "Found version of Prometheus"
+else
 	@echo "Downloading Prometheus"
-	curl -L "https://github.com/prometheus/prometheus/releases/download/v2.49.1/prometheus-2.49.1.$$(go env GOOS)-$$(go env GOARCH).tar.gz" | tar --strip-components=1 -xzf - -C $(BIN_DIR)
+	curl -L "https://github.com/prometheus/prometheus/releases/download/v$(PROMETHEUS_VERSION)/prometheus-$(PROMETHEUS_VERSION).$$(go env GOOS)-$$(go env GOARCH).tar.gz" | tar --strip-components=1 -xzf - -C $(BIN_DIR)
+endif
 
 $(PROMTOOL_BIN): $(PROMETHEUS_BIN)
 
@@ -237,9 +238,6 @@ $(GOLANGCI_LINT_BIN): $(BIN_DIR)
 
 $(THANOS_BIN): $(BIN_DIR)
 	GOBIN=$(BIN_DIR) go install -mod=readonly -modfile=tools/go.mod github.com/thanos-io/thanos/cmd/thanos
-
-$(UP_BIN): $(BIN_DIR)
-	GOBIN=$(BIN_DIR) go install -mod=readonly -modfile=tools/go.mod github.com/observatorium/up/cmd/up
 
 $(JSONNET_BIN): $(BIN_DIR)
 	GOBIN=$(BIN_DIR) go install -mod=readonly -modfile=tools/go.mod github.com/google/go-jsonnet/cmd/jsonnet
