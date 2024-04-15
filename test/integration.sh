@@ -57,19 +57,6 @@ done
 
 
 (
-  exec ./telemeter-client \
-    --from "http://localhost:9090" \
-    --to "http://localhost:9003" \
-    --id "test" \
-    --to-token a \
-    --interval 5s \
-    --anonymize-labels "instance" --anonymize-salt "a-unique-value" \
-    --rename ALERTS=alerts --rename openshift_build_info=build_info --rename scrape_samples_scraped=scraped \
-    --match '{__name__="ALERTS",alertstate="firing"}' \
-    --match '{__name__="scrape_samples_scraped"}'
-) &
-
-(
 ./telemeter-server \
     --ratelimit=15s \
     --authorize http://localhost:9001 \
@@ -81,6 +68,26 @@ done
     --memcached=localhost:11211 \
     --forward-url=http://localhost:9005/api/v1/receive \
     -v
+) &
+
+echo "Waiting for Telemeter server to come up"
+
+until curl --output /dev/null --silent --fail http://localhost:9003/healthz/ready; do
+  printf '.'
+  sleep 1
+done
+
+(
+  ./telemeter-client \
+    --from "http://localhost:9090" \
+    --to "http://localhost:9003" \
+    --id "test" \
+    --to-token a \
+    --interval 5s \
+    --anonymize-labels "instance" --anonymize-salt "a-unique-value" \
+    --rename ALERTS=alerts --rename openshift_build_info=build_info --rename scrape_samples_scraped=scraped \
+    --match '{__name__="ALERTS",alertstate="firing"}' \
+    --match '{__name__="scrape_samples_scraped"}'
 ) &
 
 retries=1
