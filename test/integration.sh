@@ -33,6 +33,7 @@ thanos receive \
     --receive.default-tenant-id="FB870BF3-9F3A-44FF-9BF7-D7A047A52F43" \
     --label="receive_replica=\"0\""
 ) &
+receive_pid=$!
 
 (
 thanos query \
@@ -121,6 +122,7 @@ done
 
 echo "info: tests ok"
 result=0
+kill -s SIGKILL $receive_pid
 exit 0
 
 echo "error: tests failed" 1>&2
