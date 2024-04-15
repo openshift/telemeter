@@ -30,6 +30,7 @@ thanos receive \
     --remote-write.address=127.0.0.1:9005 \
     --grpc-address=127.0.0.1:9006 \
     --http-address=127.0.0.1:9116 \
+    --receive.default-tenant-id="FB870BF3-9F3A-44FF-9BF7-D7A047A52F43" \
     --label="receive_replica=\"0\""
 ) &
 
