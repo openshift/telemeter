@@ -530,7 +530,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 				runutil.ExhaustCloseRequestBodyHandler(o.Logger,
 					server.InstrumentedHandler("receive",
 						authorize.NewHandler(o.Logger, &v2AuthorizeClient, authorizeURL, o.TenantKey,
-							receive.LimitBodySize(o.Logger, o.LimitReceiveBytes,
+							receiver.LimitBodySize(o.LimitReceiveBytes,
 								receive.ValidateLabels(
 									o.Logger,
 									receiver.TransformWriteRequest(

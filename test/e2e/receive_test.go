@@ -146,7 +146,7 @@ func TestLimitBodySize(t *testing.T) {
 
 		telemeterServer = httptest.NewServer(
 			fakeAuthorizeHandler(
-				receive.LimitBodySize(logger, receive.DefaultRequestLimit,
+				receiver.LimitBodySize(receive.DefaultRequestLimit,
 					http.HandlerFunc(receiver.Receive),
 				),
 				&authorize.Client{ID: "test"},
