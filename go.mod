@@ -30,10 +30,7 @@ require (
 	gopkg.in/square/go-jose.v2 v2.0.0-20180411045311-89060dee6a84
 )
 
-require (
-	github.com/go-jose/go-jose/v3 v3.0.3
-	github.com/go-kit/log v0.1.0
-)
+require github.com/go-kit/log v0.1.0
 
 require (
 	github.com/OneOfOne/xxhash v1.2.6 // indirect
@@ -45,6 +42,7 @@ require (
 	github.com/edsrzf/mmap-go v1.0.0 // indirect
 	github.com/felixge/httpsnoop v1.0.1 // indirect
 	github.com/go-logfmt/logfmt v0.5.0 // indirect
+	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.12.1 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
