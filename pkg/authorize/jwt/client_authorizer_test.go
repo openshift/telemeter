@@ -9,9 +9,10 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
-	josejwt "github.com/go-jose/go-jose/v3/jwt"
 	"github.com/openshift/telemeter/pkg/authorize/jwt"
+	josejwt "gopkg.in/square/go-jose.v2/jwt"
 )
 
 // ECDSA P-256 private key
@@ -77,6 +78,7 @@ func generateToken(t *testing.T, privateKey *ecdsa.PrivateKey, issuer string) st
 	token, err := signer.GenerateToken(&josejwt.Claims{
 		Subject:  "test-sub",
 		Audience: []string{"audience"},
+		Expiry:   josejwt.NewNumericDate(time.Now().Add(time.Hour)),
 	}, struct{}{})
 	if err != nil {
 		t.Fatalf("error generating token: %v", err)
