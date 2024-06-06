@@ -5,7 +5,7 @@ import (
 )
 
 type ClientAuthorizer interface {
-	AuthorizeClient(token string) (*Client, bool, error)
+	AuthorizeClient(token string) (*Client, error)
 }
 
 type Client struct {

@@ -50,14 +50,19 @@ func ClusterID(logger log.Logger, key string, next http.HandlerFunc) http.Handle
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
-		if len(client.Labels[key]) == 0 {
+
+		clusterID := client.Labels[key]
+		if len(clusterID) == 0 {
 			msg := fmt.Sprintf("user data must contain a '%s' label", key)
 			level.Warn(rlogger).Log("msg", msg)
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
 
-		r = r.WithContext(WithClusterID(r.Context(), client.Labels[key]))
+		// Logging the cluster ID for debugging purposes.
+		level.Info(rlogger).Log("msg", "cluster ID", "cluster", clusterID)
+
+		r = r.WithContext(WithClusterID(r.Context(), clusterID))
 
 		next.ServeHTTP(w, r)
 	}
