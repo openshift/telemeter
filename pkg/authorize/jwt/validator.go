@@ -8,7 +8,7 @@ import (
 
 	"github.com/openshift/telemeter/pkg/authorize"
 
-	"gopkg.in/square/go-jose.v2/jwt"
+	"gopkg.in/go-jose/go-jose.v2/jwt"
 )
 
 // Validator is called by the JWT token authentictaor to apply domain specific
