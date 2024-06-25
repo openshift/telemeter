@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/openshift/telemeter/pkg/authorize/jwt"
-	josejwt "gopkg.in/square/go-jose.v2/jwt"
+	josejwt "gopkg.in/go-jose/go-jose.v2/jwt"
 )
 
 // ECDSA P-256 private key
