@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"time"
 
@@ -31,7 +32,7 @@ func RequestLogger(logger log.Logger) func(http.Handler) http.Handler {
 
 			next.ServeHTTP(aw, r)
 
-			level.Info(logger).Log(
+			err := level.Info(logger).Log(
 				"msg", "request log",
 				"method", r.Method,
 				"path", r.URL.Path,
@@ -39,6 +40,10 @@ func RequestLogger(logger log.Logger) func(http.Handler) http.Handler {
 				"duration", time.Since(start),
 				"request", middleware.GetReqID(r.Context()),
 			)
+
+			if err != nil {
+				fmt.Println("error logging request:", err)
+			}
 		})
 	}
 }
