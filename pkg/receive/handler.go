@@ -11,6 +11,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/go-chi/chi/middleware"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/gogo/protobuf/proto"
@@ -107,6 +108,8 @@ func NewHandler(logger log.Logger, forwardURL string, client *http.Client, reg p
 
 // Receive a remote-write request after it has been authenticated and forward it to Thanos
 func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
+	logger := log.With(h.logger, "request", middleware.GetReqID(r.Context()))
+
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -119,7 +122,7 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 	req, err := http.NewRequest(http.MethodPost, h.ForwardURL, r.Body)
 	if err != nil {
 		h.forwardRequestsTotal.WithLabelValues("error").Inc()
-		level.Error(h.logger).Log("msg", "failed to create forward request", "err", err)
+		level.Error(logger).Log("msg", "failed to create forward request", "err", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -130,7 +133,7 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.client.Do(req)
 	if err != nil {
 		h.forwardRequestsTotal.WithLabelValues("error").Inc()
-		level.Error(h.logger).Log("msg", "failed to forward request", "err", err)
+		level.Error(logger).Log("msg", "failed to forward request", "err", err)
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
@@ -143,7 +146,7 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 			msg = fmt.Sprintf("upstream response status is not 200 OK: couldn't read body %v", err)
 		}
 		h.forwardRequestsTotal.WithLabelValues("error").Inc()
-		level.Error(h.logger).Log("msg", msg, "statuscode", resp.Status)
+		level.Error(logger).Log("msg", msg, "statuscode", resp.Status)
 		http.Error(w, msg, resp.StatusCode)
 		return
 	}
@@ -152,9 +155,12 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 }
 
 // LimitBodySize is a middleware that check that the request body is not bigger than the limit
-func (h *Handler) LimitBodySize(logger log.Logger, limit int64, next http.Handler) http.HandlerFunc {
-	logger = log.With(h.logger, "middleware", "LimitBodySize")
+func (h *Handler) LimitBodySize(limit int64, next http.Handler) http.HandlerFunc {
+	logger := log.With(h.logger, "middleware", "LimitBodySize")
+
 	return func(w http.ResponseWriter, r *http.Request) {
+		logger := log.With(logger, "request", middleware.GetReqID(r.Context()))
+
 		defer r.Body.Close()
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
@@ -183,8 +189,10 @@ var ErrRequiredLabelMissing = fmt.Errorf("a required label is missing from the m
 func (h *Handler) TransformAndValidateWriteRequest(logger log.Logger, next http.Handler, labels ...string) http.HandlerFunc {
 	logger = log.With(h.logger, "middleware", "transformAndValidateWriteRequest")
 	return func(w http.ResponseWriter, r *http.Request) {
-		defer r.Body.Close()
+		logger := log.With(logger, "request", middleware.GetReqID(r.Context()))
+
 		body, err := io.ReadAll(r.Body)
+		defer r.Body.Close()
 		if err != nil {
 			h.forwardRequestsTotal.WithLabelValues("error").Inc()
 			level.Error(logger).Log("msg", "failed to read body", "err", err)
