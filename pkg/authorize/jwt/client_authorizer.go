@@ -2,9 +2,7 @@ package jwt
 
 import (
 	"crypto"
-	"encoding/base64"
-	"encoding/json"
-	"strings"
+	"fmt"
 
 	"github.com/openshift/telemeter/pkg/authorize"
 	"gopkg.in/square/go-jose.v2/jwt"
@@ -27,14 +25,10 @@ type clientAuthorizer struct {
 	validator Validator
 }
 
-func (j *clientAuthorizer) AuthorizeClient(tokenData string) (*authorize.Client, bool, error) {
-	if !j.hasCorrectIssuer(tokenData) {
-		return nil, false, nil
-	}
-
+func (j *clientAuthorizer) AuthorizeClient(tokenData string) (*authorize.Client, error) {
 	tok, err := jwt.ParseSigned(tokenData)
 	if err != nil {
-		return nil, false, nil
+		return nil, err
 	}
 
 	public := &jwt.Claims{}
@@ -54,44 +48,19 @@ func (j *clientAuthorizer) AuthorizeClient(tokenData string) (*authorize.Client,
 	}
 
 	if !found {
-		return nil, false, multipleErrors(errs)
+		return nil, multipleErrors(errs)
+	}
+
+	if public.Issuer != j.iss {
+		return nil, fmt.Errorf("invalid JWT issuer, expected %q, got %q", j.iss, public.Issuer)
 	}
 
 	// If we get here, we have a token with a recognized signature and
 	// issuer string.
 	client, err := j.validator.Validate(tokenData, public, private)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 
-	return client, true, nil
-}
-
-// hasCorrectIssuer returns true if tokenData is a valid JWT in compact
-// serialization format and the "iss" claim matches the iss field of this token
-// authenticator, and otherwise returns false.
-//
-// Note: go-jose currently does not allow access to unverified JWS payloads.
-// See https://github.com/square/go-jose/issues/169
-func (j *clientAuthorizer) hasCorrectIssuer(tokenData string) bool {
-	parts := strings.SplitN(tokenData, ".", 4)
-	if len(parts) != 3 {
-		return false
-	}
-	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return false
-	}
-	claims := struct {
-		// WARNING: this JWT is not verified. Do not trust these claims.
-		Issuer string `json:"iss"`
-	}{}
-	if err := json.Unmarshal(payload, &claims); err != nil {
-		return false
-	}
-	if claims.Issuer != j.iss {
-		return false
-	}
-	return true
-
+	return client, nil
 }
