@@ -213,6 +213,13 @@
                 max by(_id)(sum_over_time(hostedcluster:hypershift_cluster_vcpus:max[1h:5m])) / scalar(count_over_time(vector(1)[1h:5m]))
               |||,
             },
+            {
+              // ROSA (HCP or classic) Cluster vCPU-hours for the last hour.
+              record: 'rosa:cluster:vcpu_hours',
+              expr: |||
+                hostedcluster:hypershift_cluster_vcpus:vcpu_hours or on (_id) cluster:usage:workload:capacity_virtual_cpu_hours
+              |||,
+            },
           ],
         },
       ],
