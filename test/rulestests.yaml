@@ -157,3 +157,54 @@ tests:
                   value: 32
                 - labels: 'acm_capacity_effective_cpu_cores{_id="another_hub_cluster",managed_cluster_id="none_ocp_aks"}'
                   value: 32
+    # hostedcluster:hypershift_cluster_vcpus:vcpu_hours tests
+    - interval: 1m
+      input_series:
+          - series: 'hostedcluster:hypershift_cluster_vcpus:max{_id="my-id", _mc_id="my-mc-id", mac_name="my-mc-name", exported_namespace="ocm-some-env-my-id"}'
+            values: '0x90 4x90 0x90'
+      promql_expr_test:
+          - expr: hostedcluster:hypershift_cluster_vcpus:vcpu_hours
+            eval_time: 0
+            exp_samples:
+                - labels: 'hostedcluster:hypershift_cluster_vcpus:vcpu_hours{_id="my-id"}'
+                  value: 0
+          - expr: hostedcluster:hypershift_cluster_vcpus:vcpu_hours
+            eval_time: 60m
+            exp_samples:
+                - labels: 'hostedcluster:hypershift_cluster_vcpus:vcpu_hours{_id="my-id"}'
+                  value: 0
+          - expr: hostedcluster:hypershift_cluster_vcpus:vcpu_hours
+            eval_time: 90m
+            exp_samples:
+                - labels: 'hostedcluster:hypershift_cluster_vcpus:vcpu_hours{_id="my-id"}'
+                  value: 0
+          - expr: hostedcluster:hypershift_cluster_vcpus:vcpu_hours
+            eval_time: 122m
+            exp_samples:
+                - labels: 'hostedcluster:hypershift_cluster_vcpus:vcpu_hours{_id="my-id"}'
+                  value: 2
+          - expr: hostedcluster:hypershift_cluster_vcpus:vcpu_hours
+            eval_time: 152m
+            exp_samples:
+                - labels: 'hostedcluster:hypershift_cluster_vcpus:vcpu_hours{_id="my-id"}'
+                  value: 4
+          - expr: hostedcluster:hypershift_cluster_vcpus:vcpu_hours
+            eval_time: 180m
+            exp_samples:
+                - labels: 'hostedcluster:hypershift_cluster_vcpus:vcpu_hours{_id="my-id"}'
+                  value: 4
+          - expr: hostedcluster:hypershift_cluster_vcpus:vcpu_hours
+            eval_time: 212m
+            exp_samples:
+                - labels: 'hostedcluster:hypershift_cluster_vcpus:vcpu_hours{_id="my-id"}'
+                  value: 2
+          - expr: hostedcluster:hypershift_cluster_vcpus:vcpu_hours
+            eval_time: 242m
+            exp_samples:
+                - labels: 'hostedcluster:hypershift_cluster_vcpus:vcpu_hours{_id="my-id"}'
+                  value: 0
+          - expr: hostedcluster:hypershift_cluster_vcpus:vcpu_hours
+            eval_time: 270m
+            exp_samples:
+                - labels: 'hostedcluster:hypershift_cluster_vcpus:vcpu_hours{_id="my-id"}'
+                  value: 0
