@@ -204,6 +204,22 @@
                 max by (_id, managed_cluster_id) (acm_managed_cluster_worker_cores:max)
               |||,
             },
+            {
+              // Hypershift Cluster vCPU-hours for the last hour.
+              // The divisor of scalar(count_over_time(vector(1)[1h:5m])) allows us to get an effective average value having "absent data" treated as 0.
+              // sum(...) by (_id) is used ensure a single datapoint per cluster ID.
+              record: 'hostedcluster:hypershift_cluster_vcpus:vcpu_hours',
+              expr: |||
+                max by(_id)(sum_over_time(hostedcluster:hypershift_cluster_vcpus:max[1h:5m])) / scalar(count_over_time(vector(1)[1h:5m]))
+              |||,
+            },
+            {
+              // ROSA (HCP or classic) Cluster vCPU-hours for the last hour.
+              record: 'rosa:cluster:vcpu_hours',
+              expr: |||
+                hostedcluster:hypershift_cluster_vcpus:vcpu_hours or on (_id) cluster:usage:workload:capacity_virtual_cpu_hours
+              |||,
+            },
           ],
         },
       ],
