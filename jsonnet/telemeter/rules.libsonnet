@@ -7,6 +7,22 @@
           interval: '4m',
           rules: [
             {
+              // This metric returns the number of steps in a 1h range with a
+              // resolution of 5m at the current evaluation time of the group.
+              //
+              // Because of the way Thanos treats subquery ranges, it may
+              // return a value of 12 or 13 (the latter when the evaluation
+              // time is an exact dividend of 5 minutes, e.g. XX:00:00,
+              // XX:05:00, XX:10:00, ....)
+              //
+              // It is used in other recording rules to divide the sum of vCPUs
+              // over the last hour by the actual number of steps.
+              record: 'steps:count1h',
+              expr: |||
+                count_over_time(vector(1)[1h:5m])
+              |||,
+            },
+            {
               record: 'name_reason:cluster_operator_degraded:count',
               expr: |||
                 count by (name,reason) (cluster_operator_conditions{condition="Degraded"} == 1)
