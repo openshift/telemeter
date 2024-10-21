@@ -264,8 +264,8 @@ local securePort = 8443;
                   severity: 'warning',
                 },
                 annotations: {
-                  description: 'The telemeter client in namespace {{ $labels.namespace }} fails {{ $value | humanize }} of the requests to the telemeter service.\nCheck the logs of the telemeter-client pod with the following command:\noc logs -n openshift-monitoring deployment.apps/telemeter-client -c telemeter-client\nIf the telemeter client fails to authenticate with the telemeter service, make sure that the global pull secret is up to date, see https://docs.openshift.com/container-platform/latest/openshift_images/managing_images/using-image-pull-secrets.html#images-update-global-pull-secret_using-image-pull-secrets for more details.',
-                  summary: 'Telemeter client fails to send metrics',
+                  description: 'The telemeter client in the namespace {{ $labels.namespace }} fails {{ $value | humanize }} of the requests to the telemeter service.',
+                  summary: 'Telemeter client fails to send metrics to Red Hat',
                 },
                 alert: 'TelemeterClientFailures',
                 'for': '1h',
