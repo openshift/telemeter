@@ -152,28 +152,23 @@
             },
             {
               // OpenShift Cluster CPU-hours for the last hour.
-              // The divisor of scalar(count_over_time(vector(1)[1h:5m])) allows us to get an effective average value having "absent data" treated as 0.
-              // max(...) by (_id) is used ensure a single datapoint per cluster ID.
               record: 'cluster:usage:workload:capacity_physical_cpu_hours',
               expr: |||
-                max by(_id) (sum_over_time(cluster:usage:workload:capacity_physical_cpu_cores:max:5m[1h:5m]) / scalar(count_over_time(vector(1)[1h:5m])))
+                max by(_id) (sum_over_time(cluster:usage:workload:capacity_physical_cpu_cores:max:5m[1h:5m])) / scalar(steps:count1h)
               |||,
             },
             {
               // OpenShift Cluster Instance-hours for the last hour.
-              // The divisor of scalar(count_over_time(vector(1)[1h:5m])) allows us to get an effective average value having "absent data" treated as 0.
               record: 'cluster:usage:workload:capacity_physical_instance_hours',
               expr: |||
-                max by(_id) (count_over_time(cluster:usage:workload:capacity_physical_cpu_cores:max:5m[1h:5m])) / scalar(count_over_time(vector(1)[1h:5m]))
+                max by(_id) (count_over_time(cluster:usage:workload:capacity_physical_cpu_cores:max:5m[1h:5m])) / scalar(steps:count1h)
               |||,
             },
             {
               // OpenShift Cluster vCPU-hours for the last hour.
-              // The divisor of scalar(count_over_time(vector(1)[1h:5m])) allows us to get an effective average value having "absent data" treated as 0.
-              // sum(...) by (_id) is used ensure a single datapoint per cluster ID.
               record: 'cluster:usage:workload:capacity_virtual_cpu_hours',
               expr: |||
-                sum(sum_over_time(cluster:capacity_cpu_cores:sum{label_node_role_kubernetes_io = ''}[1h:5m])) by (_id) / scalar(count_over_time(vector(1)[1h:5m]))
+                sum by(_id) (sum_over_time(cluster:capacity_cpu_cores:sum{label_node_role_kubernetes_io = ''}[1h:5m])) / scalar(steps:count1h)
               |||,
             },
             {
@@ -221,12 +216,10 @@
               |||,
             },
             {
-              // Hypershift Cluster vCPU-hours for the last hour.
-              // The divisor of scalar(count_over_time(vector(1)[1h:5m])) allows us to get an effective average value having "absent data" treated as 0.
-              // max by(_id) (...) is used ensure a single datapoint per cluster ID.
+              // ROSA HCP Cluster vCPU-hours for the last hour.
               record: 'hostedcluster:hypershift_cluster_vcpus:vcpu_hours',
               expr: |||
-                max by(_id)(sum_over_time(hostedcluster:hypershift_cluster_vcpus:max[1h:5m])) / scalar(count_over_time(vector(1)[1h:5m]))
+                max by(_id) (sum_over_time(hostedcluster:hypershift_cluster_vcpus:max[1h:5m])) / scalar(steps:count1h)
               |||,
             },
             {
