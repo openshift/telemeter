@@ -3,7 +3,7 @@
 Rhelemeter is a Prometheus remote write forward proxy. It allows RHEL hosts or an intermediate proxy to push metrics to
 a upstream Prometheus (or Prometheus remote write compatible) endpoint.
 
-[rhelemeter-server](https://github.com/openshift/telemeter/tree/master/cmd/rhelemeter-server) needs to receive
+[rhelemeter-server](https://github.com/openshift/telemeter/tree/main/cmd/rhelemeter-server) needs to receive
 and send metrics across security boundaries, and thus performs additional authorization and data integrity checks as required.
 
 Architecture
