@@ -202,17 +202,17 @@
               // 2. The value for the managed OpenShift clusters and the non-OpenShift clusters comes from the ACM metric acm_managed_cluster_worker_cores:max;
               record: 'acm_capacity_effective_cpu_cores',
               expr: |||
-                  # self managed OpenShift cluster
-                  max by (_id, managed_cluster_id) (acm_managed_cluster_info{product="OpenShift"}) * on(managed_cluster_id) group_left() (
-                      # On one side, the acm_managed_cluster_info metric has the managed_cluster_id label identifiying the managed cluster and the _id label identifying the hub cluster.
-                      # On the other side, the cluster:capacity_effective_cpu_cores metric has the _id label which identifying the managed cluster.
-                      # To join the 2 metrics, we need to add a managed_cluster_id label with the same value as _id to the cluster:capacity_effective_cpu_cores metric.
-                      label_replace(
-                        max by(_id) (cluster:capacity_effective_cpu_cores), "managed_cluster_id", "$1", "_id", "(.*)"
-                      )
-                    ) * 2 or
-                  # managed OpenShift cluster and non-OpenShift clusters
-                  max by (_id, managed_cluster_id) (acm_managed_cluster_worker_cores:max)
+                # self managed OpenShift cluster
+                max by (_id, managed_cluster_id) (acm_managed_cluster_info{product="OpenShift"}) * on(managed_cluster_id) group_left() (
+                    # On one side, the acm_managed_cluster_info metric has the managed_cluster_id label identifiying the managed cluster and the _id label identifying the hub cluster.
+                    # On the other side, the cluster:capacity_effective_cpu_cores metric has the _id label which identifying the managed cluster.
+                    # To join the 2 metrics, we need to add a managed_cluster_id label with the same value as _id to the cluster:capacity_effective_cpu_cores metric.
+                    label_replace(
+                      max by(_id) (cluster:capacity_effective_cpu_cores), "managed_cluster_id", "$1", "_id", "(.*)"
+                    )
+                  ) * 2 or
+                # managed OpenShift cluster and non-OpenShift clusters
+                max by (_id, managed_cluster_id) (acm_managed_cluster_worker_cores:max)
               |||,
             },
             {
