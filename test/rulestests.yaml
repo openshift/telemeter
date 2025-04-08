@@ -157,6 +157,32 @@ tests:
                   value: 32
                 - labels: 'acm_capacity_effective_cpu_cores{_id="another_hub_cluster",managed_cluster_id="none_ocp_aks"}'
                   value: 32
+    # acm_capacity_effective_cpu_cores:sum tests
+    - input_series:
+          # worker nodes only
+          - series: 'acm_capacity_effective_cpu_cores{_id="hub_cluster0", managed_cluster_id="managed_cluster_id0"}'
+            values: '10'
+          - series: 'acm_capacity_effective_cpu_cores{_id="hub_cluster0", managed_cluster_id="managed_cluster_id00"}'
+            values: '10'
+          - series: 'acm_capacity_effective_cpu_cores{_id="hub_cluster0", managed_cluster_id="managed_cluster_id000"}'
+            values: '10'
+          # worker nodes plus hub
+          - series: 'acm_capacity_effective_cpu_cores{_id="hub_cluster1", managed_cluster_id="hub_cluster1"}'
+            values: '5'
+          - series: 'acm_capacity_effective_cpu_cores{_id="hub_cluster1", managed_cluster_id="managed_cluster_id1"}'
+            values: '10'
+          - series: 'acm_capacity_effective_cpu_cores{_id="hub_cluster1", managed_cluster_id="managed_cluster_id11"}'
+            values: '10'
+      promql_expr_test:
+          - expr: acm_capacity_effective_cpu_cores:sum
+            eval_time: 0
+            exp_samples:
+                # worker nodes only
+                - labels: 'acm_capacity_effective_cpu_cores:sum{_id="hub_cluster0"}'
+                  value: 30
+                # worker nodes plus hub
+                - labels: 'acm_capacity_effective_cpu_cores:sum{_id="hub_cluster1"}'
+                  value: 25
     # hostedcluster:hypershift_cluster_vcpus:vcpu_hours tests
     - interval: 1m
       input_series:
