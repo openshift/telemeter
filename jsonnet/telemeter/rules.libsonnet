@@ -216,7 +216,7 @@
               |||,
             },
             {
-              // Aggregate managed nodes under the cluster so swatch can associate the capacity with the cluster's billing account information
+              // Sum the ACM managed cluster effective cores per hub cluster (_id) so Swatch can associate the capacity with the billing account information.
               record: 'acm_capacity_effective_cpu_cores:sum',
               expr: |||
                 sum by (_id) (acm_capacity_effective_cpu_cores)
