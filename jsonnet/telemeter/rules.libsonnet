@@ -197,13 +197,6 @@
               |||,
             },
             {
-              // Aggregate managed nodes under the cluster so swatch can associate the capacity with the cluster's billing account information
-              record: 'acm_capacity_effective_cpu_cores:sum',
-              expr: |||
-                sum by (_id) (acm_capacity_effective_cpu_cores)
-              |||,
-            },
-            {
               // ACM managed cluster effective cores for subscription usage. It is measured in virtual CPU cores.
               // 1. The value for the self managed OpenShift clusters is derived from the OpenShift metric cluster:capacity_effective_cpu_cores and is normalized to virtual CPU cores (* 2);
               // 2. The value for the managed OpenShift clusters and the non-OpenShift clusters comes from the ACM metric acm_managed_cluster_worker_cores:max;
@@ -220,6 +213,13 @@
                     ) * 2 or
                   # managed OpenShift cluster and non-OpenShift clusters
                   max by (_id, managed_cluster_id) (acm_managed_cluster_worker_cores:max)
+              |||,
+            },
+            {
+              // Aggregate managed nodes under the cluster so swatch can associate the capacity with the cluster's billing account information
+              record: 'acm_capacity_effective_cpu_cores:sum',
+              expr: |||
+                sum by (_id) (acm_capacity_effective_cpu_cores)
               |||,
             },
             {
