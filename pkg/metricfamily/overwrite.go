@@ -16,10 +16,15 @@ var (
 		Name: "telemeter_overwritten_timestamps_total",
 		Help: "Number of timestamps that were in the past, present or future",
 	}, []string{"tense"})
+	elideSkippedMetrics = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "telemeter_elide_transform_dropped_total",
+		Help: "Number of metrics that were skipped in processing",
+	})
 )
 
 func init() {
 	prometheus.MustRegister(overwrittenMetrics)
+	prometheus.MustRegister(elideSkippedMetrics)
 }
 
 // OverwriteTimestamps sets all timestamps to the current time.
