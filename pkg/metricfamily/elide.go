@@ -24,9 +24,10 @@ func (t *elide) Transform(family *prom.MetricFamily) (bool, error) {
 	if family == nil || len(family.Metric) == 0 {
 		return true, nil
 	}
-
+	var filteredMetrics []*prom.Metric
 	for i := range family.Metric {
 		if family.Metric[i] == nil {
+			elideSkippedMetrics.Inc()
 			continue
 		}
 
@@ -38,7 +39,8 @@ func (t *elide) Transform(family *prom.MetricFamily) (bool, error) {
 			filtered = append(filtered, family.Metric[i].Label[j])
 		}
 		family.Metric[i].Label = filtered
+		filteredMetrics = append(filteredMetrics, family.Metric[i])
 	}
-
+	family.Metric = filteredMetrics
 	return true, nil
 }
