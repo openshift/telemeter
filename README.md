@@ -43,9 +43,9 @@ Any client sending a remote write request will need to attach a composite token 
 ```bash
 CLUSTER_ID="$(oc get clusterversion -o jsonpath='{.items[].spec.clusterID}{"\n"}')" && \
 AUTH="$(oc get secret pull-secret -n openshift-config --template='{{index .data ".dockerconfigjson" | base64decode}}' | jq '.auths."cloud.openshift.com"'.auth)" && \
-echo -n "{'authorization_token':$AUTH,'cluster_id':$CLUSTER_ID}" | base64 -w 0
+echo -n "{\"authorization_token\":\"$AUTH\",\"cluster_id\":\"$CLUSTER_ID\"}" | base64 -w 0
 ```
-The client will also be responsible for ensuring that all metrics sent will have the `_id` (cluster ID) label. Sending metric metadata is not supported.
+The client will also be responsible for ensuring that all metrics sent will have the `_id` (cluster ID) label. Sending metric metadata is not supported and will return a "400 Bad Request" response code.
 
 Upon receiving a request at this endpoint, telemeter-server does the following,
 
