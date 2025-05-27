@@ -3,7 +3,7 @@ package e2e
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -118,7 +118,79 @@ func TestReceiveValidateLabels(t *testing.T) {
 			}
 			defer resp.Body.Close()
 
-			body, _ := ioutil.ReadAll(resp.Body)
+			body, _ := io.ReadAll(resp.Body)
+			if resp.StatusCode != tc.ExpectStatusCode {
+				t.Errorf("request did not return %d, but %s: %s", tc.ExpectStatusCode, resp.Status, string(body))
+			}
+		})
+	}
+}
+
+func TestReceiveMetadataRequest(t *testing.T) {
+	testcases := []struct {
+		Name             string
+		Req              prompb.WriteRequest
+		ExpectStatusCode int
+	}{
+		{
+			Name: "MetaDataRequest",
+			Req: prompb.WriteRequest{
+				Timeseries: nil,
+				Metadata: []prompb.MetricMetadata{
+					{
+						Type:             prompb.MetricMetadata_GAUGE,
+						MetricFamilyName: "test_metric",
+						Help:             "This is a test metric and should be ignored",
+					},
+				},
+			},
+			ExpectStatusCode: http.StatusOK,
+		},
+	}
+
+	var receiveServer *httptest.Server
+	{
+		receiveServer = httptest.NewServer(func() http.HandlerFunc {
+			return func(w http.ResponseWriter, r *http.Request) {}
+		}())
+		defer receiveServer.Close()
+	}
+
+	var telemeterServer *httptest.Server
+	{
+		receiver, err := receive.NewHandler(log.NewNopLogger(), receiveServer.URL, &http.Client{}, prometheus.NewRegistry(), "default-tenant", nil, nil, nil)
+		if err != nil {
+			t.Error("failed to initialize receive handler")
+		}
+
+		telemeterServer = httptest.NewServer(
+			fakeAuthorizeHandler(
+				receiver.TransformAndValidateWriteRequest(
+					http.HandlerFunc(receiver.Receive),
+					"__name__",
+				),
+				&authorize.Client{ID: "test"},
+			),
+		)
+
+		defer telemeterServer.Close()
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.Name, func(t *testing.T) {
+			data, err := proto.Marshal(&tc.Req)
+			if err != nil {
+				t.Error("failed to marshal proto message")
+			}
+			compressed := snappy.Encode(nil, data)
+
+			resp, err := http.Post(telemeterServer.URL+"/metrics/v1/receive", "", bytes.NewBuffer(compressed))
+			if err != nil {
+				t.Error("failed to send the receive request: %w", err)
+			}
+			defer resp.Body.Close()
+
+			body, _ := io.ReadAll(resp.Body)
 			if resp.StatusCode != tc.ExpectStatusCode {
 				t.Errorf("request did not return %d, but %s: %s", tc.ExpectStatusCode, resp.Status, string(body))
 			}

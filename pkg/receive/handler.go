@@ -3,6 +3,7 @@ package receive
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -47,6 +48,7 @@ type Handler struct {
 	requestMissingLabels        prometheus.Counter
 	seriesProcessedTotal        prometheus.Counter
 	requestIncorrectLabelValues prometheus.Counter
+	metadataRequestsTotal       prometheus.Counter
 }
 
 // NewHandler returns a new Handler with a http client
@@ -85,6 +87,12 @@ func NewHandler(logger log.Logger, forwardURL string, client *http.Client, reg p
 			prometheus.CounterOpts{
 				Name: "telemeter_receive_series_processed_total",
 				Help: "The total number of series processed by telemeter receive.",
+			},
+		),
+		metadataRequestsTotal: prometheus.NewCounter(
+			prometheus.CounterOpts{
+				Name: "telemeter_receive_metadata_requests_total",
+				Help: "The total number of metadata requests received by telemeter receive.",
 			},
 		),
 	}
@@ -226,6 +234,18 @@ func (h *Handler) TransformAndValidateWriteRequest(next http.Handler, labels ...
 			h.forwardRequestsTotal.WithLabelValues("error").Inc()
 			level.Warn(logger).Log("msg", "failed to decode protobuf from body", "err", err)
 			http.Error(w, "failed to decode protobuf from body", http.StatusBadRequest)
+			return
+		}
+
+		if len(wreq.GetTimeseries()) == 0 && len(wreq.GetMetadata()) > 0 {
+			// thanos does not yet support metadata requests, so we silently accept and discard them here.
+			// we may want to add a flag to enable this in the future when thanos can consume metadata requests via remote write.
+			h.metadataRequestsTotal.Inc()
+
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"message": "metadata requests are not supported yet, silently discarding",
+			})
 			return
 		}
 
