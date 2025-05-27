@@ -253,12 +253,7 @@ local securePort = 8443;
               },
               {
                 expr: |||
-                  sum by (namespace) (
-                    rate(federate_requests_failed_total{job="telemeter-client"}[15m])
-                  ) /
-                  sum by (namespace) (
-                    rate(federate_requests_total{job="telemeter-client"}[15m])
-                  ) > 0.2
+                  sum by(client, status_code) (rate(metricsclient_http_requests_total{status_code!~"200"}[15m])) > 0
                 |||,
                 labels: {
                   severity: 'warning',
