@@ -254,3 +254,37 @@ tests:
                   value: 70
                 - labels: 'rosa:cluster:vcpu_hours{_id="my-rosa-idk-id"}'
                   value: 36
+    # Test case for Nutanix host type normalization
+    - input_series:
+          - series: 'cluster:virt_platform_nodes:sum{_id="nutanix_test_cluster",type="nutanix_ahv"}'
+            values: '5'
+      promql_expr_test:
+        - expr: id_primary_host_type{_id="nutanix_test_cluster"}
+          eval_time: 0s
+          exp_samples:
+            - labels: 'id_primary_host_type{_id="nutanix_test_cluster",host_type="nutanix"}'
+              value: 0
+    # Test cases for id_primary_host_product rule (Option 2 solution)
+    - input_series:
+          - series: 'cluster:virt_platform_nodes:sum{_id="nutanix_product_test",type="nutanix_ahv"}'
+            values: '3'
+          - series: 'cluster:virt_platform_nodes:sum{_id="aws_product_test",type="aws"}'
+            values: '5'
+          - series: 'cluster:virt_platform_nodes:sum{_id="vmware_product_test",type="vmware"}'
+            values: '2'
+      promql_expr_test:
+        - expr: id_primary_host_product{_id="nutanix_product_test"}
+          eval_time: 0s
+          exp_samples:
+            - labels: 'id_primary_host_product{_id="nutanix_product_test",host_product="nutanix"}'
+              value: 0
+        - expr: id_primary_host_product{_id="aws_product_test"}
+          eval_time: 0s
+          exp_samples:
+            - labels: 'id_primary_host_product{_id="aws_product_test",host_product="aws"}'
+              value: 0
+        - expr: id_primary_host_product{_id="vmware_product_test"}
+          eval_time: 0s
+          exp_samples:
+            - labels: 'id_primary_host_product{_id="vmware_product_test",host_product="vmware"}'
+              value: 0
