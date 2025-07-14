@@ -53,9 +53,21 @@
               |||,
             },
             {
+              record: 'id_primary_host_product',
+              expr: |||
+                # Virtualization products (Nutanix, AWS, VMware, etc.)
+                0 * (max by (_id,host_product) (topk by (_id) (1, label_replace(label_replace(label_replace(label_replace(cluster:virt_platform_nodes:sum, "host_product", "nutanix", "type", "nutanix.*"), "host_product", "$1", "type", "(aws|ibm_.*|ovirt|none|rhev|gcp|openstack|hyperv|vmware)"), "host_product", "metal", "type", "none"), "host_product", "ibm-$1", "host_product", "ibm[_-](power|systemz).*"))) or on(_id) label_replace(max by (_id) (cluster_version{type="current"}), "host_product", "unknown", "host_product", ""))
+              |||,
+            },
+            // TODO: Add id_primary_host_technology rule to complete Option 2 implementation
+            // This would detect underlying technologies (KVM, XEN, etc.) separately from products
+
+            {
               record: 'id_primary_host_type',
               expr: |||
-                0 * (max by (_id,host_type) (topk by (_id) (1, label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(cluster:virt_platform_nodes:sum, "host_type", "$1", "type", "(aws|ibm_.*|ovirt|none|rhev|gcp|openstack|hyperv|vmware|nutanix.*)"), "host_type", "virt-unknown", "host_type", ""), "host_type", "kvm-unknown", "type", "kvm"), "host_type", "xen-unknown", "type", "xen.*"), "host_type", "metal", "host_type", "none"), "host_type", "ibm-$1", "host_type", "ibm[_-](power|systemz).*"))) or on(_id) label_replace(max by (_id) (cluster_version{type="current"}), "host_type", "", "host_type", ""))
+                # NOTE: Known limitation with Nutanix clusters (OCPBUGS-16397)
+                # When virt-what detects multiple technologies, topk may randomly select between them
+                0 * (max by (_id,host_type) (topk by (_id) (1, label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(cluster:virt_platform_nodes:sum, "host_type", "$1$2", "type", "(aws|ibm_.*|ovirt|none|rhev|gcp|openstack|hyperv|vmware)|(nutanix).*"), "host_type", "virt-unknown", "host_type", ""), "host_type", "kvm-unknown", "type", "kvm"), "host_type", "xen-unknown", "type", "xen.*"), "host_type", "metal", "host_type", "none"), "host_type", "ibm-$1", "host_type", "ibm[_-](power|systemz).*"))) or on(_id) label_replace(max by (_id) (cluster_version{type="current"}), "host_type", "", "host_type", ""))
               |||,
             },
             {
