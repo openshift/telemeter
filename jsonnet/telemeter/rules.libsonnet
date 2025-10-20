@@ -185,6 +185,25 @@
                 (sum by (_id, tenant_id) (cluster:capacity_cpu_cores:sum{label_node_openshift_io_os_id="rhcos",label_node_role_kubernetes_io="master",label_kubernetes_io_arch!="amd64"}) * on(_id, tenant_id) group by(_id, tenant_id) (cluster_master_schedulable == 1) or cluster:cpu_capacity_cores:_id)
               |||,
             },
+            {
+              // ACM managed cluster effective cores for subscription usage. It is measured in virtual CPU cores.
+              // 1. The value for the self managed OpenShift clusters is derived from the OpenShift metric cluster:capacity_effective_cpu_cores and is normalized to virtual CPU cores (* 2);
+              // 2. The value for the managed OpenShift clusters and the non-OpenShift clusters comes from the ACM metric acm_managed_cluster_worker_cores:max;
+              record: 'acm_capacity_effective_cpu_cores',
+              expr: |||
+                # self managed OpenShift cluster
+                max by (_id, managed_cluster_id) (acm_managed_cluster_info{product="OpenShift"}) * on(managed_cluster_id) group_left() (
+                    # On one side, the acm_managed_cluster_info metric has the managed_cluster_id label identifiying the managed cluster and the _id label identifying the hub cluster.
+                    # On the other side, the cluster:capacity_effective_cpu_cores metric has the _id label which identifying the managed cluster.
+                    # To join the 2 metrics, we need to add a managed_cluster_id label with the same value as _id to the cluster:capacity_effective_cpu_cores metric.
+                    label_replace(
+                      max by(_id) (cluster:capacity_effective_cpu_cores), "managed_cluster_id", "$1", "_id", "(.*)"
+                    )
+                  ) * 2 or
+                # managed OpenShift cluster and non-OpenShift clusters
+                max by (_id, managed_cluster_id) (acm_managed_cluster_worker_cores:max)
+              |||,
+            },
           ],
         },
       ],
