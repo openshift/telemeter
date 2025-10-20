@@ -91,3 +91,69 @@ tests:
             exp_samples:
                 - labels: 'cluster:capacity_effective_cpu_cores{_id="non-amd64_infra",tenant_id="tenant_id"}'
                   value: 0
+    # acm_capacity_effective_cpu_cores tests
+    - input_series:
+          # self-managed OpenShift cluster
+          - series: 'acm_managed_cluster_info{product="OpenShift",_id="hub_cluster",managed_cluster_id="self_managed_ocp"}'
+            values: '1'
+          - series: 'acm_managed_cluster_info{product="OpenShift",_id="another_hub_cluster",managed_cluster_id="self_managed_ocp"}'
+            values: '1'
+          - series: 'acm_managed_cluster_worker_cores:max{_id="hub_cluster",managed_cluster_id="self_managed_ocp"}'
+            values: '16'
+          - series: 'acm_managed_cluster_worker_cores:max{_id="another_hub_cluster",managed_cluster_id="self_managed_ocp"}'
+            values: '16'
+          - series: 'cluster:capacity_effective_cpu_cores{_id="self_managed_ocp"}'
+            values: '10'
+          # self-managed OpenShift cluster with telemeter disabled
+          - series: 'acm_managed_cluster_info{product="OpenShift",_id="hub_cluster",managed_cluster_id="self_managed_ocp_with_telemeter_disabled"}'
+            values: '1'
+          - series: 'acm_managed_cluster_info{product="OpenShift",_id="another_hub_cluster",managed_cluster_id="self_managed_ocp_with_telemeter_disabled"}'
+            values: '1'
+          - series: 'acm_managed_cluster_worker_cores:max{_id="hub_cluster",managed_cluster_id="self_managed_ocp_with_telemeter_disabled"}'
+            values: '16'
+          - series: 'acm_managed_cluster_worker_cores:max{_id="another_hub_cluster",managed_cluster_id="self_managed_ocp_with_telemeter_disabled"}'
+            values: '16'
+          # managed OpenShift cluster
+          - series: 'acm_managed_cluster_info{product="ROSA",_id="hub_cluster",managed_cluster_id="managed_ocp_rosa"}'
+            values: '1'
+          - series: 'acm_managed_cluster_info{product="ROSA",_id="another_hub_cluster",managed_cluster_id="managed_ocp_rosa"}'
+            values: '1'
+          - series: 'acm_managed_cluster_worker_cores:max{_id="hub_cluster",managed_cluster_id="managed_ocp_rosa"}'
+            values: '24'
+          - series: 'acm_managed_cluster_worker_cores:max{_id="another_hub_cluster",managed_cluster_id="managed_ocp_rosa"}'
+            values: '24'
+          - series: 'cluster:capacity_effective_cpu_cores{_id="managed_ocp_rosa"}'
+            values: '18'
+          # non-OpenShift cluster
+          - series: 'acm_managed_cluster_info{product="AKS",_id="hub_cluster",managed_cluster_id="none_ocp_aks"}'
+            values: '1'
+          - series: 'acm_managed_cluster_info{product="AKS",_id="another_hub_cluster",managed_cluster_id="none_ocp_aks"}'
+            values: '1'
+          - series: 'acm_managed_cluster_worker_cores:max{_id="hub_cluster",managed_cluster_id="none_ocp_aks"}'
+            values: '32'
+          - series: 'acm_managed_cluster_worker_cores:max{_id="another_hub_cluster",managed_cluster_id="none_ocp_aks"}'
+            values: '32'
+      promql_expr_test:
+          - expr: acm_capacity_effective_cpu_cores
+            eval_time: 0
+            exp_samples:
+                # self-managed OpenShift cluster (double the number of the physical cores)
+                - labels: 'acm_capacity_effective_cpu_cores{_id="hub_cluster",managed_cluster_id="self_managed_ocp"}'
+                  value: 20
+                - labels: 'acm_capacity_effective_cpu_cores{_id="another_hub_cluster",managed_cluster_id="self_managed_ocp"}'
+                  value: 20
+                # self-managed OpenShift cluster with telemeter disabled (fall back to acm_managed_cluster_worker_cores:max)
+                - labels: 'acm_capacity_effective_cpu_cores{_id="hub_cluster",managed_cluster_id="self_managed_ocp_with_telemeter_disabled"}'
+                  value: 16
+                - labels: 'acm_capacity_effective_cpu_cores{_id="another_hub_cluster",managed_cluster_id="self_managed_ocp_with_telemeter_disabled"}'
+                  value: 16
+                # managed OpenShift cluster
+                - labels: 'acm_capacity_effective_cpu_cores{_id="hub_cluster",managed_cluster_id="managed_ocp_rosa"}'
+                  value: 24
+                - labels: 'acm_capacity_effective_cpu_cores{_id="another_hub_cluster",managed_cluster_id="managed_ocp_rosa"}'
+                  value: 24
+                # non-OpenShift cluster
+                - labels: 'acm_capacity_effective_cpu_cores{_id="hub_cluster",managed_cluster_id="none_ocp_aks"}'
+                  value: 32
+                - labels: 'acm_capacity_effective_cpu_cores{_id="another_hub_cluster",managed_cluster_id="none_ocp_aks"}'
+                  value: 32
