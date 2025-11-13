@@ -10,6 +10,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -375,7 +376,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 					return err
 				}
 			} else {
-				if err := s.Serve(internalListener); err != nil && err != http.ErrServerClosed {
+				if err := s.Serve(internalListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 					level.Error(o.Logger).Log("msg", "internal HTTP server exited", "err", err)
 					return err
 				}
@@ -523,7 +524,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 				v2AuthorizeClient.Transport = cache.NewRoundTripper(mc, tollbooth.ExtractToken, v2AuthorizeClient.Transport, l, prometheus.DefaultRegisterer)
 			}
 
-			receiver, err := receive.NewHandler(o.Logger, o.ForwardURL, v2ForwardClient, prometheus.DefaultRegisterer, o.TenantID, o.Whitelist, o.ElideLabels, nil)
+			receiver, err := receive.NewHandler(o.Logger, o.ForwardURL, v2ForwardClient, prometheus.DefaultRegisterer, o.TenantID, o.Whitelist, nil, nil)
 			if err != nil {
 				level.Error(o.Logger).Log("msg", "could not initialize receive handler", "err", err)
 			}
@@ -568,12 +569,12 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 		// Run the external server.
 		g.Add(func() error {
 			if len(o.TLSCertificatePath) > 0 {
-				if err := s.ServeTLS(externalListener, o.TLSCertificatePath, o.TLSKeyPath); err != nil && err != http.ErrServerClosed {
+				if err := s.ServeTLS(externalListener, o.TLSCertificatePath, o.TLSKeyPath); err != nil && !errors.Is(err, http.ErrServerClosed) {
 					level.Error(o.Logger).Log("msg", "external HTTPS server exited", "err", err)
 					return err
 				}
 			} else {
-				if err := s.Serve(externalListener); err != nil && err != http.ErrServerClosed {
+				if err := s.Serve(externalListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 					level.Error(o.Logger).Log("msg", "external HTTP server exited", "err", err)
 					return err
 				}
