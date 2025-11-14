@@ -36,6 +36,7 @@ func main() {
 		LimitBytes: 200 * 1024,
 		Rules:      []string{`{__name__="up"}`},
 		Interval:   4*time.Minute + 30*time.Second,
+		LogLevel:   "info",
 	}
 	cmd := &cobra.Command{
 		Short:         "Federate Prometheus via push",
@@ -78,7 +79,7 @@ func main() {
 
 	cmd.Flags().BoolVarP(&opt.Verbose, "verbose", "v", opt.Verbose, "Show verbose output.")
 
-	cmd.Flags().StringVar(&opt.LogLevel, "log-level", opt.LogLevel, "Log filtering level. e.g info, debug, warn, error")
+	cmd.Flags().StringVar(&opt.LogLevel, "log-level", opt.LogLevel, "Log filtering level. e.g info, debug, warn, error. Defaults to info")
 
 	cmd.Flags().StringVar(&opt.TracingServiceName, "internal.tracing.service-name", "telemeter-client",
 		"The service name to report to the tracing backend.")
