@@ -6,9 +6,9 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -126,7 +126,7 @@ func New(cfg Config) (*Worker, error) {
 	// Configure the anonymization.
 	anonymizeSalt := cfg.AnonymizeSalt
 	if len(cfg.AnonymizeSalt) == 0 && len(cfg.AnonymizeSaltFile) > 0 {
-		data, err := ioutil.ReadFile(cfg.AnonymizeSaltFile)
+		data, err := os.ReadFile(cfg.AnonymizeSaltFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read anonymize-salt-file: %v", err)
 		}
@@ -172,7 +172,7 @@ func New(cfg Config) (*Worker, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to read system certificates: %v", err)
 		}
-		data, err := ioutil.ReadFile(cfg.FromCAFile)
+		data, err := os.ReadFile(cfg.FromCAFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read from-ca-file: %v", err)
 		}
@@ -189,7 +189,7 @@ func New(cfg Config) (*Worker, error) {
 	}
 	if len(cfg.FromToken) == 0 && len(cfg.FromTokenFile) > 0 {
 		level.Debug(logger).Log("msg", "enabling the token file round tripper for the fromClient transport")
-		data, err := ioutil.ReadFile(cfg.FromTokenFile)
+		data, err := os.ReadFile(cfg.FromTokenFile)
 		if err != nil {
 			return nil, fmt.Errorf("unable to read from-token-file: %v", err)
 		}
@@ -209,7 +209,7 @@ func New(cfg Config) (*Worker, error) {
 		toClient.Transport = telemeterhttp.NewDebugRoundTripper(logger, toClient.Transport)
 	}
 	if len(cfg.ToToken) == 0 && len(cfg.ToTokenFile) > 0 {
-		data, err := ioutil.ReadFile(cfg.ToTokenFile)
+		data, err := os.ReadFile(cfg.ToTokenFile)
 		if err != nil {
 			return nil, fmt.Errorf("unable to read to-token-file: %v", err)
 		}
@@ -231,7 +231,7 @@ func New(cfg Config) (*Worker, error) {
 	// Configure the matching rules.
 	rules := cfg.Rules
 	if len(cfg.RulesFile) > 0 {
-		data, err := ioutil.ReadFile(cfg.RulesFile)
+		data, err := os.ReadFile(cfg.RulesFile)
 		if err != nil {
 			return nil, fmt.Errorf("unable to read match-file: %v", err)
 		}

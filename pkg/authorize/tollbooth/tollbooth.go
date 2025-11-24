@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"mime"
 	"net/http"
 	"net/url"
@@ -79,10 +79,10 @@ func (a *authorizer) AuthorizeCluster(token, cluster string) (string, error) {
 // In the case of a request to Tollbooth, the token
 // is the entire contents of the request body.
 func ExtractToken(r *http.Request) (string, error) {
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err := r.Body.Close(); err != nil {
 		return "", errors.Wrap(err, "failed to close body")
 	}
-	r.Body = ioutil.NopCloser(bytes.NewBuffer(body))
+	r.Body = io.NopCloser(bytes.NewBuffer(body))
 	return string(body), err
 }

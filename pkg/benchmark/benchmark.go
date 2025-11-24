@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"math/rand"
 	"net/http"
@@ -105,7 +104,7 @@ func New(cfg *Config) (*Benchmark, error) {
 	}
 
 	if len(cfg.ToToken) == 0 && len(cfg.ToTokenFile) > 0 {
-		data, err := ioutil.ReadFile(cfg.ToTokenFile)
+		data, err := os.ReadFile(cfg.ToTokenFile)
 		if err != nil {
 			return nil, fmt.Errorf("unable to read to-token-file: %v", err)
 		}
@@ -126,7 +125,7 @@ func New(cfg *Config) (*Benchmark, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to read system certificates: %v", err)
 		}
-		data, err := ioutil.ReadFile(cfg.ToCAFile)
+		data, err := os.ReadFile(cfg.ToCAFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read to-ca-file: %v", err)
 		}

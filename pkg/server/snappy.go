@@ -1,7 +1,7 @@
 package server
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 
@@ -12,7 +12,7 @@ import (
 func Snappy(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if strings.EqualFold(r.Header.Get("Content-Encoding"), "snappy") {
-			r.Body = ioutil.NopCloser(snappy.NewReader(r.Body))
+			r.Body = io.NopCloser(snappy.NewReader(r.Body))
 		}
 
 		next.ServeHTTP(w, r)

@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -85,14 +84,14 @@ func AgainstEndpoint(logger log.Logger, client *http.Client, endpoint *url.URL, 
 	defer func() {
 		// read the body to keep the upstream connection open
 		if res.Body != nil {
-			if _, err := io.Copy(ioutil.Discard, res.Body); err != nil {
+			if _, err := io.Copy(io.Discard, res.Body); err != nil {
 				level.Error(logger).Log("msg", "error copying body", "err", err)
 			}
 			res.Body.Close()
 		}
 	}()
 
-	body, err := ioutil.ReadAll(io.LimitReader(res.Body, requestBodyLimit))
+	body, err := io.ReadAll(io.LimitReader(res.Body, requestBodyLimit))
 	if err != nil {
 		return nil, err
 	}

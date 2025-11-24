@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -147,7 +146,7 @@ func TestServer(t *testing.T) {
 						testutil.Ok(t, err)
 
 						defer resp.Body.Close()
-						body, err := ioutil.ReadAll(resp.Body)
+						body, err := io.ReadAll(resp.Body)
 						testutil.Ok(t, err)
 
 						testutil.Equals(t, 2, resp.StatusCode/100, "request did not return 2xx, but %s: %s", resp.Status, string(body))
@@ -175,7 +174,7 @@ func TestServer(t *testing.T) {
 
 							defer resp.Body.Close()
 
-							body, err := ioutil.ReadAll(resp.Body)
+							body, err := io.ReadAll(resp.Body)
 							testutil.Ok(t, err)
 
 							testutil.Equals(t, http.StatusOK, resp.StatusCode, string(body))
@@ -215,7 +214,7 @@ func readMetrics(t *testing.T, m string, cluster string) []*clientmodel.MetricFa
 // and asserts the seeing contents against the pre-defined expectedTimeSeries from the top.
 func mockedReceiver(t *testing.T) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Errorf("failed reading body from forward request: %v", err)
 		}

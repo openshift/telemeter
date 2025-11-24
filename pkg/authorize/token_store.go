@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"sync"
@@ -51,7 +50,7 @@ func (t *tokenStore) Load(endpoint *url.URL, initialToken string, rt http.RoundT
 	case http.StatusUnauthorized:
 		return "", fmt.Errorf("initial authentication token is expired or invalid")
 	default:
-		body, _ := ioutil.ReadAll(io.LimitReader(resp.Body, 4*1024))
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4*1024))
 		return "", fmt.Errorf("unable to exchange initial token for a long lived token: %d:\n%s", resp.StatusCode, string(body))
 	}
 
@@ -95,7 +94,7 @@ func (t *tokenStore) Labels() (map[string]string, bool) {
 }
 
 func parseTokenFromBody(r io.Reader, limitBytes int64) (*TokenResponse, error) {
-	data, err := ioutil.ReadAll(io.LimitReader(r, limitBytes))
+	data, err := io.ReadAll(io.LimitReader(r, limitBytes))
 	if err != nil {
 		return nil, fmt.Errorf("unable to read the authentication response: %v", err)
 	}
