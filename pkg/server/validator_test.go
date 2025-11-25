@@ -2,7 +2,7 @@ package server
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -44,7 +44,7 @@ func TestValidate(t *testing.T) {
 			Validate(log.NewNopLogger(), metricfamily.MultiTransformer{}, time.Hour, 512*1024, now,
 				func(w http.ResponseWriter, r *http.Request) {
 					// TODO: Make the check proper to changing timestamps?
-					body, err := ioutil.ReadAll(r.Body)
+					body, err := io.ReadAll(r.Body)
 					if err != nil {
 						t.Fatalf("failed to read body: %v", err)
 					}
@@ -167,7 +167,7 @@ func TestValidate(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			body, err := ioutil.ReadAll(resp.Body)
+			body, err := io.ReadAll(resp.Body)
 			if err != nil {
 				t.Fatal(err)
 			}

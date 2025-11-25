@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"time"
 
@@ -85,7 +84,7 @@ func Validate(logger log.Logger, baseTransforms metricfamily.Transformer, maxAge
 			r.Body = reader.NewLimitReadCloser(r.Body, limitBytes)
 		}
 
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			msg := "failed to read request body"
 			if errors.Is(err, reader.ErrTooLong) {
@@ -172,7 +171,7 @@ func Validate(logger log.Logger, baseTransforms metricfamily.Transformer, maxAge
 			}
 		}
 
-		r.Body = ioutil.NopCloser(buf)
+		r.Body = io.NopCloser(buf)
 
 		next.ServeHTTP(w, r)
 	}

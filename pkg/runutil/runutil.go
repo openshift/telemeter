@@ -28,7 +28,6 @@ package runutil
 import (
 	"errors"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 
@@ -58,7 +57,7 @@ func CloseWithLogOnErr(logger log.Logger, closer io.Closer, format string) {
 
 // ExhaustCloseWithLogOnErr closes the io.ReadCloser with a log message on error but exhausts the reader before.
 func ExhaustCloseWithLogOnErr(logger log.Logger, r io.ReadCloser, format string) {
-	_, err := io.Copy(ioutil.Discard, r)
+	_, err := io.Copy(io.Discard, r)
 	if err != nil {
 		level.Warn(logger).Log("msg", "failed to exhaust reader, performance may be impeded", "err", err)
 	}
@@ -70,7 +69,7 @@ func ExhaustCloseWithLogOnErr(logger log.Logger, r io.ReadCloser, format string)
 func ExhaustCloseRequestBodyHandler(logger log.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b := r.Body
-		r.Body = ioutil.NopCloser(r.Body)
+		r.Body = io.NopCloser(r.Body)
 		next.ServeHTTP(w, r)
 		ExhaustCloseWithLogOnErr(logger, b, "close request body")
 	})

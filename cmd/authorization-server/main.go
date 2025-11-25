@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	stdlog "log"
 	"net/http"
 	"os"
@@ -22,7 +21,7 @@ func main() {
 		stdlog.Fatalf("expected two arguments, the listen address and a path to a JSON file containing responses")
 	}
 
-	data, err := ioutil.ReadFile(os.Args[2])
+	data, err := os.ReadFile(os.Args[2])
 	if err != nil {
 		stdlog.Fatalf("unable to read JSON file: %v", err)
 	}

@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"strconv"
@@ -134,7 +133,7 @@ func (c *Client) Send(ctx context.Context, req *http.Request, families []*client
 	}
 	req.Header.Set("Content-Type", string(expfmt.FmtProtoDelim))
 	req.Header.Set("Content-Encoding", "snappy")
-	req.Body = ioutil.NopCloser(buf)
+	req.Body = io.NopCloser(buf)
 
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	req = req.WithContext(ctx)
@@ -142,7 +141,7 @@ func (c *Client) Send(ctx context.Context, req *http.Request, families []*client
 
 	return withCancel(ctx, c.client, req, func(resp *http.Response) error {
 		defer func() {
-			if _, err := io.Copy(ioutil.Discard, resp.Body); err != nil {
+			if _, err := io.Copy(io.Discard, resp.Body); err != nil {
 				level.Error(c.logger).Log("msg", "error copying body", "err", err)
 			}
 			resp.Body.Close()
@@ -164,7 +163,7 @@ func (c *Client) Send(ctx context.Context, req *http.Request, families []*client
 			return fmt.Errorf("gateway server bad request: %s", resp.Request.URL)
 		default:
 			gaugeRequestSend.WithLabelValues(c.metricsName, strconv.Itoa(resp.StatusCode)).Inc()
-			body, _ := ioutil.ReadAll(resp.Body)
+			body, _ := io.ReadAll(resp.Body)
 			if len(body) > 1024 {
 				body = body[:1024]
 			}

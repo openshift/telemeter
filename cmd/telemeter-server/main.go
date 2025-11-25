@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	stdlog "log"
 	"net"
 	"net/http"
@@ -404,7 +403,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 			)
 
 			if len(o.SharedKey) > 0 {
-				data, err := ioutil.ReadFile(o.SharedKey)
+				data, err := os.ReadFile(o.SharedKey)
 				if err != nil {
 					return fmt.Errorf("unable to read --shared-key: %v", err)
 				}
@@ -435,7 +434,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 
 			// Configure the whitelist.
 			if len(o.WhitelistFile) > 0 {
-				data, err := ioutil.ReadFile(o.WhitelistFile)
+				data, err := os.ReadFile(o.WhitelistFile)
 				if err != nil {
 					return fmt.Errorf("unable to read --whitelist-file: %v", err)
 				}
