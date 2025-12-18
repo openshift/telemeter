@@ -16,14 +16,23 @@ var (
 			NativeHistogramBucketFactor:     1.1,
 			NativeHistogramMaxBucketNumber:  100,
 			NativeHistogramMinResetDuration: 1 * time.Hour,
+			//TODO(simonpasquier): remove legacy histogram support once we've
+			//switched all consumers to use native histograms.
+			Buckets: prometheus.DefBuckets,
 		},
 		[]string{"code", "handler", "method"},
 	)
 
-	requestSize = prometheus.NewSummaryVec(
-		prometheus.SummaryOpts{
-			Name: "http_request_size_bytes",
-			Help: "Tracks the size of HTTP requests.",
+	requestSize = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:                            "http_request_size_bytes",
+			Help:                            "Tracks the size of HTTP requests.",
+			NativeHistogramBucketFactor:     1.1,
+			NativeHistogramMaxBucketNumber:  100,
+			NativeHistogramMinResetDuration: 1 * time.Hour,
+			//TODO(simonpasquier): remove legacy histogram support once we've
+			//switched all consumers to use native histograms.
+			Buckets: []float64{1024, 8192, 65536, 262144, 524288, 1048576, 2097152},
 		},
 		[]string{"code", "handler", "method"},
 	)
