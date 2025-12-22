@@ -41,9 +41,12 @@ var (
 		Help: "Total amount of forwarded v1 requests.",
 	}, []string{"result"})
 	forwardDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
-		Name:    "telemeter_v1_forward_request_duration_seconds",
-		Help:    "Tracks the duration of all requests forwarded v1.",
-		Buckets: []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5}, // max = timeout
+		Name:                            "telemeter_v1_forward_request_duration_seconds",
+		Help:                            "Tracks the duration of all requests forwarded v1.",
+		Buckets:                         []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5}, // max = timeout
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: 1 * time.Hour,
 	}, []string{"status_code"})
 	overwrittenTimestamps = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "telemeter_v1_forward_overwritten_timestamps_total",

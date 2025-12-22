@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
@@ -27,27 +28,36 @@ var (
 
 	dnsLatencyVec = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "dns_duration_seconds",
-			Help:    "Trace dns latency histogram.",
-			Buckets: []float64{.005, .01, .025, .05},
+			Name:                            "dns_duration_seconds",
+			Help:                            "Trace dns latency histogram.",
+			Buckets:                         []float64{.005, .01, .025, .05},
+			NativeHistogramBucketFactor:     1.1,
+			NativeHistogramMaxBucketNumber:  100,
+			NativeHistogramMinResetDuration: 1 * time.Hour,
 		},
 		[]string{"event", "client"},
 	)
 
 	tlsLatencyVec = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "tls_duration_seconds",
-			Help:    "Trace tls latency histogram.",
-			Buckets: []float64{.05, .1, .25, .5},
+			Name:                            "tls_duration_seconds",
+			Help:                            "Trace tls latency histogram.",
+			Buckets:                         []float64{.05, .1, .25, .5},
+			NativeHistogramBucketFactor:     1.1,
+			NativeHistogramMaxBucketNumber:  100,
+			NativeHistogramMinResetDuration: 1 * time.Hour,
 		},
 		[]string{"event", "client"},
 	)
 
 	histVec = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "request_duration_seconds",
-			Help:    "A histogram of request latencies.",
-			Buckets: prometheus.DefBuckets,
+			Name:                            "request_duration_seconds",
+			Help:                            "A histogram of request latencies.",
+			Buckets:                         prometheus.DefBuckets,
+			NativeHistogramBucketFactor:     1.1,
+			NativeHistogramMaxBucketNumber:  100,
+			NativeHistogramMinResetDuration: 1 * time.Hour,
 		},
 		[]string{"method", "client"},
 	)
