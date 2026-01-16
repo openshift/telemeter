@@ -7,7 +7,7 @@ RUN cd /go/src/github.com/openshift/telemeter && \
     go build ./cmd/rhelemeter-server && \
     go build ./cmd/authorization-server
 
-FROM registry.ci.openshift.org/ocp/4.22:base-rhel9
+FROM registry.ci.openshift.org/ocp/4.22:base-rhel9-minimal
 LABEL io.k8s.display-name="OpenShift Telemeter" \
       io.k8s.description="" \
       io.openshift.tags="openshift,monitoring" \
