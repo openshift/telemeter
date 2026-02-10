@@ -166,7 +166,7 @@
                 // ROSA HCP Control Plane instance hours. 
                 // Note: Management clusters emit worker vCPU metrics while the control plane is active; 
                 // we use these as the authoritative base for calculating control plane vCPU hours.
-                max by(_id) (count_over_time((rosa:cluster:vcpu_hours > 0)[1h:5m])) / scalar(steps:count1h)
+                max by(_id) (count_over_time((hostedcluster:hypershift_cluster_vcpus:max > 0)[1h:5m])) / scalar(steps:count1h)
               |||,
             },
             {
