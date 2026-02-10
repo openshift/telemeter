@@ -162,6 +162,11 @@
               record: 'cluster:usage:workload:capacity_physical_instance_hours',
               expr: |||
                 max by(_id) (count_over_time(cluster:usage:workload:capacity_physical_cpu_cores:max:5m[1h:5m])) / scalar(steps:count1h)
+                or
+                // ROSA HCP Control Plane instance hours. 
+                // Note: Management clusters emit worker vCPU metrics while the control plane is active; 
+                // we use these as the authoritative base for calculating control plane vCPU hours.
+                max by(_id) (count_over_time((rosa:cluster:vcpu_hours > 0)[1h:5m])) / scalar(steps:count1h)
               |||,
             },
             {
