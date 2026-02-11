@@ -163,13 +163,13 @@
               // This recording rule is based on two metrics:
               // 1) `cluster:usage:workload:capacity_physical_cpu_cores:max:5m` which is used as an anchor for the control plane hours in non-HCP clusters.
               // 2) `hostedcluster:hypershift_cluster_vcpus:max` which is used as an anchor for the control plane hours in HCP clusters.
-              // While these metrics relate to the actual worker count, they are emitted by either infrastructure nodes for non-HCP clusters, 
+              // While these metrics relate to the actual worker count, they are emitted by either infrastructure nodes for non-HCP clusters,
               // or the management cluster layer for HCP clusters and at least 1 time series is expected at any point in time during the cluster's lifetime.
-              // 
-              // Note for HCP: 
-              // While for HCP both metrics may be emitted to telemetry (one from the telemeter-client, one from the management cluster), 
+              //
+              // Note for HCP:
+              // While for HCP both metrics may be emitted to telemetry (one from the telemeter-client, one from the management cluster),
               // this is not always the case, as the telemeter-client is optional or may not be reliable because it runs on the worker nodes.
-              // We fall back to the more reliable metric emitted from the management cluster in any case. 
+              // We fall back to the more reliable metric emitted from the management cluster in any case.
               record: 'cluster:usage:workload:capacity_physical_instance_hours',
               expr: |||
                 max by(_id) (count_over_time(cluster:usage:workload:capacity_physical_cpu_cores:max:5m[1h:5m])) / scalar(steps:count1h)
