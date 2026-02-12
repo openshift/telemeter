@@ -13,14 +13,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-type testCloser struct {
-	err error
-}
-
-func (c testCloser) Close() error {
-	return c.err
-}
-
 type loggerCapturer struct {
 	// WasCalled is true if the Log() function has been called.
 	WasCalled bool
