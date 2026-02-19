@@ -234,6 +234,41 @@ tests:
             exp_samples:
                 - labels: 'hostedcluster:hypershift_cluster_vcpus:vcpu_hours{_id="my-id"}'
                   value: 0
+    # cluster:usage:control_plane:instance_hours tests
+    # HCP cluster where data plane is down: cluster:usage:workload:capacity_physical_cpu_cores:max:5m
+    # is not reported, but hostedcluster:hypershift_cluster_vcpus:max is reported from RH infrastructure
+    - input_series:
+          - series: 'hostedcluster:hypershift_cluster_vcpus:max{_id="hcp-data-plane-down"}'
+            values: '0x90 4x90 0x90'
+      promql_expr_test:
+          # Before the control plane becomes active: no samples
+          - expr: cluster:usage:control_plane:instance_hours{_id="hcp-data-plane-down"}
+            eval_time: 60m
+            exp_samples: []
+          # Active for 30 min over the last hour
+          - expr: cluster:usage:control_plane:instance_hours{_id="hcp-data-plane-down"}
+            eval_time: 122m
+            exp_samples:
+                - labels: 'cluster:usage:control_plane:instance_hours{_id="hcp-data-plane-down"}'
+                  value: 0.5
+          # Active for the full hour
+          - expr: cluster:usage:control_plane:instance_hours{_id="hcp-data-plane-down"}
+            eval_time: 152m
+            exp_samples:
+                - labels: 'cluster:usage:control_plane:instance_hours{_id="hcp-data-plane-down"}'
+                  value: 1
+    # Backwards compatibility: both metrics present, non-HCP expression takes precedence via or
+    - input_series:
+          - series: 'cluster:usage:workload:capacity_physical_cpu_cores:max:5m{_id="both"}'
+            values: '4x180'
+          - series: 'hostedcluster:hypershift_cluster_vcpus:max{_id="both"}'
+            values: '0x180'
+      promql_expr_test:
+          - expr: cluster:usage:control_plane:instance_hours{_id="both"}
+            eval_time: 60m
+            exp_samples:
+                - labels: 'cluster:usage:control_plane:instance_hours{_id="both"}'
+                  value: 1
     # rosa:cluster:vcpu_hours tests
     - input_series:
           - series: 'hostedcluster:hypershift_cluster_vcpus:vcpu_hours{_id="my-rosa-hcp-id"}'

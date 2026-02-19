@@ -158,6 +158,13 @@
               |||,
             },
             {
+              // OpenShift Cluster Instance-hours for the last hour.
+              record: 'cluster:usage:workload:capacity_physical_instance_hours',
+              expr: |||
+                max by(_id) (count_over_time(cluster:usage:workload:capacity_physical_cpu_cores:max:5m[1h:5m])) / scalar(steps:count1h)
+              |||,
+            },
+            {
               // OpenShift Control Plane instance hours over the past hour.
               // This recording rule represents the instance hours over the past hour in which the control plane has been active.
               // This recording rule is based on two metrics:
@@ -170,9 +177,9 @@
               // While for HCP both metrics may be emitted to telemetry (one from the telemeter-client, one from the management cluster),
               // this is not always the case, as the telemeter-client is optional or may not be reliable because it runs on the worker nodes.
               // We fall back to the more reliable metric emitted from the management cluster in any case.
-              record: 'cluster:usage:workload:capacity_physical_instance_hours',
+              record: 'cluster:usage:control_plane:instance_hours',
               expr: |||
-                max by(_id) (count_over_time(cluster:usage:workload:capacity_physical_cpu_cores:max:5m[1h:5m])) / scalar(steps:count1h)
+                cluster:usage:workload:capacity_physical_instance_hours
                 or
                 max by(_id) (count_over_time((hostedcluster:hypershift_cluster_vcpus:max > 0)[1h:5m])) / scalar(steps:count1h)
               |||,
