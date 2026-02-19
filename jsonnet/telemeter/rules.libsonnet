@@ -179,7 +179,7 @@
               // We fall back to the more reliable metric emitted from the management cluster in any case.
               record: 'cluster:usage:control_plane:instance_hours',
               expr: |||
-                cluster:usage:workload:capacity_physical_instance_hours
+                max by (_id) (cluster:usage:workload:capacity_physical_instance_hours)
                 or
                 max by(_id) (count_over_time((hostedcluster:hypershift_cluster_vcpus:max > 0)[1h:5m])) / scalar(steps:count1h)
               |||,

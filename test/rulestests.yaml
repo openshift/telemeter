@@ -238,7 +238,7 @@ tests:
     # HCP cluster where data plane is down: cluster:usage:workload:capacity_physical_cpu_cores:max:5m
     # is not reported, but hostedcluster:hypershift_cluster_vcpus:max is reported from RH infrastructure
     - input_series:
-          - series: 'hostedcluster:hypershift_cluster_vcpus:max{_id="hcp-data-plane-down"}'
+          - series: 'hostedcluster:hypershift_cluster_vcpus:max{_id="hcp-data-plane-down", tenant_id="test"}'
             values: '0x90 4x90 0x90'
       promql_expr_test:
           # Before the control plane becomes active: no samples
@@ -259,9 +259,9 @@ tests:
                   value: 1
     # Backwards compatibility: both metrics present, non-HCP expression takes precedence via or
     - input_series:
-          - series: 'cluster:usage:workload:capacity_physical_cpu_cores:max:5m{_id="both"}'
+          - series: 'cluster:usage:workload:capacity_physical_cpu_cores:max:5m{_id="both", tenant_id="test"}'
             values: '4x180'
-          - series: 'hostedcluster:hypershift_cluster_vcpus:max{_id="both"}'
+          - series: 'hostedcluster:hypershift_cluster_vcpus:max{_id="both", tenant_id="test"}'
             values: '0x180'
       promql_expr_test:
           - expr: cluster:usage:control_plane:instance_hours{_id="both"}
