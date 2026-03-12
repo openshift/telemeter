@@ -159,9 +159,17 @@
             },
             {
               // OpenShift Cluster Instance-hours for the last hour.
+              // TODO(typeid): We will remove this rule at a later point as part of SREP-3493
+              // and replace it with `cluster:usage:control_plane:instance_hours`.
+              // This rule is currently equivalent to `cluster:usage:control_plane:instance_hours` to allow
+              // bumping this through stage and production without a SubWatch release.
+              // SubWatch currently references this rule for ROSA HCP control plane billing via
+              // https://github.com/RedHatInsights/rhsm-subscriptions/blob/1309ecd73f21cc213f5ca58b5486ff95fe8ee982/swatch-product-configuration/src/main/resources/subscription_configs/OpenShift/rosa.yaml#L46
               record: 'cluster:usage:workload:capacity_physical_instance_hours',
               expr: |||
                 max by(_id) (count_over_time(cluster:usage:workload:capacity_physical_cpu_cores:max:5m[1h:5m])) / scalar(steps:count1h)
+                or
+                max by(_id) (count_over_time((hostedcluster:hypershift_cluster_vcpus:max > 0)[1h:5m])) / scalar(steps:count1h)
               |||,
             },
             {
@@ -172,14 +180,13 @@
               // 2) `hostedcluster:hypershift_cluster_vcpus:max` which is used as an anchor for the control plane hours in HCP clusters.
               // While these metrics relate to the actual worker count, they are emitted by either infrastructure nodes for non-HCP clusters,
               // or the management cluster layer for HCP clusters and at least 1 time series is expected at any point in time during the cluster's lifetime.
-              //
               // Note for HCP:
               // While for HCP both metrics may be emitted to telemetry (one from the telemeter-client, one from the management cluster),
               // this is not always the case, as the telemeter-client is optional or may not be reliable because it runs on the worker nodes.
               // We fall back to the more reliable metric emitted from the management cluster in any case.
               record: 'cluster:usage:control_plane:instance_hours',
               expr: |||
-                max by (_id) (cluster:usage:workload:capacity_physical_instance_hours)
+                max by(_id) (count_over_time(cluster:usage:workload:capacity_physical_cpu_cores:max:5m[1h:5m])) / scalar(steps:count1h)
                 or
                 max by(_id) (count_over_time((hostedcluster:hypershift_cluster_vcpus:max > 0)[1h:5m])) / scalar(steps:count1h)
               |||,
