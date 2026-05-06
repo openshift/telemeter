@@ -39,7 +39,7 @@ func (rt *ServerRotatingRoundTripper) RoundTrip(req *http.Request) (*http.Respon
 func (rt *ServerRotatingRoundTripper) Labels() (map[string]string, error) {
 	_, err := rt.tokenStore.Load(rt.endpoint, rt.initialToken, rt.wrapper)
 	if err != nil {
-		return nil, fmt.Errorf("unable to authorize to server: %v", err)
+		return nil, fmt.Errorf("unable to authorize to server: %w", err)
 	}
 	labels, ok := rt.tokenStore.Labels()
 	if !ok {

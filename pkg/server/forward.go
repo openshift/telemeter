@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -16,13 +17,13 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
-	"github.com/openshift/telemeter/pkg/runutil"
 	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/prometheus/prompb"
 
 	"github.com/openshift/telemeter/pkg/metricfamily"
+	"github.com/openshift/telemeter/pkg/runutil"
 )
 
 const (
@@ -80,7 +81,7 @@ func ForwardHandler(logger log.Logger, forwardURL *url.URL, tenantID string, cli
 		for {
 			family := &clientmodel.MetricFamily{}
 			if err := decoder.Decode(family); err != nil {
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					break
 				}
 				msg := err.Error()
@@ -135,7 +136,7 @@ func ForwardHandler(logger log.Logger, forwardURL *url.URL, tenantID string, cli
 		defer cancel()
 
 		begin := time.Now()
-		resp, err := client.Do(req.WithContext(clientCtx))
+		resp, err := client.Do(req.WithContext(clientCtx)) //nolint:bodyclose
 		if err != nil {
 			forwardRequests.WithLabelValues("error").Inc()
 			msg := "failed to forward request"

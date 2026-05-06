@@ -87,7 +87,7 @@ func AgainstEndpoint(logger log.Logger, client *http.Client, endpoint *url.URL, 
 			if _, err := io.Copy(io.Discard, res.Body); err != nil {
 				level.Error(logger).Log("msg", "error copying body", "err", err)
 			}
-			res.Body.Close()
+			_ = res.Body.Close()
 		}
 	}()
 
@@ -138,7 +138,7 @@ func NewHandler(logger log.Logger, client *http.Client, endpoint *url.URL, tenan
 		logger := log.With(logger, "request", middleware.GetReqID(r.Context()))
 
 		authHeader := r.Header.Get("Authorization")
-		authParts := strings.Split(string(authHeader), " ")
+		authParts := strings.Split(authHeader, " ")
 		if len(authParts) != 2 || strings.ToLower(authParts[0]) != "bearer" {
 			level.Warn(logger).Log("msg", "bad authorization header", "header", authHeader)
 			w.WriteHeader(http.StatusBadRequest)

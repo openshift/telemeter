@@ -3,13 +3,13 @@ package cache
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"net/http"
 	"net/http/httputil"
 
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -42,14 +42,14 @@ func (r *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	key, err := r.key(req)
 	if err != nil {
 		level.Error(logger).Log("msg", "failed to generate key from request", "err", err)
-		return nil, errors.Wrap(err, "failed to generate key from request")
+		return nil, fmt.Errorf("failed to generate key from request: %w", err)
 	}
 
 	raw, ok, err := r.c.Get(key)
 	if err != nil {
 		level.Error(logger).Log("msg", "failed to retrieve value from cache", "err", err)
 		r.cacheReadsTotal.WithLabelValues("error").Inc()
-		return nil, errors.Wrap(err, "failed to retrieve value from cache")
+		return nil, fmt.Errorf("failed to retrieve value from cache: %w", err)
 	}
 
 	if ok {
@@ -57,9 +57,10 @@ func (r *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 		resp, err := http.ReadResponse(bufio.NewReader(bytes.NewBuffer(raw)), req)
 		if err != nil {
 			level.Error(logger).Log("msg", "failed to read response from cache", "err", err)
+			return resp, fmt.Errorf("failed to read response from cache: %w", err)
 		}
 
-		return resp, errors.Wrap(err, "failed to read response from cache")
+		return resp, nil
 	}
 
 	r.cacheReadsTotal.WithLabelValues("miss").Inc()

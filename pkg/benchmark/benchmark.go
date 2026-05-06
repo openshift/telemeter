@@ -106,7 +106,7 @@ func New(cfg *Config) (*Benchmark, error) {
 	if len(cfg.ToToken) == 0 && len(cfg.ToTokenFile) > 0 {
 		data, err := os.ReadFile(cfg.ToTokenFile)
 		if err != nil {
-			return nil, fmt.Errorf("unable to read to-token-file: %v", err)
+			return nil, fmt.Errorf("unable to read to-token-file: %w", err)
 		}
 		cfg.ToToken = strings.TrimSpace(string(data))
 	}
@@ -116,18 +116,18 @@ func New(cfg *Config) (*Benchmark, error) {
 
 	f, err := os.Open(cfg.MetricsFile)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read metrics-file: %v", err)
+		return nil, fmt.Errorf("unable to read metrics-file: %w", err)
 	}
 
 	var pool *x509.CertPool
 	if len(cfg.ToCAFile) > 0 {
 		pool, err = x509.SystemCertPool()
 		if err != nil {
-			return nil, fmt.Errorf("failed to read system certificates: %v", err)
+			return nil, fmt.Errorf("failed to read system certificates: %w", err)
 		}
 		data, err := os.ReadFile(cfg.ToCAFile)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read to-ca-file: %v", err)
+			return nil, fmt.Errorf("failed to read to-ca-file: %w", err)
 		}
 		if !pool.AppendCertsFromPEM(data) {
 			level.Warn(logger).Log("msg", "no certs found in to-ca-file")
@@ -143,17 +143,17 @@ func New(cfg *Config) (*Benchmark, error) {
 		}
 
 		if _, err := f.Seek(0, 0); err != nil {
-			return nil, fmt.Errorf("failed to rewind file: %v", err)
+			return nil, fmt.Errorf("failed to rewind file: %w", err)
 		}
-		dec := expfmt.NewDecoder(f, expfmt.FmtText)
+		dec := expfmt.NewDecoder(f, expfmt.NewFormat(expfmt.TypeTextPlain))
 		for {
 			var m clientmodel.MetricFamily
 			err := dec.Decode(&m)
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			if err != nil {
-				return nil, fmt.Errorf("unable to parse metrics: %v", err)
+				return nil, fmt.Errorf("unable to parse metrics: %w", err)
 			}
 			w.metrics = append(w.metrics, &m)
 		}
@@ -189,7 +189,7 @@ func New(cfg *Config) (*Benchmark, error) {
 	}
 
 	if err := f.Close(); err != nil {
-		return nil, fmt.Errorf("failed to close file: %v", err)
+		return nil, fmt.Errorf("failed to close file: %w", err)
 	}
 
 	return &b, nil
@@ -252,7 +252,7 @@ func (b *Benchmark) Stop() {
 func (b *Benchmark) Reconfigure(cfg *Config) error {
 	benchmark, err := New(cfg)
 	if err != nil {
-		return fmt.Errorf("failed to reconfigure: %v", err)
+		return fmt.Errorf("failed to reconfigure: %w", err)
 	}
 
 	b.lock.Lock()
@@ -290,7 +290,6 @@ func (w *worker) run(ctx context.Context) {
 }
 
 func (w *worker) generate() []*clientmodel.MetricFamily {
-	rand.Seed(time.Now().UnixNano())
 	mfs := make([]*clientmodel.MetricFamily, len(w.metrics))
 	now := time.Now().UnixNano() / int64(time.Millisecond)
 	for i := range w.metrics {

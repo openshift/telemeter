@@ -17,6 +17,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 // Adjusted from github.com/observatorium/api/tracing/tracing.go
@@ -38,7 +39,7 @@ func InitTracer(
 	endpointTypeRaw string,
 	samplingFraction float64,
 ) (trace.TracerProvider, error) {
-	nopTracerProvider := trace.NewNoopTracerProvider()
+	nopTracerProvider := noop.NewTracerProvider()
 	otel.SetTracerProvider(nopTracerProvider)
 
 	if endpoint == "" {

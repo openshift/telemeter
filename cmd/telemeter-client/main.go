@@ -14,14 +14,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/oklog/run"
 	"github.com/prometheus/common/expfmt"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
-
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 
 	"github.com/openshift/telemeter/pkg/forwarder"
 	telemeterhttp "github.com/openshift/telemeter/pkg/http"
@@ -185,30 +184,30 @@ func (o *Options) Run() error {
 
 	from, err := url.Parse(o.From)
 	if err != nil {
-		return fmt.Errorf("--from is not a valid URL: %v", err)
+		return fmt.Errorf("--from is not a valid URL: %w", err)
 	}
 	from.Path = strings.TrimRight(from.Path, "/")
 	if len(from.Path) == 0 {
 		from.Path = "/federate"
 	}
 
-	var to, toUpload, toAuthorize *url.URL
+	var toUpload, toAuthorize *url.URL
 	if len(o.ToUpload) > 0 {
-		to, err = url.Parse(o.ToUpload)
+		toUpload, err = url.Parse(o.ToUpload)
 		if err != nil {
-			return fmt.Errorf("--to-upload is not a valid URL: %v", err)
+			return fmt.Errorf("--to-upload is not a valid URL: %w", err)
 		}
 	}
 	if len(o.ToAuthorize) > 0 {
 		toAuthorize, err = url.Parse(o.ToAuthorize)
 		if err != nil {
-			return fmt.Errorf("--to-auth is not a valid URL: %v", err)
+			return fmt.Errorf("--to-auth is not a valid URL: %w", err)
 		}
 	}
 	if len(o.To) > 0 {
-		to, err = url.Parse(o.To)
+		to, err := url.Parse(o.To)
 		if err != nil {
-			return fmt.Errorf("--to is not a valid URL: %v", err)
+			return fmt.Errorf("--to is not a valid URL: %w", err)
 		}
 		if len(to.Path) == 0 {
 			to.Path = "/"
@@ -263,7 +262,7 @@ func (o *Options) Run() error {
 		o.TracingSamplingFraction,
 	)
 	if err != nil {
-		return fmt.Errorf("cannot initialize tracer: %v", err)
+		return fmt.Errorf("cannot initialize tracer: %w", err)
 	}
 
 	otel.SetErrorHandler(tracing.OtelErrorHandler{Logger: o.Logger})
@@ -296,7 +295,7 @@ func (o *Options) Run() error {
 
 	worker, err := forwarder.New(cfg)
 	if err != nil {
-		return fmt.Errorf("failed to configure Telemeter client: %v", err)
+		return fmt.Errorf("failed to configure Telemeter client: %w", err)
 	}
 
 	level.Info(o.Logger).Log("msg", "starting telemeter-client", "from", o.From, "to", o.To, "listen", o.Listen)
@@ -348,7 +347,7 @@ func (o *Options) Run() error {
 		)
 		l, err := net.Listen("tcp", o.Listen)
 		if err != nil {
-			return fmt.Errorf("failed to listen: %v", err)
+			return fmt.Errorf("failed to listen: %w", err)
 		}
 
 		{
@@ -360,7 +359,7 @@ func (o *Options) Run() error {
 				}
 				return nil
 			}, func(error) {
-				l.Close()
+				_ = l.Close()
 			})
 		}
 	}
@@ -376,8 +375,8 @@ func serveLastMetrics(l log.Logger, worker *forwarder.Worker) http.Handler {
 			return
 		}
 		families := worker.LastMetrics()
-		w.Header().Set("Content-Type", string(expfmt.FmtText))
-		encoder := expfmt.NewEncoder(w, expfmt.FmtText)
+		w.Header().Set("Content-Type", string(expfmt.NewFormat(expfmt.TypeTextPlain)))
+		encoder := expfmt.NewEncoder(w, expfmt.NewFormat(expfmt.TypeTextPlain))
 		for _, family := range families {
 			if family == nil {
 				continue

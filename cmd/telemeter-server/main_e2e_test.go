@@ -17,13 +17,14 @@ import (
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
-	"github.com/openshift/telemeter/pkg/authorize"
 	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/prometheus/model/timestamp"
 	"github.com/prometheus/prometheus/prompb"
 	"go.uber.org/goleak"
+
+	"github.com/openshift/telemeter/pkg/authorize"
 )
 
 const sampleMetrics = `
