@@ -3,12 +3,12 @@ package memcached
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/bradfitz/gomemcache/memcache"
-	"github.com/pkg/errors"
 
 	tcache "github.com/openshift/telemeter/pkg/cache"
 )
@@ -59,7 +59,7 @@ func (c *cache) Get(key string) ([]byte, bool, error) {
 	defer c.mu.RUnlock()
 	i, err := c.client.Get(key)
 	if err != nil {
-		if err == memcache.ErrCacheMiss {
+		if errors.Is(err, memcache.ErrCacheMiss) {
 			return nil, false, nil
 		}
 		return nil, false, err
@@ -89,7 +89,7 @@ func (c *cache) Set(key string, value []byte) error {
 func hash(key string) (string, error) {
 	h := sha256.New()
 	if _, err := h.Write([]byte(key)); err != nil {
-		return "", errors.Wrap(err, "failed to hash key")
+		return "", fmt.Errorf("failed to hash key: %w", err)
 	}
 	return fmt.Sprintf("%x", (h.Sum(nil))), nil
 }

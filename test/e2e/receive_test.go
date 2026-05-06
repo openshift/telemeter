@@ -11,10 +11,11 @@ import (
 	"github.com/go-kit/log"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
-	"github.com/openshift/telemeter/pkg/authorize"
-	"github.com/openshift/telemeter/pkg/receive"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
+
+	"github.com/openshift/telemeter/pkg/authorize"
+	"github.com/openshift/telemeter/pkg/receive"
 )
 
 // TODO(bwplotka): Move this to main_e2e_test.go with properly mocked auth.

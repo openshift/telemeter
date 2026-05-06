@@ -33,9 +33,6 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 
-	"github.com/openshift/telemeter/pkg/runutil"
-	"github.com/openshift/telemeter/pkg/tracing"
-
 	"github.com/openshift/telemeter/pkg/authorize"
 	"github.com/openshift/telemeter/pkg/authorize/jwt"
 	"github.com/openshift/telemeter/pkg/authorize/stub"
@@ -46,7 +43,9 @@ import (
 	"github.com/openshift/telemeter/pkg/logger"
 	"github.com/openshift/telemeter/pkg/metricfamily"
 	"github.com/openshift/telemeter/pkg/receive"
+	"github.com/openshift/telemeter/pkg/runutil"
 	"github.com/openshift/telemeter/pkg/server"
+	"github.com/openshift/telemeter/pkg/tracing"
 )
 
 const desc = `
@@ -261,7 +260,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 		o.TracingSamplingFraction,
 	)
 	if err != nil {
-		return fmt.Errorf("cannot initialize tracer: %v", err)
+		return fmt.Errorf("cannot initialize tracer: %w", err)
 	}
 
 	otel.SetErrorHandler(tracing.OtelErrorHandler{Logger: o.Logger})
@@ -282,7 +281,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 	if len(o.AuthorizeEndpoint) > 0 {
 		u, err := url.Parse(o.AuthorizeEndpoint)
 		if err != nil {
-			return fmt.Errorf("--authorize must be a valid URL: %v", err)
+			return fmt.Errorf("--authorize must be a valid URL: %w", err)
 		}
 		authorizeURL = u
 
@@ -301,7 +300,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 	if o.OIDCIssuer != "" {
 		provider, err := oidc.NewProvider(ctx, o.OIDCIssuer)
 		if err != nil {
-			return fmt.Errorf("OIDC provider initialization failed: %v", err)
+			return fmt.Errorf("OIDC provider initialization failed: %w", err)
 		}
 
 		ctx = context.WithValue(ctx, oauth2.HTTPClient,
@@ -383,7 +382,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 			return nil
 		}, func(error) {
 			_ = s.Shutdown(context.TODO())
-			internalListener.Close()
+			_ = internalListener.Close()
 		})
 	}
 	{
@@ -405,7 +404,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 			if len(o.SharedKey) > 0 {
 				data, err := os.ReadFile(o.SharedKey)
 				if err != nil {
-					return fmt.Errorf("unable to read --shared-key: %v", err)
+					return fmt.Errorf("unable to read --shared-key: %w", err)
 				}
 
 				key, err := loadPrivateKey(data)
@@ -426,7 +425,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 
 				key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 				if err != nil {
-					return fmt.Errorf("key generation failed: %v", err)
+					return fmt.Errorf("key generation failed: %w", err)
 				}
 
 				privateKey, publicKey = key, key.Public()
@@ -436,7 +435,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 			if len(o.WhitelistFile) > 0 {
 				data, err := os.ReadFile(o.WhitelistFile)
 				if err != nil {
-					return fmt.Errorf("unable to read --whitelist-file: %v", err)
+					return fmt.Errorf("unable to read --whitelist-file: %w", err)
 				}
 				o.Whitelist = append(o.Whitelist, strings.Split(string(data), "\n")...)
 			}
@@ -476,7 +475,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 
 			forwardURL, err := url.Parse(o.ForwardURL)
 			if err != nil {
-				return fmt.Errorf("--forward-url must be a valid URL: %v", err)
+				return fmt.Errorf("--forward-url must be a valid URL: %w", err)
 			}
 
 			transforms := metricfamily.MultiTransformer{}
@@ -581,7 +580,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 			return nil
 		}, func(error) {
 			_ = s.Shutdown(context.TODO())
-			externalListener.Close()
+			_ = externalListener.Close()
 
 			// Close clients in order to check for leaks properly.
 			forwardClient.CloseIdleConnections()
@@ -631,7 +630,7 @@ func loadPrivateKey(data []byte) (crypto.PrivateKey, error) {
 		return priv, nil
 	}
 
-	return nil, fmt.Errorf("unable to parse private key data: '%s', '%s' and '%s'", err0, err1, err2)
+	return nil, fmt.Errorf("unable to parse private key data: '%w', '%w' and '%w'", err0, err1, err2)
 }
 
 // logFilter is a list of filters

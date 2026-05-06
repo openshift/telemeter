@@ -3,6 +3,7 @@ package metricsclient
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -72,7 +73,7 @@ func (c *Client) Retrieve(ctx context.Context, req *http.Request) ([]*clientmode
 	if req.Header == nil {
 		req.Header = make(http.Header)
 	}
-	req.Header.Set("Accept", strings.Join([]string{string(expfmt.FmtProtoDelim), string(expfmt.FmtText)}, " , "))
+	req.Header.Set("Accept", strings.Join([]string{string(expfmt.NewFormat(expfmt.TypeProtoDelim)), string(expfmt.NewFormat(expfmt.TypeTextPlain))}, " , "))
 
 	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	req = req.WithContext(ctx)
@@ -107,7 +108,7 @@ func (c *Client) Retrieve(ctx context.Context, req *http.Request) ([]*clientmode
 			family := &clientmodel.MetricFamily{}
 			families = append(families, family)
 			if err := decoder.Decode(family); err != nil {
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					break
 				}
 				return err
@@ -131,7 +132,7 @@ func (c *Client) Send(ctx context.Context, req *http.Request, families []*client
 	if req.Header == nil {
 		req.Header = make(http.Header)
 	}
-	req.Header.Set("Content-Type", string(expfmt.FmtProtoDelim))
+	req.Header.Set("Content-Type", string(expfmt.NewFormat(expfmt.TypeProtoDelim)))
 	req.Header.Set("Content-Encoding", "snappy")
 	req.Body = io.NopCloser(buf)
 
@@ -144,7 +145,7 @@ func (c *Client) Send(ctx context.Context, req *http.Request, families []*client
 			if _, err := io.Copy(io.Discard, resp.Body); err != nil {
 				level.Error(c.logger).Log("msg", "error copying body", "err", err)
 			}
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}()
 
 		c.requestsCounter.WithLabelValues(strconv.Itoa(resp.StatusCode)).Inc()
@@ -176,12 +177,12 @@ func (c *Client) Send(ctx context.Context, req *http.Request, families []*client
 
 func Read(r io.Reader) ([]*clientmodel.MetricFamily, error) {
 	decompress := snappy.NewReader(r)
-	decoder := expfmt.NewDecoder(decompress, expfmt.FmtProtoDelim)
+	decoder := expfmt.NewDecoder(decompress, expfmt.NewFormat(expfmt.TypeProtoDelim))
 	families := make([]*clientmodel.MetricFamily, 0, 100)
 	for {
 		family := &clientmodel.MetricFamily{}
 		if err := decoder.Decode(family); err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return nil, err
@@ -194,7 +195,7 @@ func Read(r io.Reader) ([]*clientmodel.MetricFamily, error) {
 func Write(w io.Writer, families []*clientmodel.MetricFamily) error {
 	// output the filtered set
 	compress := snappy.NewBufferedWriter(w)
-	encoder := expfmt.NewEncoder(compress, expfmt.FmtProtoDelim)
+	encoder := expfmt.NewEncoder(compress, expfmt.NewFormat(expfmt.TypeProtoDelim))
 	for _, family := range families {
 		if family == nil {
 			continue
@@ -213,7 +214,7 @@ func withCancel(ctx context.Context, client *http.Client, req *http.Request, fn 
 	resp, err := client.Do(req)
 	defer func() {
 		if resp != nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}
 	}()
 	if err != nil {

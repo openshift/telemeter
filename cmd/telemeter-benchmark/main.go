@@ -89,31 +89,27 @@ func main() {
 }
 
 func runCmd() error {
-	var to, toUpload, toAuthorize *url.URL
+	var toUpload, toAuthorize *url.URL
 	var err error
 	if len(opt.MetricsFile) == 0 {
 		return fmt.Errorf("--metrics-file must be specified")
 	}
-	to, err = url.Parse(opt.ToUpload)
-	if err != nil {
-		return fmt.Errorf("--to-upload is not a valid URL: %v", err)
-	}
 	if len(opt.ToUpload) > 0 {
-		to, err = url.Parse(opt.ToUpload)
+		toUpload, err = url.Parse(opt.ToUpload)
 		if err != nil {
-			return fmt.Errorf("--to-upload is not a valid URL: %v", err)
+			return fmt.Errorf("--to-upload is not a valid URL: %w", err)
 		}
 	}
 	if len(opt.ToAuthorize) > 0 {
 		toAuthorize, err = url.Parse(opt.ToAuthorize)
 		if err != nil {
-			return fmt.Errorf("--to-auth is not a valid URL: %v", err)
+			return fmt.Errorf("--to-auth is not a valid URL: %w", err)
 		}
 	}
 	if len(opt.To) > 0 {
-		to, err = url.Parse(opt.To)
+		to, err := url.Parse(opt.To)
 		if err != nil {
-			return fmt.Errorf("--to is not a valid URL: %v", err)
+			return fmt.Errorf("--to is not a valid URL: %w", err)
 		}
 		if len(to.Path) == 0 {
 			to.Path = "/"
@@ -146,7 +142,7 @@ func runCmd() error {
 
 	b, err := benchmark.New(cfg)
 	if err != nil {
-		return fmt.Errorf("failed to configure the Telemeter benchmarking tool: %v", err)
+		return fmt.Errorf("failed to configure the Telemeter benchmarking tool: %w", err)
 	}
 
 	level.Info(opt.Logger).Log("msg", "starting telemeter-benchmark", "to", opt.To, "addr", opt.Listen)
@@ -201,7 +197,7 @@ func runCmd() error {
 		})
 		l, err := net.Listen("tcp", opt.Listen)
 		if err != nil {
-			return fmt.Errorf("failed to listen: %v", err)
+			return fmt.Errorf("failed to listen: %w", err)
 		}
 
 		// Run the HTTP server.
@@ -212,7 +208,7 @@ func runCmd() error {
 			}
 			return nil
 		}, func(error) {
-			l.Close()
+			_ = l.Close()
 		})
 	}
 

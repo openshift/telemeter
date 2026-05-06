@@ -15,11 +15,10 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	trace "go.opentelemetry.io/otel/trace"
-
 	"github.com/prometheus/client_golang/prometheus"
 	clientmodel "github.com/prometheus/client_model/go"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	trace "go.opentelemetry.io/otel/trace"
 
 	"github.com/openshift/telemeter/pkg/authorize"
 	telemeterhttp "github.com/openshift/telemeter/pkg/http"
@@ -128,7 +127,7 @@ func New(cfg Config) (*Worker, error) {
 	if len(cfg.AnonymizeSalt) == 0 && len(cfg.AnonymizeSaltFile) > 0 {
 		data, err := os.ReadFile(cfg.AnonymizeSaltFile)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read anonymize-salt-file: %v", err)
+			return nil, fmt.Errorf("failed to read anonymize-salt-file: %w", err)
 		}
 		anonymizeSalt = strings.TrimSpace(string(data))
 	}
@@ -162,7 +161,7 @@ func New(cfg Config) (*Worker, error) {
 			fromTransport.TLSClientConfig = &tls.Config{}
 		}
 		if cfg.TLSCertFile != "" && cfg.TLSKey != "" {
-			cert, err = tls.LoadX509KeyPair(*&cfg.TLSCertFile, *&cfg.TLSKey)
+			cert, err = tls.LoadX509KeyPair(cfg.TLSCertFile, cfg.TLSKey)
 			if err != nil {
 				return nil, fmt.Errorf("creating client x509 keypair from cert file %s and key file %s: %w", cfg.TLSCertFile, cfg.TLSKey, err)
 			}
@@ -170,11 +169,11 @@ func New(cfg Config) (*Worker, error) {
 
 		pool, err := x509.SystemCertPool()
 		if err != nil {
-			return nil, fmt.Errorf("failed to read system certificates: %v", err)
+			return nil, fmt.Errorf("failed to read system certificates: %w", err)
 		}
 		data, err := os.ReadFile(cfg.FromCAFile)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read from-ca-file: %v", err)
+			return nil, fmt.Errorf("failed to read from-ca-file: %w", err)
 		}
 		if !pool.AppendCertsFromPEM(data) {
 			level.Warn(logger).Log("msg", "no certs found in from-ca-file")
@@ -191,7 +190,7 @@ func New(cfg Config) (*Worker, error) {
 		level.Debug(logger).Log("msg", "enabling the token file round tripper for the fromClient transport")
 		data, err := os.ReadFile(cfg.FromTokenFile)
 		if err != nil {
-			return nil, fmt.Errorf("unable to read from-token-file: %v", err)
+			return nil, fmt.Errorf("unable to read from-token-file: %w", err)
 		}
 		cfg.FromToken = strings.TrimSpace(string(data))
 	}
@@ -211,7 +210,7 @@ func New(cfg Config) (*Worker, error) {
 	if len(cfg.ToToken) == 0 && len(cfg.ToTokenFile) > 0 {
 		data, err := os.ReadFile(cfg.ToTokenFile)
 		if err != nil {
-			return nil, fmt.Errorf("unable to read to-token-file: %v", err)
+			return nil, fmt.Errorf("unable to read to-token-file: %w", err)
 		}
 		cfg.ToToken = strings.TrimSpace(string(data))
 	}
@@ -233,7 +232,7 @@ func New(cfg Config) (*Worker, error) {
 	if len(cfg.RulesFile) > 0 {
 		data, err := os.ReadFile(cfg.RulesFile)
 		if err != nil {
-			return nil, fmt.Errorf("unable to read match-file: %v", err)
+			return nil, fmt.Errorf("unable to read match-file: %w", err)
 		}
 		rules = append(rules, strings.Split(string(data), "\n")...)
 	}
@@ -256,7 +255,7 @@ func New(cfg Config) (*Worker, error) {
 func (w *Worker) Reconfigure(cfg Config) error {
 	worker, err := New(cfg)
 	if err != nil {
-		return fmt.Errorf("failed to reconfigure: %v", err)
+		return fmt.Errorf("failed to reconfigure: %w", err)
 	}
 
 	w.lock.Lock()

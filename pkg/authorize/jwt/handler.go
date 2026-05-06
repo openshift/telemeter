@@ -2,6 +2,7 @@ package jwt
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -51,7 +52,7 @@ func (a *authorizeClusterHandler) ServeHTTP(w http.ResponseWriter, req *http.Req
 	}
 
 	req.Body = http.MaxBytesReader(w, req.Body, 4*1024)
-	defer req.Body.Close()
+	defer func() { _ = req.Body.Close() }()
 
 	if err := req.ParseForm(); err != nil {
 		level.Debug(logger).Log("msg", "unable to parse form", "err", err)
@@ -84,8 +85,8 @@ func (a *authorizeClusterHandler) ServeHTTP(w http.ResponseWriter, req *http.Req
 
 	subject, err := a.clusterAuth.AuthorizeCluster(clientToken, clusterID)
 	if err != nil {
-
-		if scerr, ok := err.(authorize.ErrorWithCode); ok {
+		var scerr authorize.ErrorWithCode
+		if errors.As(err, &scerr) {
 			logger = log.With(logger, "http_status_code", scerr.HTTPStatusCode(), "err", scerr)
 			if scerr.HTTPStatusCode() >= http.StatusInternalServerError {
 				level.Error(logger).Log("msg", "unable to authorize request")

@@ -116,7 +116,7 @@ func Validate(logger log.Logger, baseTransforms metricfamily.Transformer, maxAge
 		for {
 			family := &clientmodel.MetricFamily{}
 			if err := decoder.Decode(family); err != nil {
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					break
 				}
 				msg := "failed to decode metrics"

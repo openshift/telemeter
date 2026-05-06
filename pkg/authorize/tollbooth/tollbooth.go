@@ -10,7 +10,6 @@ import (
 	"net/url"
 
 	"github.com/go-kit/log"
-	"github.com/pkg/errors"
 
 	"github.com/openshift/telemeter/pkg/authorize"
 )
@@ -65,7 +64,7 @@ func (a *authorizer) AuthorizeCluster(token, cluster string) (string, error) {
 
 	response := &clusterRegistration{}
 	if err := json.Unmarshal(body, response); err != nil {
-		return "", fmt.Errorf("unable to parse response body: %v", err)
+		return "", fmt.Errorf("unable to parse response body: %w", err)
 	}
 
 	if len(response.AccountID) == 0 {
@@ -81,7 +80,7 @@ func (a *authorizer) AuthorizeCluster(token, cluster string) (string, error) {
 func ExtractToken(r *http.Request) (string, error) {
 	body, err := io.ReadAll(r.Body)
 	if err := r.Body.Close(); err != nil {
-		return "", errors.Wrap(err, "failed to close body")
+		return "", fmt.Errorf("failed to close body: %w", err)
 	}
 	r.Body = io.NopCloser(bytes.NewBuffer(body))
 	return string(body), err

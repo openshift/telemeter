@@ -33,7 +33,7 @@ func NewMock(logger log.Logger, tokenSet map[string]struct{}) *mock {
 }
 
 func (s *mock) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	defer req.Body.Close()
+	defer func() { _ = req.Body.Close() }()
 	if req.Method != "POST" {
 		write(w, http.StatusMethodNotAllowed, &registrationError{Name: "MethodNotAllowed", Reason: "Only requests of type 'POST' are accepted."}, s.logger)
 		return

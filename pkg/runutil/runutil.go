@@ -27,13 +27,13 @@ package runutil
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	pkgerrors "github.com/pkg/errors"
 )
 
 // CloseWithLogOnErr is making sure we log every error, even those from best effort tiny closers.
@@ -52,7 +52,7 @@ func CloseWithLogOnErr(logger log.Logger, closer io.Closer, format string) {
 		logger = log.NewLogfmtLogger(os.Stderr)
 	}
 
-	level.Warn(logger).Log("msg", "detected close error", "err", pkgerrors.Wrap(err, format))
+	level.Warn(logger).Log("msg", "detected close error", "err", fmt.Errorf("%s: %w", format, err))
 }
 
 // ExhaustCloseWithLogOnErr closes the io.ReadCloser with a log message on error but exhausts the reader before.

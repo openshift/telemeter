@@ -36,14 +36,14 @@ func (t *tokenStore) Load(endpoint *url.URL, initialToken string, rt http.RoundT
 	c := http.Client{Transport: rt, Timeout: 30 * time.Second}
 	req, err := http.NewRequest("POST", endpoint.String(), nil)
 	if err != nil {
-		return "", fmt.Errorf("unable to create authentication request: %v", err)
+		return "", fmt.Errorf("unable to create authentication request: %w", err)
 	}
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", initialToken))
 	resp, err := c.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("unable to perform authentication request: %v", err)
+		return "", fmt.Errorf("unable to perform authentication request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusCreated:
@@ -96,11 +96,11 @@ func (t *tokenStore) Labels() (map[string]string, bool) {
 func parseTokenFromBody(r io.Reader, limitBytes int64) (*TokenResponse, error) {
 	data, err := io.ReadAll(io.LimitReader(r, limitBytes))
 	if err != nil {
-		return nil, fmt.Errorf("unable to read the authentication response: %v", err)
+		return nil, fmt.Errorf("unable to read the authentication response: %w", err)
 	}
 	response := &TokenResponse{}
 	if err := json.Unmarshal(data, response); err != nil {
-		return nil, fmt.Errorf("unable to parse the authentication response: %v", err)
+		return nil, fmt.Errorf("unable to parse the authentication response: %w", err)
 	}
 	return response, nil
 }

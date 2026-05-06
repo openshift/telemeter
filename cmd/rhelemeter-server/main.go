@@ -23,6 +23,10 @@ import (
 	"github.com/oklog/run"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/clientcredentials"
 
 	"github.com/openshift/telemeter/pkg/authorize/ssl"
 	telemeter_http "github.com/openshift/telemeter/pkg/http"
@@ -31,11 +35,6 @@ import (
 	"github.com/openshift/telemeter/pkg/runutil"
 	"github.com/openshift/telemeter/pkg/server"
 	"github.com/openshift/telemeter/pkg/tracing"
-
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"go.opentelemetry.io/otel"
-	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/clientcredentials"
 )
 
 const desc = `
@@ -222,7 +221,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 		o.TracingSamplingFraction,
 	)
 	if err != nil {
-		return fmt.Errorf("cannot initialize tracer: %v", err)
+		return fmt.Errorf("cannot initialize tracer: %w", err)
 	}
 
 	otel.SetErrorHandler(tracing.OtelErrorHandler{Logger: o.Logger})
@@ -244,7 +243,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 	if o.OIDCIssuer != "" {
 		provider, err := oidc.NewProvider(ctx, o.OIDCIssuer)
 		if err != nil {
-			return fmt.Errorf("OIDC provider initialization failed: %v", err)
+			return fmt.Errorf("OIDC provider initialization failed: %w", err)
 		}
 
 		ctx = context.WithValue(ctx, oauth2.HTTPClient,
@@ -313,7 +312,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 			return nil
 		}, func(error) {
 			_ = s.Shutdown(context.TODO())
-			internalListener.Close()
+			_ = internalListener.Close()
 		})
 	}
 	{
@@ -424,7 +423,6 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 					level.Error(o.Logger).Log("msg", "external HTTPS server exited", "err", err)
 					return err
 				}
-
 			} else {
 				if err := s.Serve(externalListener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 					level.Error(o.Logger).Log("msg", "external HTTP server exited", "err", err)
@@ -434,7 +432,7 @@ func (o *Options) Run(ctx context.Context, externalListener, internalListener ne
 			return nil
 		}, func(error) {
 			_ = s.Shutdown(context.TODO())
-			externalListener.Close()
+			_ = externalListener.Close()
 
 			// Close clients in order to check for leaks properly.
 			forwardClient.CloseIdleConnections()

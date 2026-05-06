@@ -54,5 +54,4 @@ func observeDrift(now func() time.Time, ms int64) {
 	} else {
 		overwrittenMetrics.WithLabelValues("present").Inc()
 	}
-
 }

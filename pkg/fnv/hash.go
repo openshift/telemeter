@@ -14,7 +14,7 @@ func Hash(text string) (string, error) {
 
 func hashText(h hash.Hash64, text string) (string, error) {
 	if _, err := h.Write([]byte(text)); err != nil {
-		return "", fmt.Errorf("hashing failed: %v", err)
+		return "", fmt.Errorf("hashing failed: %w", err)
 	}
 	return strconv.FormatUint(h.Sum64(), 32), nil
 }

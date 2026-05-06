@@ -3,12 +3,11 @@ package jwt
 import (
 	"errors"
 
+	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 
 	"github.com/openshift/telemeter/pkg/authorize"
-
-	"github.com/go-jose/go-jose/v3/jwt"
 )
 
 // Validator is called by the JWT token authentictaor to apply domain specific
@@ -51,7 +50,7 @@ func (v *validator) Validate(_ string, public *jwt.Claims, privateObj interface{
 	})
 	switch {
 	case err == nil:
-	case err == jwt.ErrExpired:
+	case errors.Is(err, jwt.ErrExpired):
 		return nil, errors.New("token has expired")
 	default:
 		level.Info(v.logger).Log("msg", "unexpected validation", "err", err)

@@ -132,7 +132,7 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	defer r.Body.Close()
+	defer func() { _ = r.Body.Close() }()
 
 	ctx, cancel := context.WithTimeout(r.Context(), forwardTimeout)
 	defer cancel()
@@ -148,7 +148,7 @@ func (h *Handler) Receive(w http.ResponseWriter, r *http.Request) {
 	// No need for adding a tenant header, as this is done by downstream Observatorium API.
 	req = req.WithContext(ctx)
 
-	resp, err := h.client.Do(req)
+	resp, err := h.client.Do(req) //nolint:bodyclose
 	if err != nil {
 		h.forwardRequestsTotal.WithLabelValues("error").Inc()
 		level.Error(logger).Log("msg", "failed to forward request", "err", err)
@@ -179,7 +179,7 @@ func (h *Handler) LimitBodySize(limit int64, next http.Handler) http.HandlerFunc
 	return func(w http.ResponseWriter, r *http.Request) {
 		logger := log.With(logger, "request", middleware.GetReqID(r.Context()))
 
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			h.forwardRequestsTotal.WithLabelValues("error").Inc()
@@ -213,7 +213,7 @@ func (h *Handler) TransformAndValidateWriteRequest(next http.Handler, labels ...
 		logger := log.With(logger, "request", middleware.GetReqID(r.Context()))
 
 		body, err := io.ReadAll(r.Body)
-		defer r.Body.Close()
+		defer func() { _ = r.Body.Close() }()
 		if err != nil {
 			h.forwardRequestsTotal.WithLabelValues("error").Inc()
 			level.Error(logger).Log("msg", "failed to read body", "err", err)

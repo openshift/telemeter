@@ -1,18 +1,82 @@
+version: "2"
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: vendor
 linters:
-  # disable-all: true
-  # enable-all: true
-  disable:
-    - megacheck
+  disable-all: true
   enable:
-    # megacheck fails to respect build flags, causing compilation failure during linting.
-    # instead, use the unused, gosimple, and staticcheck linters directly
-    - gosimple
+    - depguard
+    - errcheck
+    - errorlint
+    - bodyclose
+    - govet
+    - ineffassign
+    - misspell
+    - nolintlint
+    - nosprintfhostport
     - staticcheck
+    - usetesting
+    - unconvert
     - unused
-linters-settings:
-  errcheck:
-    exclude: .errcheck_excludes.txt
-  govet:
-    # disable for those few tests calling t.Fatal from withing go routine.
-    disable:
-      - testinggoroutine
+    - wastedassign
+    - whitespace
+  settings:
+    errcheck:
+      exclude-functions:
+      - (net/http.ResponseWriter).Write
+      - (github.com/go-kit/log.Logger).Log
+      - fmt.Fprintln
+    staticcheck:
+      checks:
+        - "all"
+        - "-QF*"     # quickfix suggestions (style preference)
+        - "-ST1000"  # package comments (style preference)
+        - "-ST1003"  # naming conventions like API vs Api (style preference)
+        - "-ST1005"  # error string capitalization (style preference)
+        - "-ST1019"  # duplicate imports (style preference)
+        - "-ST1020"  # comment format on functions (style preference)
+        - "-ST1021"  # comment format on types (style preference)
+    depguard:
+      rules:
+        # Name of a rule.
+        main:
+          deny:
+            - pkg: "github.com/pkg/errors"
+              desc: "Use 'errors' or 'fmt' instead"
+            - pkg: "golang.org/x/exp/slices"
+              desc: "Use 'slices' instead"
+  exclusions:
+    paths:
+      - vendor
+      - test
+      - hack
+      - examples
+    rules:
+      - path: _test\.go
+        linters:
+          # The list of linters below is exhaustive with respect to the linters defined above, and as such, and linter
+          # that needs to be run on test files should be dropped from here.
+          - depguard
+          - errcheck
+          - errorlint
+          - bodyclose
+          - ineffassign
+          - misspell
+          - nolintlint
+          - nosprintfhostport
+          - staticcheck
+          - usetesting
+          - unconvert
+          - unused
+          - wastedassign
+          - whitespace
+formatters:
+  enable:
+    - gci
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/openshift/telemeter)

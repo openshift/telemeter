@@ -7,11 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"testing"
-
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"testing"
 
 	"github.com/go-kit/log"
 

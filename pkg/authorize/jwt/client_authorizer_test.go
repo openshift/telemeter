@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	josejwt "github.com/go-jose/go-jose/v3/jwt"
+
 	"github.com/openshift/telemeter/pkg/authorize/jwt"
 )
 
