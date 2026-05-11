@@ -7,7 +7,7 @@ require (
 	github.com/coreos/go-oidc/v3 v3.9.0
 	github.com/efficientgo/core v1.0.0-rc.2
 	github.com/go-chi/chi v4.0.4+incompatible
-	github.com/go-jose/go-jose/v3 v3.0.3
+	github.com/go-jose/go-jose/v3 v3.0.5
 	github.com/go-kit/log v0.2.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.4
