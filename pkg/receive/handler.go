@@ -27,6 +27,9 @@ const forwardTimeout = 5 * time.Second
 // DefaultRequestLimit is the size limit of a request body coming in
 const DefaultRequestLimit = 128 * 1024
 
+// MaxDecodedBodySize is the maximum allowed size of a decoded snappy request body (10 MB).
+const MaxDecodedBodySize = 10 * 1024 * 1024
+
 // ClusterAuthorizer authorizes a cluster by its token and id, returning a subject or error
 type ClusterAuthorizer interface {
 	AuthorizeCluster(token, cluster string) (subject string, err error)
@@ -197,6 +200,20 @@ func (h *Handler) TransformAndValidateWriteRequest(logger log.Logger, next http.
 			h.forwardRequestsTotal.WithLabelValues("error").Inc()
 			level.Error(logger).Log("msg", "failed to read body", "err", err)
 			http.Error(w, "failed to read body", http.StatusInternalServerError)
+			return
+		}
+
+		decodedLen, err := snappy.DecodedLen(body)
+		if err != nil {
+			h.forwardRequestsTotal.WithLabelValues("error").Inc()
+			level.Warn(logger).Log("msg", "invalid snappy-encoded request body", "err", err)
+			http.Error(w, "invalid snappy-encoded request body", http.StatusBadRequest)
+			return
+		}
+		if decodedLen > MaxDecodedBodySize {
+			h.forwardRequestsTotal.WithLabelValues("error").Inc()
+			level.Warn(logger).Log("msg", "decoded request body too large", "decoded_size", decodedLen, "max_size", MaxDecodedBodySize)
+			http.Error(w, "decoded request body too large", http.StatusRequestEntityTooLarge)
 			return
 		}
 
