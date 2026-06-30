@@ -1,4 +1,4 @@
-// Copyright 2017 The Prometheus Authors
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -16,41 +16,64 @@ package labels
 import (
 	"bytes"
 	"encoding/json"
+	"slices"
 	"strconv"
+	"unsafe"
 
 	"github.com/prometheus/common/model"
-	"golang.org/x/exp/slices"
 )
 
 const (
-	MetricName   = "__name__"
-	AlertName    = "alertname"
-	BucketLabel  = "le"
-	InstanceName = "instance"
+	// MetricName is a special label name that represent a metric name.
+	//
+	// Deprecated: Instead, consider using schema.Metadata structure and its methods for consistent metadata behaviour with the newly added __type__ and __unit__ labels. Alternatively use github.com/prometheus/common/model.MetricNameLabel for the direct replacement.
+	//
+	// labels package is providing label transport, agnostic to semantic meaning of each label.
+	MetricName = "__name__"
 
-	labelSep = '\xfe'
+	AlertName   = "alertname"
+	BucketLabel = "le"
+
+	labelSep = '\xfe' // Used at beginning of `Bytes` return.
+	sep      = '\xff' // Used between labels in `Bytes` and `Hash`.
 )
 
-var seps = []byte{'\xff'}
+var seps = []byte{sep} // Used with Hash, which has no WriteByte method.
 
-// Label is a key/value pair of strings.
+// Label is a key/value a pair of strings.
 type Label struct {
 	Name, Value string
 }
 
 func (ls Labels) String() string {
-	var b bytes.Buffer
+	return ls.stringImpl(true)
+}
+
+// StringNoSpace is like String but does not add a space after commas.
+func (ls Labels) StringNoSpace() string {
+	return ls.stringImpl(false)
+}
+
+func (ls Labels) stringImpl(addSpace bool) string {
+	var bytea [1024]byte // On stack to avoid memory allocation while building the output.
+	b := bytes.NewBuffer(bytea[:0])
 
 	b.WriteByte('{')
 	i := 0
 	ls.Range(func(l Label) {
 		if i > 0 {
 			b.WriteByte(',')
-			b.WriteByte(' ')
+			if addSpace {
+				b.WriteByte(' ')
+			}
 		}
-		b.WriteString(l.Name)
+		if !model.LegacyValidation.IsValidLabelName(l.Name) {
+			b.Write(strconv.AppendQuote(b.AvailableBuffer(), l.Name))
+		} else {
+			b.WriteString(l.Name)
+		}
 		b.WriteByte('=')
-		b.WriteString(strconv.Quote(l.Value))
+		b.Write(strconv.AppendQuote(b.AvailableBuffer(), l.Value))
 		i++
 	})
 	b.WriteByte('}')
@@ -75,12 +98,12 @@ func (ls *Labels) UnmarshalJSON(b []byte) error {
 }
 
 // MarshalYAML implements yaml.Marshaler.
-func (ls Labels) MarshalYAML() (interface{}, error) {
+func (ls Labels) MarshalYAML() (any, error) {
 	return ls.Map(), nil
 }
 
 // UnmarshalYAML implements yaml.Unmarshaler.
-func (ls *Labels) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (ls *Labels) UnmarshalYAML(unmarshal func(any) error) error {
 	var m map[string]string
 
 	if err := unmarshal(&m); err != nil {
@@ -92,12 +115,16 @@ func (ls *Labels) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 // IsValid checks if the metric name or label names are valid.
-func (ls Labels) IsValid() bool {
+func (ls Labels) IsValid(validationScheme model.ValidationScheme) bool {
 	err := ls.Validate(func(l Label) error {
-		if l.Name == model.MetricNameLabel && !model.IsValidMetricName(model.LabelValue(l.Value)) {
-			return strconv.ErrSyntax
+		if l.Name == model.MetricNameLabel {
+			// If the default validation scheme has been overridden with legacy mode,
+			// we need to call the special legacy validation checker.
+			if !validationScheme.IsValidMetricName(l.Value) {
+				return strconv.ErrSyntax
+			}
 		}
-		if !model.LabelName(l.Name).IsValid() || !model.LabelValue(l.Value).IsValid() {
+		if !validationScheme.IsValidLabelName(l.Name) || !model.LabelValue(l.Value).IsValid() {
 			return strconv.ErrSyntax
 		}
 		return nil
@@ -123,13 +150,6 @@ func FromMap(m map[string]string) Labels {
 	return New(l...)
 }
 
-// Builder allows modifying Labels.
-type Builder struct {
-	base Labels
-	del  []string
-	add  []Label
-}
-
 // NewBuilder returns a new LabelsBuilder.
 func NewBuilder(base Labels) *Builder {
 	b := &Builder{
@@ -138,18 +158,6 @@ func NewBuilder(base Labels) *Builder {
 	}
 	b.Reset(base)
 	return b
-}
-
-// Reset clears all current state for the builder.
-func (b *Builder) Reset(base Labels) {
-	b.base = base
-	b.del = b.del[:0]
-	b.add = b.add[:0]
-	b.base.Range(func(l Label) {
-		if l.Value == "" {
-			b.del = append(b.del, l.Name)
-		}
-	})
 }
 
 // Del deletes the label of the given name.
@@ -168,10 +176,8 @@ func (b *Builder) Del(ns ...string) *Builder {
 // Keep removes all labels from the base except those with the given names.
 func (b *Builder) Keep(ns ...string) *Builder {
 	b.base.Range(func(l Label) {
-		for _, n := range ns {
-			if l.Name == n {
-				return
-			}
+		if slices.Contains(ns, l.Name) {
+			return
 		}
 		b.del = append(b.del, l.Name)
 	})
@@ -232,4 +238,8 @@ func contains(s []Label, n string) bool {
 		}
 	}
 	return false
+}
+
+func yoloString(b []byte) string {
+	return unsafe.String(unsafe.SliceData(b), len(b))
 }

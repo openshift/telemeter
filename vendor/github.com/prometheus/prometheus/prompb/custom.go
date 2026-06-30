@@ -1,4 +1,4 @@
-// Copyright 2020 The Prometheus Authors
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -16,14 +16,6 @@ package prompb
 import (
 	"sync"
 )
-
-func (m Sample) T() int64   { return m.Timestamp }
-func (m Sample) V() float64 { return m.Value }
-
-func (h Histogram) IsFloatHistogram() bool {
-	_, ok := h.GetCount().(*Histogram_CountFloat)
-	return ok
-}
 
 func (r *ChunkedReadResponse) PooledMarshal(p *sync.Pool) ([]byte, error) {
 	size := r.Size()
