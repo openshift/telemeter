@@ -15,8 +15,9 @@ type whitelist [][]*labels.Matcher
 // Individual matchers within a matchset are AND-ed, as in PromQL.
 func NewWhitelist(rules []string) (Transformer, error) {
 	var ms [][]*labels.Matcher
+	parser := promql.NewParser(promql.Options{})
 	for i := range rules {
-		matchers, err := promql.ParseMetricSelector(rules[i])
+		matchers, err := parser.ParseMetricSelector(rules[i])
 		if err != nil {
 			return nil, err
 		}

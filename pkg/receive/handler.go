@@ -98,8 +98,9 @@ func NewHandler(logger log.Logger, forwardURL string, client *http.Client, reg p
 	}
 
 	var ms [][]*labels.Matcher
+	parser := promql.NewParser(promql.Options{})
 	for _, rule := range whitelistRules {
-		matchers, err := promql.ParseMetricSelector(rule)
+		matchers, err := parser.ParseMetricSelector(rule)
 		if err != nil {
 			return nil, err
 		}

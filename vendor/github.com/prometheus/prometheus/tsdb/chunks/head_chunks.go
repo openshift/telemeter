@@ -1,4 +1,4 @@
-// Copyright 2020 The Prometheus Authors
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -15,24 +15,23 @@ package chunks
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"hash"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"sync"
 
 	"github.com/dennwc/varint"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
-	"golang.org/x/exp/slices"
 
 	"github.com/prometheus/prometheus/tsdb/chunkenc"
-	tsdb_errors "github.com/prometheus/prometheus/tsdb/errors"
 	"github.com/prometheus/prometheus/tsdb/fileutil"
 )
 
@@ -111,6 +110,10 @@ func (e *CorruptionErr) Error() string {
 	return fmt.Errorf("corruption in head chunk file %s: %w", segmentFile(e.Dir, e.FileIndex), e.Err).Error()
 }
 
+func (e *CorruptionErr) Unwrap() error {
+	return e.Err
+}
+
 // chunkPos keeps track of the position in the head chunk files.
 // chunkPos is not thread-safe, a lock must be used to protect it.
 type chunkPos struct {
@@ -169,7 +172,7 @@ func (f *chunkPos) shouldCutNewFile(bytesToWrite uint64) bool {
 // bytesToWriteForChunk returns the number of bytes that will need to be written for the given chunk size,
 // including all meta data before and after the chunk data.
 // Head chunk format: https://github.com/prometheus/prometheus/blob/main/tsdb/docs/format/head_chunks.md#chunk
-func (f *chunkPos) bytesToWriteForChunk(chkLen uint64) uint64 {
+func (*chunkPos) bytesToWriteForChunk(chkLen uint64) uint64 {
 	// Headers.
 	bytes := uint64(SeriesRefSize) + 2*MintMaxtSize + ChunkEncodingSize
 
@@ -185,10 +188,10 @@ func (f *chunkPos) bytesToWriteForChunk(chkLen uint64) uint64 {
 	return bytes
 }
 
-// ChunkDiskMapper is for writing the Head block chunks to the disk
-// and access chunks via mmapped file.
+// ChunkDiskMapper is for writing the Head block chunks to disk
+// and access chunks via mmapped files.
 type ChunkDiskMapper struct {
-	/// Writer.
+	// Writer.
 	dir             *os.File
 	writeBufferSize int
 
@@ -207,7 +210,7 @@ type ChunkDiskMapper struct {
 	crc32        hash.Hash
 	writePathMtx sync.Mutex
 
-	/// Reader.
+	// Reader.
 	// The int key in the map is the file number on the disk.
 	mmappedChunkFiles map[int]*mmappedChunkFile // Contains the m-mapped files for each chunk file mapped with its index.
 	closers           map[int]io.Closer         // Closers for resources behind the byte slices.
@@ -228,7 +231,7 @@ type ChunkDiskMapper struct {
 	closed bool
 }
 
-// mmappedChunkFile provides mmapp access to an entire head chunks file that holds many chunks.
+// mmappedChunkFile provides mmap access to an entire head chunks file that holds many chunks.
 type mmappedChunkFile struct {
 	byteSlice ByteSlice
 	maxt      int64 // Max timestamp among all of this file's chunks.
@@ -237,7 +240,7 @@ type mmappedChunkFile struct {
 // NewChunkDiskMapper returns a new ChunkDiskMapper against the given directory
 // using the default head chunk file duration.
 // NOTE: 'IterateAllChunks' method needs to be called at least once after creating ChunkDiskMapper
-// to set the maxt of all the file.
+// to set the maxt of all files.
 func NewChunkDiskMapper(reg prometheus.Registerer, dir string, pool chunkenc.Pool, writeBufferSize, writeQueueSize int) (*ChunkDiskMapper, error) {
 	// Validate write buffer size.
 	if writeBufferSize < MinWriteBufferSize || writeBufferSize > MaxWriteBufferSize {
@@ -280,16 +283,16 @@ const (
 	OutOfOrderMask = uint8(0b10000000)
 )
 
-func (cdm *ChunkDiskMapper) ApplyOutOfOrderMask(sourceEncoding chunkenc.Encoding) chunkenc.Encoding {
+func (*ChunkDiskMapper) ApplyOutOfOrderMask(sourceEncoding chunkenc.Encoding) chunkenc.Encoding {
 	enc := uint8(sourceEncoding) | OutOfOrderMask
 	return chunkenc.Encoding(enc)
 }
 
-func (cdm *ChunkDiskMapper) IsOutOfOrderChunk(e chunkenc.Encoding) bool {
+func (*ChunkDiskMapper) IsOutOfOrderChunk(e chunkenc.Encoding) bool {
 	return (uint8(e) & OutOfOrderMask) != 0
 }
 
-func (cdm *ChunkDiskMapper) RemoveMasks(sourceEncoding chunkenc.Encoding) chunkenc.Encoding {
+func (*ChunkDiskMapper) RemoveMasks(sourceEncoding chunkenc.Encoding) chunkenc.Encoding {
 	restored := uint8(sourceEncoding) & (^OutOfOrderMask)
 	return chunkenc.Encoding(restored)
 }
@@ -300,7 +303,7 @@ func (cdm *ChunkDiskMapper) openMMapFiles() (returnErr error) {
 	cdm.closers = map[int]io.Closer{}
 	defer func() {
 		if returnErr != nil {
-			returnErr = tsdb_errors.NewMulti(returnErr, closeAllFromMap(cdm.closers)).Err()
+			returnErr = errors.Join(returnErr, closeAllFromMap(cdm.closers))
 
 			cdm.mmappedChunkFiles = nil
 			cdm.closers = nil
@@ -378,6 +381,33 @@ func listChunkFiles(dir string) (map[int]string, error) {
 	return res, nil
 }
 
+// HardLinkChunkFiles creates hardlinks for chunk files from src to dst.
+// It does nothing if src doesn't exist and ensures dst is created if not.
+func HardLinkChunkFiles(src, dst string) error {
+	_, err := os.Stat(src)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("check source chunks dir: %w", err)
+	}
+	if err := os.MkdirAll(dst, 0o777); err != nil {
+		return fmt.Errorf("set up destination chunks dir: %w", err)
+	}
+	files, err := listChunkFiles(src)
+	if err != nil {
+		return fmt.Errorf("list chunks: %w", err)
+	}
+	for _, filePath := range files {
+		_, fileName := filepath.Split(filePath)
+		err := os.Link(filepath.Join(src, fileName), filepath.Join(dst, fileName))
+		if err != nil {
+			return fmt.Errorf("hardlink a chunk: %w", err)
+		}
+	}
+	return nil
+}
+
 // repairLastChunkFile deletes the last file if it's empty.
 // Because we don't fsync when creating these files, we could end
 // up with an empty file at the end during an abrupt shutdown.
@@ -400,7 +430,7 @@ func repairLastChunkFile(files map[int]string) (_ map[int]string, returnErr erro
 
 	buf := make([]byte, MagicChunksSize)
 	size, err := f.Read(buf)
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return files, fmt.Errorf("failed to read magic number during last head chunk file repair: %w", err)
 	}
 	if err := f.Close(); err != nil {
@@ -422,7 +452,7 @@ func repairLastChunkFile(files map[int]string) (_ map[int]string, returnErr erro
 	return files, nil
 }
 
-// WriteChunk writes the chunk to the disk.
+// WriteChunk writes the chunk to disk.
 // The returned chunk ref is the reference from where the chunk encoding starts for the chunk.
 func (cdm *ChunkDiskMapper) WriteChunk(seriesRef HeadSeriesRef, mint, maxt int64, chk chunkenc.Chunk, isOOO bool, callback func(err error)) (chkRef ChunkDiskMapperRef) {
 	// cdm.evtlPosMtx must be held to serialize the calls to cdm.evtlPos.getNextChunkRef() and the writing of the chunk (either with or without queue).
@@ -583,7 +613,7 @@ func (cdm *ChunkDiskMapper) cut() (seq, offset int, returnErr error) {
 		// The file should not be closed if there is no error,
 		// its kept open in the ChunkDiskMapper.
 		if returnErr != nil {
-			returnErr = tsdb_errors.NewMulti(returnErr, newFile.Close()).Err()
+			returnErr = errors.Join(returnErr, newFile.Close())
 		}
 	}()
 
@@ -686,7 +716,6 @@ func (cdm *ChunkDiskMapper) Chunk(ref ChunkDiskMapperRef) (chunkenc.Chunk, error
 	sgmIndex, chkStart := ref.Unpack()
 	// We skip the series ref and the mint/maxt beforehand.
 	chkStart += SeriesRefSize + (2 * MintMaxtSize)
-	chkCRC32 := newCRC32()
 
 	// If it is the current open file, then the chunks can be in the buffer too.
 	if sgmIndex == cdm.curFileSequence {
@@ -739,8 +768,25 @@ func (cdm *ChunkDiskMapper) Chunk(ref ChunkDiskMapperRef) (chunkenc.Chunk, error
 		}
 	}
 
+	if chkDataLen > uint64(math.MaxInt) {
+		return nil, &CorruptionErr{
+			Dir:       cdm.dir.Name(),
+			FileIndex: sgmIndex,
+			Err:       fmt.Errorf("chunk length %d exceeds supported size", chkDataLen),
+		}
+	}
+
+	chkDataLenInt := int(chkDataLen)
+	if chkDataLenStart > math.MaxInt-n-chkDataLenInt {
+		return nil, &CorruptionErr{
+			Dir:       cdm.dir.Name(),
+			FileIndex: sgmIndex,
+			Err:       fmt.Errorf("chunk data end overflows supported size (start=%d, len=%d, n=%d)", chkDataLenStart, chkDataLenInt, n),
+		}
+	}
+
 	// Verify the chunk data end.
-	chkDataEnd := chkDataLenStart + n + int(chkDataLen)
+	chkDataEnd := chkDataLenStart + n + chkDataLenInt
 	if chkDataEnd > mmapFile.byteSlice.Len() {
 		return nil, &CorruptionErr{
 			Dir:       cdm.dir.Name(),
@@ -751,18 +797,11 @@ func (cdm *ChunkDiskMapper) Chunk(ref ChunkDiskMapperRef) (chunkenc.Chunk, error
 
 	// Check the CRC.
 	sum := mmapFile.byteSlice.Range(chkDataEnd, chkDataEnd+CRCSize)
-	if _, err := chkCRC32.Write(mmapFile.byteSlice.Range(chkStart-(SeriesRefSize+2*MintMaxtSize), chkDataEnd)); err != nil {
+	if err := checkCRC32(mmapFile.byteSlice.Range(chkStart-(SeriesRefSize+2*MintMaxtSize), chkDataEnd), sum); err != nil {
 		return nil, &CorruptionErr{
 			Dir:       cdm.dir.Name(),
 			FileIndex: sgmIndex,
 			Err:       err,
-		}
-	}
-	if act := chkCRC32.Sum(nil); !bytes.Equal(act, sum) {
-		return nil, &CorruptionErr{
-			Dir:       cdm.dir.Name(),
-			FileIndex: sgmIndex,
-			Err:       fmt.Errorf("checksum mismatch expected:%x, actual:%x", sum, act),
 		}
 	}
 
@@ -789,7 +828,7 @@ func (cdm *ChunkDiskMapper) Chunk(ref ChunkDiskMapperRef) (chunkenc.Chunk, error
 // IterateAllChunks iterates all mmappedChunkFiles (in order of head chunk file name/number) and all the chunks within it
 // and runs the provided function with information about each chunk. It returns on the first error encountered.
 // NOTE: This method needs to be called at least once after creating ChunkDiskMapper
-// to set the maxt of all the file.
+// to set the maxt of all files.
 func (cdm *ChunkDiskMapper) IterateAllChunks(f func(seriesRef HeadSeriesRef, chunkRef ChunkDiskMapperRef, mint, maxt int64, numSamples uint16, encoding chunkenc.Encoding, isOOO bool) error) (err error) {
 	cdm.writePathMtx.Lock()
 	defer cdm.writePathMtx.Unlock()
@@ -797,8 +836,6 @@ func (cdm *ChunkDiskMapper) IterateAllChunks(f func(seriesRef HeadSeriesRef, chu
 	defer func() {
 		cdm.fileMaxtSet = true
 	}()
-
-	chkCRC32 := newCRC32()
 
 	// Iterate files in ascending order.
 	segIDs := make([]int, 0, len(cdm.mmappedChunkFiles))
@@ -834,7 +871,6 @@ func (cdm *ChunkDiskMapper) IterateAllChunks(f func(seriesRef HeadSeriesRef, chu
 						" - required:%v, available:%v, file:%d", idx+MaxHeadChunkMetaSize, fileEnd, segID),
 				}
 			}
-			chkCRC32.Reset()
 			chunkRef := newChunkDiskMapperRef(uint64(segID), uint64(idx))
 
 			startIdx := idx
@@ -873,14 +909,11 @@ func (cdm *ChunkDiskMapper) IterateAllChunks(f func(seriesRef HeadSeriesRef, chu
 
 			// Check CRC.
 			sum := mmapFile.byteSlice.Range(idx, idx+CRCSize)
-			if _, err := chkCRC32.Write(mmapFile.byteSlice.Range(startIdx, idx)); err != nil {
-				return err
-			}
-			if act := chkCRC32.Sum(nil); !bytes.Equal(act, sum) {
+			if err := checkCRC32(mmapFile.byteSlice.Range(startIdx, idx), sum); err != nil {
 				return &CorruptionErr{
 					Dir:       cdm.dir.Name(),
 					FileIndex: segID,
-					Err:       fmt.Errorf("checksum mismatch expected:%x, actual:%x", sum, act),
+					Err:       err,
 				}
 			}
 			idx += CRCSize
@@ -892,7 +925,8 @@ func (cdm *ChunkDiskMapper) IterateAllChunks(f func(seriesRef HeadSeriesRef, chu
 			// Extract the encoding from the byte. ChunkDiskMapper uses only the last 7 bits for the encoding.
 			chkEnc = cdm.RemoveMasks(chkEnc)
 			if err := f(seriesRef, chunkRef, mint, maxt, numSamples, chkEnc, isOOO); err != nil {
-				if cerr, ok := err.(*CorruptionErr); ok {
+				var cerr *CorruptionErr
+				if errors.As(err, &cerr) {
 					cerr.Dir = cdm.dir.Name()
 					cerr.FileIndex = segID
 					return cerr
@@ -914,7 +948,7 @@ func (cdm *ChunkDiskMapper) IterateAllChunks(f func(seriesRef HeadSeriesRef, chu
 	return nil
 }
 
-// Truncate deletes the head chunk files whose file number is less than given fileNo.
+// Truncate deletes the head chunk files with numbers less than the given fileNo.
 func (cdm *ChunkDiskMapper) Truncate(fileNo uint32) error {
 	cdm.readPathMtx.RLock()
 
@@ -935,7 +969,7 @@ func (cdm *ChunkDiskMapper) Truncate(fileNo uint32) error {
 	}
 	cdm.readPathMtx.RUnlock()
 
-	errs := tsdb_errors.NewMulti()
+	var errs []error
 	// Cut a new file only if the current file has some chunks.
 	if cdm.curFileSize() > HeadChunkFileHeaderSize {
 		// There is a known race condition here because between the check of curFileSize() and the call to CutNewFile()
@@ -944,7 +978,7 @@ func (cdm *ChunkDiskMapper) Truncate(fileNo uint32) error {
 		cdm.CutNewFile()
 	}
 	pendingDeletes, err := cdm.deleteFiles(removedFiles)
-	errs.Add(err)
+	errs = append(errs, err)
 
 	if len(chkFileIndices) == len(removedFiles) {
 		// All files were deleted. Reset the current sequence.
@@ -968,7 +1002,7 @@ func (cdm *ChunkDiskMapper) Truncate(fileNo uint32) error {
 		cdm.evtlPosMtx.Unlock()
 	}
 
-	return errs.Err()
+	return errors.Join(errs...)
 }
 
 // deleteFiles deletes the given file sequences in order of the sequence.
@@ -1063,23 +1097,23 @@ func (cdm *ChunkDiskMapper) Close() error {
 	}
 	cdm.closed = true
 
-	errs := tsdb_errors.NewMulti(
+	errs := []error{
 		closeAllFromMap(cdm.closers),
 		cdm.finalizeCurFile(),
 		cdm.dir.Close(),
-	)
+	}
 	cdm.mmappedChunkFiles = map[int]*mmappedChunkFile{}
 	cdm.closers = map[int]io.Closer{}
 
-	return errs.Err()
+	return errors.Join(errs...)
 }
 
 func closeAllFromMap(cs map[int]io.Closer) error {
-	errs := tsdb_errors.NewMulti()
+	var errs []error
 	for _, c := range cs {
-		errs.Add(c.Close())
+		errs = append(errs, c.Close())
 	}
-	return errs.Err()
+	return errors.Join(errs...)
 }
 
 const inBufferShards = 128 // 128 is a randomly chosen number.
@@ -1092,7 +1126,7 @@ type chunkBuffer struct {
 
 func newChunkBuffer() *chunkBuffer {
 	cb := &chunkBuffer{}
-	for i := 0; i < inBufferShards; i++ {
+	for i := range inBufferShards {
 		cb.inBufferChunks[i] = make(map[ChunkDiskMapperRef]chunkenc.Chunk)
 	}
 	return cb
@@ -1116,7 +1150,7 @@ func (cb *chunkBuffer) get(ref ChunkDiskMapperRef) chunkenc.Chunk {
 }
 
 func (cb *chunkBuffer) clear() {
-	for i := 0; i < inBufferShards; i++ {
+	for i := range inBufferShards {
 		cb.inBufferChunksMtxs[i].Lock()
 		cb.inBufferChunks[i] = make(map[ChunkDiskMapperRef]chunkenc.Chunk)
 		cb.inBufferChunksMtxs[i].Unlock()

@@ -1,4 +1,4 @@
-// Copyright 2019 The Prometheus Authors
+// Copyright The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -15,8 +15,10 @@ package exemplar
 
 import "github.com/prometheus/prometheus/model/labels"
 
-// The combined length of the label names and values of an Exemplar's LabelSet MUST NOT exceed 128 UTF-8 characters
-// https://github.com/OpenObservability/OpenMetrics/blob/main/specification/OpenMetrics.md#exemplars
+// ExemplarMaxLabelSetLength is defined by OpenMetrics: "The combined length of
+// the label names and values of an Exemplar's LabelSet MUST NOT exceed 128
+// UTF-8 characters."
+// https://github.com/prometheus/OpenMetrics/blob/v1.0.0/specification/OpenMetrics.md#exemplars
 const ExemplarMaxLabelSetLength = 128
 
 // Exemplar is additional information associated with a time series.
@@ -49,7 +51,7 @@ func (e Exemplar) Equals(e2 Exemplar) bool {
 	return e.Value == e2.Value
 }
 
-// Sort first by timestamp, then value, then labels.
+// Compare first timestamps, then values, then labels.
 func Compare(a, b Exemplar) int {
 	if a.Ts < b.Ts {
 		return -1

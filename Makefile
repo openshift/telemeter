@@ -62,10 +62,10 @@ build-in-docker:
 .PHONY: build
 build:
 	go build ./cmd/telemeter-client
-	go build ./cmd/telemeter-server
+	go build -tags slicelabels ./cmd/telemeter-server
 	go build ./cmd/authorization-server
 	go build ./cmd/telemeter-benchmark
-	go build ./cmd/rhelemeter-server
+	go build -tags slicelabels ./cmd/rhelemeter-server
 
 .PHONY: image
 image: .hack-operator-image
@@ -117,7 +117,7 @@ benchmark.pdf: $(BENCHMARK_RESULTS)
 .PHONY: lint
 lint: $(GOLANGCI_LINT_BIN)
 	# Check .golangci.yml for configuration
-	GOLANGCI_LINT_CACHE=$(CACHE_DIR)/golangci-lint $(GOLANGCI_LINT_BIN) run -c .golangci.yml
+	GOLANGCI_LINT_CACHE=$(CACHE_DIR)/golangci-lint $(GOLANGCI_LINT_BIN) run --build-tags slicelabels -c .golangci.yml
 
 .PHONY: format
 format: go-fmt jsonnet-fmt
@@ -143,7 +143,7 @@ test: test-unit test-rules test-integration test-benchmark
 
 .PHONY: test-unit
 test-unit:
-	go test -race -short $(PKGS) -count=1
+	go test -tags slicelabels -race -short $(PKGS) -count=1
 
 tmp:
 	mkdir tmp
