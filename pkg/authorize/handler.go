@@ -22,15 +22,15 @@ func NewAuthorizeClientHandler(logger log.Logger, authorizer ClientAuthorizer, n
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		logger := log.With(logger, "request", middleware.GetReqID(req.Context()))
 
-		auth := strings.SplitN(req.Header.Get("Authorization"), " ", 2)
-		if strings.ToLower(auth[0]) != "bearer" {
-			http.Error(w, "Only bearer authorization allowed", http.StatusUnauthorized)
-			level.Debug(logger).Log("msg", "Only bearer authorization allowed", "auth", auth[0])
+		auth := strings.Fields(req.Header.Get("Authorization"))
+		if len(auth) != 2 {
+			http.Error(w, "Invalid Authorization header", http.StatusUnauthorized)
+			level.Debug(logger).Log("msg", "Invalid Authorization header", "reason", fmt.Sprintf("failed to parse the header value, expected 2 fields but got %d", len(auth)))
 			return
 		}
-		if len(auth) != 2 || len(strings.TrimSpace(auth[1])) == 0 {
-			http.Error(w, "Invalid Authorization header", http.StatusUnauthorized)
-			level.Debug(logger).Log("msg", "Invalid Authorization header", "auth", auth)
+		if strings.ToLower(auth[0]) != "bearer" {
+			http.Error(w, "Invalid authorization scheme", http.StatusUnauthorized)
+			level.Debug(logger).Log("msg", "Only bearer authorization allowed", "reason", "unsupported scheme")
 			return
 		}
 
