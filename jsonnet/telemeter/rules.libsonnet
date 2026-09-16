@@ -82,12 +82,14 @@
                             label_replace(
                               label_replace(
                                 label_replace(
-                                  topk by (_id) (1, cluster_installer), "install_type", "upi", "type", "other"
-                                ), "install_type", "ipi", "type", "openshift-install"
-                              ), "install_type", "hive", "invoker", "hive"
-                            ), "install_type", "assisted-installer", "invoker", "assisted-installer"
-                          ), "install_type", "infrastructure-operator", "invoker", "assisted-installer-operator"
-                        ), "install_type", "agent-installer", "invoker", "agent-installer"
+                                  label_replace(
+                                    topk by (_id) (1, cluster_installer), "install_type", "upi", "type", "other"
+                                  ), "install_type", "ipi", "type", "openshift-install"
+                                ), "install_type", "hive", "invoker", "hive"
+                              ), "install_type", "assisted-installer", "invoker", "assisted-installer"
+                            ), "install_type", "infrastructure-operator", "invoker", "assisted-installer-operator"
+                          ), "install_type", "agent-installer", "invoker", "agent-installer"
+                        ), "install_type", "agent-installer-postconfig", "invoker", "agent-installer-postconfig"
                       ), "install_type", "hypershift", "invoker", "hypershift"
                     )
                   ) or on(_id) (
