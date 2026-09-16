@@ -81,10 +81,14 @@ image: .hack-operator-image
 # Generating #
 ##############
 
-vendor:
+.PHONY: tidy
+tidy:
+	go mod tidy && go mod verify
+	cd tools && go mod tidy && go mod verify
+
+.PHONY: vendor
+vendor: tidy
 	go mod vendor
-	go mod tidy
-	go mod verify
 
 .PHONY: generate-in-docker
 generate-in-docker:
