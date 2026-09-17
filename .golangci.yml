@@ -1,5 +1,3 @@
-run:
-  go: "1.24"
 linters:
   # disable-all: true
   # enable-all: true
