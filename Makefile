@@ -232,9 +232,7 @@ $(OTELCOL_BIN): $(BIN_DIR)
 	curl -L "https://github.com/open-telemetry/opentelemetry-collector-releases/releases/download/v0.96.0/otelcol_0.96.0_$$(go env GOOS)_$$(go env GOARCH).tar.gz" | tar -xzf - -C $(BIN_DIR)
 
 $(GOLANGCI_LINT_BIN): $(BIN_DIR)
-	curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/$(GOLANGCI_LINT_VERSION)/install.sh \
-		| sed -e '/install -d/d' \
-		| sh -s -- -b $(BIN_DIR) $(GOLANGCI_LINT_VERSION)
+	GOFLAGS= GOTOOLCHAIN=local GOBIN=$(BIN_DIR) go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
 $(THANOS_BIN): $(BIN_DIR)
 	GOBIN=$(BIN_DIR) go install -mod=readonly -modfile=tools/go.mod github.com/thanos-io/thanos/cmd/thanos
