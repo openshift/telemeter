@@ -1,12 +1,11 @@
 module github.com/openshift/telemeter/tools
 
-go 1.21
+go 1.23
 
 require (
 	github.com/brancz/gojsontoyaml v0.1.0
 	github.com/google/go-jsonnet v0.20.0
 	github.com/jsonnet-bundler/jsonnet-bundler v0.5.1
-	github.com/observatorium/up v0.0.0-20200615121732-d763595ede50
 	github.com/thanos-io/thanos v0.34.0
 )
 
@@ -89,7 +88,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
-	github.com/google/go-cmp v0.6.0 // indirect
+	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/pprof v0.0.0-20231205033806-a5a03c77bf08 // indirect
 	github.com/google/s2a-go v0.1.7 // indirect
@@ -159,6 +158,7 @@ require (
 	github.com/prometheus/prometheus v1.8.2-0.20200305080338-7164b58945bb // indirect
 	github.com/redis/rueidis v1.0.14-go1.18 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
+	github.com/rogpeppe/go-internal v1.11.0 // indirect
 	github.com/rs/xid v1.5.0 // indirect
 	github.com/santhosh-tekuri/jsonschema v1.2.4 // indirect
 	github.com/sercand/kuberesolver v2.4.0+incompatible // indirect
@@ -228,7 +228,7 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20231127180814-3a041ad873d4 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20231120223509-83a465c0220f // indirect
 	google.golang.org/grpc v1.59.0 // indirect
-	google.golang.org/protobuf v1.31.0 // indirect
+	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
