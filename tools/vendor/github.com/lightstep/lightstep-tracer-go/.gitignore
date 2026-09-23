@@ -1,7 +1,0 @@
-.DS_Store
-
-.idea/
-*.iml
-
-vendor/
-lightstep-tracer-go.test
