@@ -151,10 +151,13 @@ tmp:
 tmp/rules.yaml: $(JSONNET_LOCAL_OR_INSTALLED) jsonnet/telemeter/rules.libsonnet tmp
 	$(JSONNET_LOCAL_OR_INSTALLED) -e "(import 'jsonnet/telemeter/rules.libsonnet')['prometheus']['recordingrules']" > tmp/rules.yaml
 
+tmp/alert-rules.yaml: $(JSONNET_LOCAL_OR_INSTALLED) $(JSONNET_SRC) $(JSONNET_VENDOR) $(GOJSONTOYAML_BIN) tmp
+	$(JSONNET_LOCAL_OR_INSTALLED) -e "{groups: (import 'telemeter/client.libsonnet').telemeterClient.prometheusRule.spec.groups}" -J jsonnet/vendor | $(GOJSONTOYAML_BIN) > tmp/alert-rules.yaml
+
 .PHONY: check-rules
-check-rules: $(PROMTOOL_BIN) tmp/rules.yaml
+check-rules: $(PROMTOOL_BIN) tmp/rules.yaml tmp/alert-rules.yaml
 	rm -f tmp/"$@".out
-	$(PROMTOOL_BIN) check rules tmp/rules.yaml | tee "tmp/$@.out"
+	$(PROMTOOL_BIN) check rules tmp/rules.yaml tmp/alert-rules.yaml | tee "tmp/$@.out"
 
 .PHONY: test-rules
 test-rules: check-rules
