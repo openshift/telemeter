@@ -7,12 +7,10 @@ reviewers:
 - PhilipGough
 - saswatamcode
 - danielmellado
-- douglascamata
 - coleenquadros
 - thibaultmg
-- rexagod
-- machine424
 - marioferh
+- machine424
 
 approvers:
 - simonpasquier
@@ -21,12 +19,10 @@ approvers:
 - PhilipGough
 - saswatamcode
 - danielmellado
-- douglascamata
 - coleenquadros
 - thibaultmg
-- rexagod
-- machine424
 - marioferh
+- machine424
 
 emeritus_approvers:
 - squat
@@ -49,3 +45,5 @@ emeritus_approvers:
 - sthaha
 - raptorsun
 - juanrh
+- douglascamata
+- rexagod
