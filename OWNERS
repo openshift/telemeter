@@ -1,42 +1,20 @@
 component: "Monitoring"
 
 reviewers:
-- bwplotka
 - simonpasquier
 - jan--f
-- raptorsun
 - slashpai
-- sthaha
-- PhilipGough
-- ianbillett
-- matej-g
-- jessicalins
-- JoaoBraveCoding
-- juanrh
-- saswatamcode
 - danielmellado
-- douglascamata
-- coleenquadros
-- thibaultmg
+- marioferh
+- machine424
 
 approvers:
-- bwplotka
 - simonpasquier
 - jan--f
-- raptorsun
 - slashpai
-- sthaha
-- PhilipGough
-- ianbillett
-- matej-g
-- jessicalins
-- JoaoBraveCoding
-- juanrh
-- saswatamcode
 - danielmellado
-- douglascamata
-- coleenquadros
-- thibaultmg
+- marioferh
+- machine424
 
 emeritus_approvers:
 - squat
@@ -51,3 +29,16 @@ emeritus_approvers:
 - bison
 - arajkumar
 - onprem
+- bwplotka
+- raptorsun
+- sthaha
+- PhilipGough
+- ianbillett
+- matej-g
+- jessicalins
+- JoaoBraveCoding
+- juanrh
+- saswatamcode
+- douglascamata
+- coleenquadros
+- thibaultmg
