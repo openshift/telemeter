@@ -1,5 +1,6 @@
 rule_files:
     - ../tmp/rules.yaml
+    - ../tmp/alert-rules.yaml
 
 evaluation_interval: 1m
 
@@ -354,3 +355,108 @@ tests:
                   value: 72
                 - labels: 'acm:managed_cluster_worker_cores:managed:sum{_id="another_hub_cluster"}'
                   value: 80
+
+    # TelemeterClientSendErrors fires when >20% of federate_to requests are non-2xx
+    - interval: 1m
+      input_series:
+          - series: 'metricsclient_http_requests_total{job="telemeter-client",client="federate_to",status_code="401",namespace="openshift-monitoring"}'
+            values: '0+1x120'
+          - series: 'metricsclient_http_requests_total{job="telemeter-client",client="federate_to",status_code="200",namespace="openshift-monitoring"}'
+            values: '0+1x120'
+      alert_rule_test:
+          - alertname: TelemeterClientSendErrors
+            eval_time: 60m
+            exp_alerts: []
+          - alertname: TelemeterClientSendErrors
+            eval_time: 61m
+            exp_alerts:
+                - exp_labels:
+                      severity: warning
+                      namespace: openshift-monitoring
+                  exp_annotations:
+                      summary: Telemeter client is failing to send metrics.
+                      description: "The telemeter client in namespace openshift-monitoring has 50% error rate when sending metrics to the telemeter service.\n4xx errors typically indicate an authentication or authorization issue \u2014 check that the global pull secret is valid and up to date:\n  oc get secret pull-secret -n openshift-config -o jsonpath='{.data.\\.dockerconfigjson}' | base64 -d\n5xx errors indicate a server-side issue on Red Hat telemeter service and are not actionable by the cluster administrator.\nSee https://docs.openshift.com/container-platform/latest/openshift_images/managing_images/using-image-pull-secrets.html#images-update-global-pull-secret_using-image-pull-secrets for more details.\n"
+
+    # TelemeterClientSendErrors does NOT fire when error rate < 20%
+    - interval: 1m
+      input_series:
+          - series: 'metricsclient_http_requests_total{job="telemeter-client",client="federate_to",status_code="503",namespace="openshift-monitoring"}'
+            values: '0+1x120'
+          - series: 'metricsclient_http_requests_total{job="telemeter-client",client="federate_to",status_code="200",namespace="openshift-monitoring"}'
+            values: '0+9x120'
+      alert_rule_test:
+          - alertname: TelemeterClientSendErrors
+            eval_time: 75m
+            exp_alerts: []
+
+    # TelemeterClientSendErrors does NOT fire at exactly 20% error rate (> 0.2)
+    - interval: 1m
+      input_series:
+          - series: 'metricsclient_http_requests_total{job="telemeter-client",client="federate_to",status_code="401",namespace="openshift-monitoring"}'
+            values: '0+1x120'
+          - series: 'metricsclient_http_requests_total{job="telemeter-client",client="federate_to",status_code="200",namespace="openshift-monitoring"}'
+            values: '0+4x120'
+      alert_rule_test:
+          - alertname: TelemeterClientSendErrors
+            eval_time: 75m
+            exp_alerts: []
+
+    # TelemeterClientRetrieveErrors fires when >20% of federate_from requests are non-2xx
+    - interval: 1m
+      input_series:
+          - series: 'metricsclient_http_requests_total{job="telemeter-client",client="federate_from",status_code="403",namespace="openshift-monitoring"}'
+            values: '0+1x120'
+          - series: 'metricsclient_http_requests_total{job="telemeter-client",client="federate_from",status_code="200",namespace="openshift-monitoring"}'
+            values: '0+1x120'
+      alert_rule_test:
+          - alertname: TelemeterClientRetrieveErrors
+            eval_time: 60m
+            exp_alerts: []
+          - alertname: TelemeterClientRetrieveErrors
+            eval_time: 61m
+            exp_alerts:
+                - exp_labels:
+                      severity: warning
+                      namespace: openshift-monitoring
+                  exp_annotations:
+                      summary: Telemeter client is failing to retrieve metrics from Prometheus.
+                      description: "The telemeter client in namespace openshift-monitoring has 50% error rate when retrieving metrics from the in-cluster Prometheus.\n4xx errors may indicate an RBAC issue or misconfigured service account token.\n5xx errors may indicate that Prometheus is overloaded or unhealthy.\nCheck the telemeter-client logs:\n  oc logs -n openshift-monitoring deployment/telemeter-client -c telemeter-client\n"
+
+    # TelemeterClientRetrieveErrors does NOT fire when error rate < 20%
+    - interval: 1m
+      input_series:
+          - series: 'metricsclient_http_requests_total{job="telemeter-client",client="federate_from",status_code="500",namespace="openshift-monitoring"}'
+            values: '0+1x120'
+          - series: 'metricsclient_http_requests_total{job="telemeter-client",client="federate_from",status_code="200",namespace="openshift-monitoring"}'
+            values: '0+9x120'
+      alert_rule_test:
+          - alertname: TelemeterClientRetrieveErrors
+            eval_time: 75m
+            exp_alerts: []
+
+    # TelemeterClientRetrieveErrors does NOT fire at exactly 20% error rate (> 0.2)
+    - interval: 1m
+      input_series:
+          - series: 'metricsclient_http_requests_total{job="telemeter-client",client="federate_from",status_code="500",namespace="openshift-monitoring"}'
+            values: '0+1x120'
+          - series: 'metricsclient_http_requests_total{job="telemeter-client",client="federate_from",status_code="200",namespace="openshift-monitoring"}'
+            values: '0+4x120'
+      alert_rule_test:
+          - alertname: TelemeterClientRetrieveErrors
+            eval_time: 75m
+            exp_alerts: []
+
+    # No alerts fire when all requests are successful
+    - interval: 1m
+      input_series:
+          - series: 'metricsclient_http_requests_total{job="telemeter-client",client="federate_to",status_code="200",namespace="openshift-monitoring"}'
+            values: '0+10x120'
+          - series: 'metricsclient_http_requests_total{job="telemeter-client",client="federate_from",status_code="200",namespace="openshift-monitoring"}'
+            values: '0+10x120'
+      alert_rule_test:
+          - alertname: TelemeterClientSendErrors
+            eval_time: 75m
+            exp_alerts: []
+          - alertname: TelemeterClientRetrieveErrors
+            eval_time: 75m
+            exp_alerts: []

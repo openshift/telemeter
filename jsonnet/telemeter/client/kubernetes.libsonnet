@@ -252,23 +252,52 @@ local securePort = 8443;
                 expr: 'max(federate_samples - federate_filtered_samples)',
               },
               {
+                alert: 'TelemeterClientSendErrors',
                 expr: |||
-                  sum by (namespace) (
-                    rate(federate_requests_failed_total{job="telemeter-client"}[15m])
-                  ) /
-                  sum by (namespace) (
-                    rate(federate_requests_total{job="telemeter-client"}[15m])
+                  (
+                    sum by (namespace) (rate(metricsclient_http_requests_total{job="telemeter-client",client="federate_to",status_code!~"2.."}[15m]))
+                    /
+                    sum by (namespace) (rate(metricsclient_http_requests_total{job="telemeter-client",client="federate_to"}[15m]))
                   ) > 0.2
                 |||,
+                'for': '1h',
                 labels: {
                   severity: 'warning',
                 },
                 annotations: {
-                  description: 'The telemeter client in namespace {{ $labels.namespace }} fails {{ $value | humanize }} of the requests to the telemeter service.\nCheck the logs of the telemeter-client pod with the following command:\noc logs -n openshift-monitoring deployment.apps/telemeter-client -c telemeter-client\nIf the telemeter client fails to authenticate with the telemeter service, make sure that the global pull secret is up to date, see https://docs.openshift.com/container-platform/latest/openshift_images/managing_images/using-image-pull-secrets.html#images-update-global-pull-secret_using-image-pull-secrets for more details.',
-                  summary: 'Telemeter client fails to send metrics',
+                  summary: 'Telemeter client is failing to send metrics.',
+                  description: |||
+                    The telemeter client in namespace {{ $labels.namespace }} has {{ $value | humanizePercentage }} error rate when sending metrics to the telemeter service.
+                    4xx errors typically indicate an authentication or authorization issue — check that the global pull secret is valid and up to date:
+                      oc get secret pull-secret -n openshift-config -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d
+                    5xx errors indicate a server-side issue on Red Hat telemeter service and are not actionable by the cluster administrator.
+                    See https://docs.openshift.com/container-platform/latest/openshift_images/managing_images/using-image-pull-secrets.html#images-update-global-pull-secret_using-image-pull-secrets for more details.
+                  |||,
                 },
-                alert: 'TelemeterClientFailures',
+              },
+              {
+                alert: 'TelemeterClientRetrieveErrors',
+                expr: |||
+                  (
+                    sum by (namespace) (rate(metricsclient_http_requests_total{job="telemeter-client",client="federate_from",status_code!~"2.."}[15m]))
+                    /
+                    sum by (namespace) (rate(metricsclient_http_requests_total{job="telemeter-client",client="federate_from"}[15m]))
+                  ) > 0.2
+                |||,
                 'for': '1h',
+                labels: {
+                  severity: 'warning',
+                },
+                annotations: {
+                  summary: 'Telemeter client is failing to retrieve metrics from Prometheus.',
+                  description: |||
+                    The telemeter client in namespace {{ $labels.namespace }} has {{ $value | humanizePercentage }} error rate when retrieving metrics from the in-cluster Prometheus.
+                    4xx errors may indicate an RBAC issue or misconfigured service account token.
+                    5xx errors may indicate that Prometheus is overloaded or unhealthy.
+                    Check the telemeter-client logs:
+                      oc logs -n openshift-monitoring deployment/telemeter-client -c telemeter-client
+                  |||,
+                },
               },
             ],
           },
