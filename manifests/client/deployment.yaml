@@ -1,0 +1,116 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/component: telemetry-metrics-collector
+    app.kubernetes.io/name: telemeter-client
+  name: telemeter-client
+  namespace: openshift-monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: telemetry-metrics-collector
+      app.kubernetes.io/name: telemeter-client
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: telemetry-metrics-collector
+        app.kubernetes.io/name: telemeter-client
+    spec:
+      containers:
+      - command:
+        - /usr/bin/telemeter-client
+        - --id=$(ID)
+        - --from=$(FROM)
+        - --tls-cert-file=/etc/tls/private/tls.crt
+        - --tls-private-key-file=/etc/tls/private/tls.key
+        - --from-ca-file=/etc/serving-certs-ca-bundle/service-ca.crt
+        - --from-token-file=/var/run/secrets/kubernetes.io/serviceaccount/token
+        - --to=$(TO)
+        - --to-token-file=/etc/telemeter/token
+        - --listen=localhost:8080
+        - --anonymize-salt-file=/etc/telemeter/salt
+        - --anonymize-labels=$(ANONYMIZE_LABELS)
+        env:
+        - name: ANONYMIZE_LABELS
+          value: ""
+        - name: FROM
+          value: https://prometheus-k8s.openshift-monitoring.svc:9092
+        - name: ID
+          value: ""
+        - name: TO
+          value: https://infogw.api.openshift.com
+        - name: HTTP_PROXY
+          value: ""
+        - name: HTTPS_PROXY
+          value: ""
+        - name: NO_PROXY
+          value: ""
+        image: quay.io/openshift/origin-telemeter:v4.0
+        name: telemeter-client
+        ports:
+        - containerPort: 8080
+          name: http
+        resources:
+          requests:
+            cpu: 1m
+            memory: 40Mi
+        volumeMounts:
+        - mountPath: /etc/serving-certs-ca-bundle
+          name: serving-certs-ca-bundle
+          readOnly: false
+        - mountPath: /etc/telemeter
+          name: secret-telemeter-client
+          readOnly: false
+        - mountPath: /etc/tls/private
+          name: federate-client-tls
+          readOnly: false
+      - args:
+        - --webhook-url=http://localhost:8080/-/reload
+        - --volume-dir=/etc/serving-certs-ca-bundle
+        image: quay.io/openshift/origin-configmap-reload:v3.11
+        name: reload
+        resources:
+          requests:
+            cpu: 1m
+            memory: 10Mi
+        volumeMounts:
+        - mountPath: /etc/serving-certs-ca-bundle
+          name: serving-certs-ca-bundle
+          readOnly: false
+      - args:
+        - --secure-listen-address=:8443
+        - --upstream=http://127.0.0.1:8080/
+        - --tls-cert-file=/etc/tls/private/tls.crt
+        - --tls-private-key-file=/etc/tls/private/tls.key
+        image: quay.io/coreos/kube-rbac-proxy:v0.3.1
+        name: kube-rbac-proxy
+        ports:
+        - containerPort: 8443
+          name: https
+        resources:
+          requests:
+            cpu: 1m
+            memory: 20Mi
+        volumeMounts:
+        - mountPath: /etc/tls/private
+          name: telemeter-client-tls
+          readOnly: false
+      nodeSelector:
+        kubernetes.io/os: linux
+      priorityClassName: system-cluster-critical
+      serviceAccountName: telemeter-client
+      volumes:
+      - configMap:
+          name: telemeter-client-serving-certs-ca-bundle
+        name: serving-certs-ca-bundle
+      - name: secret-telemeter-client
+        secret:
+          secretName: telemeter-client
+      - name: telemeter-client-tls
+        secret:
+          secretName: telemeter-client-tls
+      - name: federate-client-tls
+        secret:
+          secretName: federate-client-certs

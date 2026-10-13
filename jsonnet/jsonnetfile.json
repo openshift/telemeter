@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "dependencies": [
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/observatorium/thanos-receive-controller.git",
+          "subdir": "jsonnet/lib"
+        }
+      },
+      "version": "master",
+      "name": "thanos-receive-controller"
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/thanos-io/kube-thanos.git",
+          "subdir": "jsonnet/kube-thanos"
+        }
+      },
+      "version": "master"
+    },
+    {
+      "source": {
+        "local": {
+          "directory": "telemeter"
+        }
+      },
+      "version": ""
+    }
+  ],
+  "legacyImports": true
+}

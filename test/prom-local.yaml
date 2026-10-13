@@ -1,0 +1,15 @@
+rule_files:
+- prom-local-alerts.yaml
+
+scrape_configs:
+- job_name: 'telemeter-server'
+  scrape_interval: 5s
+
+  metrics_path: '/metrics'
+
+  static_configs:
+    - targets:
+      - 'localhost:9004'
+
+      labels:
+        _elide: 'integration-test'

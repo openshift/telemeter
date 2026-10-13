@@ -1,0 +1,272 @@
+{
+  prometheus+:: {
+    recordingrules+: {
+      groups+: [
+        {
+          name: 'telemeter.rules',
+          interval: '4m',
+          rules: [
+            {
+              // This metric returns the number of steps in a 1h range with a
+              // resolution of 5m at the current evaluation time of the group.
+              //
+              // Because of the way Thanos treats subquery ranges, it may
+              // return a value of 12 or 13 (the latter when the evaluation
+              // time is an exact dividend of 5 minutes, e.g. XX:00:00,
+              // XX:05:00, XX:10:00, ....)
+              //
+              // It is used in other recording rules to divide the sum of vCPUs
+              // over the last hour by the actual number of steps.
+              record: 'steps:count1h',
+              expr: |||
+                count_over_time(vector(1)[1h:5m])
+              |||,
+            },
+            {
+              record: 'name_reason:cluster_operator_degraded:count',
+              expr: |||
+                count by (name,reason) (cluster_operator_conditions{condition="Degraded"} == 1)
+              |||,
+            },
+            {
+              record: 'name_reason:cluster_operator_unavailable:count',
+              expr: |||
+                count by (name,reason) (cluster_operator_conditions{condition="Available"} == 0)
+              |||,
+            },
+            {
+              record: 'id_code:apiserver_request_error_rate_sum:max',
+              expr: |||
+                sort_desc(max by (_id,code) (code:apiserver_request_count:rate:sum{code=~"(4|5)\\d\\d"}) > 0.5)
+              |||,
+            },
+            {
+              record: 'id_version:cluster_available',
+              expr: |||
+                bottomk by (_id) (1, max by (_id, version) (0 * cluster_version{type="failure"}) or max by (_id, version) (1 + 0 * cluster_version{type="current"}))
+              |||,
+            },
+            {
+              record: 'id_version_ebs_account_internal:cluster_subscribed',
+              expr: |||
+                topk by (_id) (1, max by (_id, managed, ebs_account, internal) (label_replace(label_replace((ocm_subscription{support=~"Standard|Premium|Layered"} * 0 + 1) or ocm_subscription * 0, "internal", "true", "email_domain", "redhat.com|(.*\\.|^)ibm.com"), "managed", "", "managed", "false")) + on(_id) group_left(version) (topk by (_id) (1, id_version*0)) + on(_id) group_left(install_type) (topk by (_id) (1, id_install_type*0)) + on(_id) group_left(host_type) (topk by (_id) (1, id_primary_host_type*0)) + on(_id) group_left(provider) (topk by (_id) (1, id_provider*0)))
+              |||,
+            },
+            {
+              record: 'id_primary_host_type',
+              expr: |||
+                0 * (max by (_id,host_type) (topk by (_id) (1, label_replace(label_replace(label_replace(label_replace(label_replace(label_replace(cluster:virt_platform_nodes:sum, "host_type", "$1", "type", "(aws|ibm_.*|ovirt|none|rhev|gcp|openstack|hyperv|vmware|nutanix.*)"), "host_type", "virt-unknown", "host_type", ""), "host_type", "kvm-unknown", "type", "kvm"), "host_type", "xen-unknown", "type", "xen.*"), "host_type", "metal", "host_type", "none"), "host_type", "ibm-$1", "host_type", "ibm[_-](power|systemz).*"))) or on(_id) label_replace(max by (_id) (cluster_version{type="current"}), "host_type", "", "host_type", ""))
+              |||,
+            },
+            {
+              record: 'id_provider',
+              expr: |||
+                0 * topk by (_id) (1, group by (_id, provider) (label_replace(cluster_infrastructure_provider, "provider", "$1", "type", "(.*)")) or on(_id) label_replace(group by (_id) (cluster_version{type="current"}), "provider", "unknown", "provider", ""))
+              |||,
+            },
+            {
+              record: 'id_version',
+              expr: |||
+                0 * (max by (_id,version) (topk by (_id) (1, cluster_version{type="current"})) or on(_id) label_replace(max by (_id) (cluster:node_instance_type_count:sum*0), "version", "", "unknown", ""))
+              |||,
+            },
+            {
+              record: 'id_install_type',
+              expr: |||
+                (
+                  count by (_id, install_type) (
+                    label_replace(
+                      label_replace(
+                        label_replace(
+                          label_replace(
+                            label_replace(
+                              label_replace(
+                                label_replace(
+                                  topk by (_id) (1, cluster_installer), "install_type", "upi", "type", "other"
+                                ), "install_type", "ipi", "type", "openshift-install"
+                              ), "install_type", "hive", "invoker", "hive"
+                            ), "install_type", "assisted-installer", "invoker", "assisted-installer"
+                          ), "install_type", "infrastructure-operator", "invoker", "assisted-installer-operator"
+                        ), "install_type", "agent-installer", "invoker", "agent-installer"
+                      ), "install_type", "hypershift", "invoker", "hypershift"
+                    )
+                  ) or on(_id) (
+                    label_replace(
+                      count by (_id) (
+                        cluster:virt_platform_nodes:sum
+                      ), "install_type", "unknown", "install_type", ""
+                    )
+                  ) * 0
+                ) * 0
+              |||,
+            },
+            {
+              record: 'id_cloudpak_type',
+              expr: |||
+                0 * (max by (_id,cloudpak_type) (topk by (_id) (1, count by (_id,cloudpak_type) (label_replace(subscription_sync_total{installed=~"ibm-((licensing|common-service)-operator).*"}, "cloudpak_type", "unknown", "", ".*")))))
+              |||,
+            },
+            {
+              // Identifies clusters by network type depending on what resources they expose. This is only accurate from 4.6.24 onwards when
+              // we started reporting all resource types to telemetry. It also requires that the cluster not have so many CRDs that some networks
+              // do not get returned because their object is below the cut-off (i.e. OVN doesn't materialize a lot of objects to CRD and so it
+              // can be excluded from large clusters, but we don't observe this yet).
+              // TODO: integrate cluster reported network type
+              record: 'id_network_type',
+              expr: |||
+                topk by(_id) (1,
+                  (label_replace(7+0*count by (_id) (cluster:usage:resources:sum{resource="netnamespaces.network.openshift.io"}), "network_type", "OpenshiftSDN", "", "") > 0) or
+                  (label_replace(6+0*count by (_id) (cluster:usage:resources:sum{resource="clusterinformations.crd.projectcalico.org"}), "network_type", "Calico", "", "") > 0) or
+                  (label_replace(5+0*count by (_id) (cluster:usage:resources:sum{resource="acicontainersoperators.aci.ctrl"}), "network_type", "ACI", "", "") > 0) or
+                  (label_replace(4+0*count by (_id) (cluster:usage:resources:sum{resource="kuryrnetworks.openstack.org"}), "network_type", "Kuryr", "", "") > 0) or
+                  (label_replace(3+0*count by (_id) (cluster:usage:resources:sum{resource="ciliumendpoints.cilium.io"}), "network_type", "Cilium", "", "") > 0) or
+                  (label_replace(2+0*count by (_id) (cluster:usage:resources:sum{resource="ncpconfigs.nsx.vmware.com"}), "network_type", "VMWareNSX", "", "") > 0) or
+                  (label_replace(1+0*count by (_id) (cluster:usage:resources:sum{resource="egressips.k8s.ovn.org"}), "network_type", "OVNKube", "", "")) or
+                  (label_replace(0+0*max by (_id) (cluster:node_instance_type_count:sum*0), "network_type", "unknown", "", ""))
+                )
+              |||,
+            },
+            {
+              // Identifies ebs_accounts into account_type by their likely status - Partner, Evaluation, Customer, or Internal. Sets the internal
+              // label on any redhat.com or .ibm.com email domain. The account_type="Internal" selector should be preferred over internal="true"
+              // since ibm.com accounts may be customers or running clusters on customer's behalf. account_type is mostly determined by whether
+              // the account carries any product subscriptions and as such a partner with valid subscriptions will be labelled Customer.
+              //
+              // account_type:
+              // * Internal - any redhat.com user, or any ibm.com ebs_account without any commercial subs
+              // * Customer - an ebs_account with commercial subs
+              // * Partner - an ebs_account flagged as a partner
+              // * Evaluation - an ebs_account with only eval subs
+              // * <empty> - is none of the categories above (does not have a relationships with RH around subs or partnership)
+              record: 'ebs_account_account_type_email_domain_internal',
+              expr: |||
+                0 * topk by (ebs_account) (1, max by (ebs_account,account_type,internal,email_domain) (label_replace(label_replace(label_replace(ocm_subscription{email_domain="redhat.com"}*0+5, "class", "Internal", "class", ".*") or label_replace(ocm_subscription{class!="Customer",email_domain=~"(.*\\.|^)ibm.com"}*0+4, "class", "Internal", "class", ".*") or (ocm_subscription{class="Customer"}*0+3) or (ocm_subscription{class="Partner"}*0+2) or (ocm_subscription{class="Evaluation"}*0+1) or label_replace(ocm_subscription{class!~"Evaluation|Customer|Partner"}*0+0, "class", "", "class", ".*"), "account_type", "$1", "class", "(.+)"), "internal", "true", "email_domain", "redhat.com|(.*\\.|^)ibm.com") ))
+              |||,
+            },
+            {
+              // ACM managed cluster limited to 500 records
+              record: 'acm_top500_mcs:acm_managed_cluster_info',
+              expr: |||
+                topk(500, sum (acm_managed_cluster_info) by (managed_cluster_id, cloud, created_via, endpoint, instance, job, namespace, pod, service, vendor, version))
+              |||,
+            },
+            {
+              // OpenShift Cluster CPU-hours for the last hour.
+              record: 'cluster:usage:workload:capacity_physical_cpu_hours',
+              expr: |||
+                max by(_id) (sum_over_time(cluster:usage:workload:capacity_physical_cpu_cores:max:5m[1h:5m])) / scalar(steps:count1h)
+              |||,
+            },
+            {
+              // OpenShift Cluster Instance-hours for the last hour.
+              // TODO(typeid): We will remove this rule at a later point as part of SREP-3493
+              // and replace it with `cluster:usage:control_plane:instance_hours`.
+              // This rule is currently equivalent to `cluster:usage:control_plane:instance_hours` to allow
+              // bumping this through stage and production without a SubWatch release.
+              // SubWatch currently references this rule for ROSA HCP control plane billing via
+              // https://github.com/RedHatInsights/rhsm-subscriptions/blob/1309ecd73f21cc213f5ca58b5486ff95fe8ee982/swatch-product-configuration/src/main/resources/subscription_configs/OpenShift/rosa.yaml#L46
+              record: 'cluster:usage:workload:capacity_physical_instance_hours',
+              expr: |||
+                max by(_id) (count_over_time(cluster:usage:workload:capacity_physical_cpu_cores:max:5m[1h:5m])) / scalar(steps:count1h)
+                or
+                max by(_id) (count_over_time((hostedcluster:hypershift_cluster_vcpus:max > 0)[1h:5m])) / scalar(steps:count1h)
+              |||,
+            },
+            {
+              // OpenShift Control Plane instance hours over the past hour.
+              // This recording rule represents the instance hours over the past hour in which the control plane has been active.
+              // This recording rule is based on two metrics:
+              // 1) `cluster:usage:workload:capacity_physical_cpu_cores:max:5m` which is used as an anchor for the control plane hours in non-HCP clusters.
+              // 2) `hostedcluster:hypershift_cluster_vcpus:max` which is used as an anchor for the control plane hours in HCP clusters.
+              // While these metrics relate to the actual worker count, they are emitted by either infrastructure nodes for non-HCP clusters,
+              // or the management cluster layer for HCP clusters and at least 1 time series is expected at any point in time during the cluster's lifetime.
+              // Note for HCP:
+              // While for HCP both metrics may be emitted to telemetry (one from the telemeter-client, one from the management cluster),
+              // this is not always the case, as the telemeter-client is optional or may not be reliable because it runs on the worker nodes.
+              // We fall back to the more reliable metric emitted from the management cluster in any case.
+              record: 'cluster:usage:control_plane:instance_hours',
+              expr: |||
+                max by(_id) (count_over_time(cluster:usage:workload:capacity_physical_cpu_cores:max:5m[1h:5m])) / scalar(steps:count1h)
+                or
+                max by(_id) (count_over_time((hostedcluster:hypershift_cluster_vcpus:max > 0)[1h:5m])) / scalar(steps:count1h)
+              |||,
+            },
+            {
+              // OpenShift Cluster vCPU-hours for the last hour.
+              record: 'cluster:usage:workload:capacity_virtual_cpu_hours',
+              expr: |||
+                sum by(_id) (sum_over_time(cluster:capacity_cpu_cores:sum{label_node_role_kubernetes_io = ''}[1h:5m])) / scalar(steps:count1h)
+              |||,
+            },
+            {
+              // returns 0 for any cluster reporting core capacity, used to improve performance of cluster:capacity_effective_cpu_cores
+              record: 'cluster:cpu_capacity_cores:_id',
+              expr: |||
+                group by(_id, tenant_id) (cluster:capacity_cpu_cores:sum{label_node_openshift_io_os_id="rhcos"}) * 0
+              |||,
+            },
+            {
+              // OpenShift Cluster effective cores for subscription usage.
+              // This counts both worker nodes and, when the control plane is schedulable, control plane nodes.
+              // Only CoreOS nodes are counted.
+              // 1. x86_64 nodes need the cores value adjusted to account for 2 threads per core (* 0.5).
+              // 2. Other CPU architectures are assumed to have accurate values in cluster:capacity_cpu_cores:sum.
+              record: 'cluster:capacity_effective_cpu_cores',
+              expr: |||
+                # worker amd64
+                (sum by (_id, tenant_id) (cluster:capacity_cpu_cores:sum{label_node_openshift_io_os_id="rhcos",label_node_role_kubernetes_io!="master",label_node_role_kubernetes_io!="infra",label_kubernetes_io_arch="amd64"}) / 2.0 or cluster:cpu_capacity_cores:_id) +
+                # worker non-amd64
+                (sum by (_id, tenant_id) (cluster:capacity_cpu_cores:sum{label_node_openshift_io_os_id="rhcos",label_node_role_kubernetes_io!="master",label_node_role_kubernetes_io!="infra",label_kubernetes_io_arch!="amd64"}) or cluster:cpu_capacity_cores:_id) +
+                # schedulable control plane amd64
+                (sum by (_id, tenant_id) (cluster:capacity_cpu_cores:sum{label_node_openshift_io_os_id="rhcos",label_node_role_kubernetes_io="master",label_kubernetes_io_arch="amd64"}) * on(_id, tenant_id) group by(_id, tenant_id) (cluster_master_schedulable == 1) / 2.0 or cluster:cpu_capacity_cores:_id) +
+                # schedulable control plane non-amd64
+                (sum by (_id, tenant_id) (cluster:capacity_cpu_cores:sum{label_node_openshift_io_os_id="rhcos",label_node_role_kubernetes_io="master",label_kubernetes_io_arch!="amd64"}) * on(_id, tenant_id) group by(_id, tenant_id) (cluster_master_schedulable == 1) or cluster:cpu_capacity_cores:_id)
+              |||,
+            },
+            {
+              // ACM managed cluster effective cores for subscription usage. It is measured in virtual CPU cores.
+              // 1. The value for the self managed OpenShift clusters is derived from the OpenShift metric cluster:capacity_effective_cpu_cores and is normalized to virtual CPU cores (* 2);
+              // 2. The value for the managed OpenShift clusters and the non-OpenShift clusters comes from the ACM metric acm_managed_cluster_worker_cores:max;
+              record: 'acm_capacity_effective_cpu_cores',
+              expr: |||
+                # self managed OpenShift cluster
+                max by (_id, managed_cluster_id) (acm_managed_cluster_info{product="OpenShift"}) * on(managed_cluster_id) group_left() (
+                    # On one side, the acm_managed_cluster_info metric has the managed_cluster_id label identifiying the managed cluster and the _id label identifying the hub cluster.
+                    # On the other side, the cluster:capacity_effective_cpu_cores metric has the _id label which identifying the managed cluster.
+                    # To join the 2 metrics, we need to add a managed_cluster_id label with the same value as _id to the cluster:capacity_effective_cpu_cores metric.
+                    label_replace(
+                      max by(_id) (cluster:capacity_effective_cpu_cores), "managed_cluster_id", "$1", "_id", "(.*)"
+                    )
+                  ) * 2 or
+                # managed OpenShift cluster and non-OpenShift clusters
+                max by (_id, managed_cluster_id) (acm_managed_cluster_worker_cores:max)
+              |||,
+            },
+            {
+              // Sum the ACM managed cluster effective cores per hub cluster (_id) so Swatch can associate the capacity with the billing account information.
+              record: 'acm_capacity_effective_cpu_cores:sum',
+              expr: |||
+                sum by (_id) (acm_capacity_effective_cpu_cores)
+              |||,
+            },
+            {
+              // ROSA HCP Cluster vCPU-hours for the last hour.
+              record: 'hostedcluster:hypershift_cluster_vcpus:vcpu_hours',
+              expr: |||
+                max by(_id) (sum_over_time(hostedcluster:hypershift_cluster_vcpus:max[1h:5m])) / scalar(steps:count1h)
+              |||,
+            },
+            {
+              // ROSA (HCP or classic) Cluster vCPU-hours for the last hour.
+              // Defaults to the HCP value in case both HCP and classic values are defined.
+              record: 'rosa:cluster:vcpu_hours',
+              expr: |||
+                hostedcluster:hypershift_cluster_vcpus:vcpu_hours or on (_id) cluster:usage:workload:capacity_virtual_cpu_hours
+              |||,
+            },
+          ],
+        },
+      ],
+    },
+  },
+}
