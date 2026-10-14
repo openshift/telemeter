@@ -162,7 +162,7 @@ check-rules: $(PROMTOOL_BIN) tmp/rules.yaml
 
 .PHONY: test-rules
 test-rules: check-rules
-	$(PROMTOOL_BIN) test rules test/rulestests.yaml | tee "tmp/$@.out"
+	$(PROMTOOL_BIN) test rules test/rules/*.yaml | tee "tmp/$@.out"
 
 # TODO(paulfantom): remove this target after removing it from Prow.
 test-generate:

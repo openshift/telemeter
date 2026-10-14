@@ -1,0 +1,87 @@
+rule_files:
+    - ../../tmp/rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+    # Cluster reporting 2 types with the same node count.
+    - input_series:
+          - series: 'cluster:virt_platform_nodes:sum{_id="id1",prometheus="openshift-monitoring/k8s",receive="true",type="kvm"}'
+            values: '3'
+          - series: 'cluster:virt_platform_nodes:sum{_id="id1",prometheus="openshift-monitoring/k8s",receive="true",type="redhat"}'
+            values: '2'
+      promql_expr_test:
+          - expr: id_primary_host_type
+            eval_time: 0
+            exp_samples:
+                - labels: 'id_primary_host_type{_id="id1",host_type="kvm-unknown"}'
+                  value: 0
+    # Cluster with different types of baremetal nodes.
+    - input_series:
+          - series: 'cluster:virt_platform_nodes:sum{_id="id2", baseboard_manufacturer="Cisco Systems Inc", baseboard_product_name="UCSC-C240-M7SX", prometheus="openshift-monitoring/k8s", system_manufacturer="Cisco Systems Inc", system_product_name="UCSC-C240-M7SX", type="none"}'
+            values: '44'
+          - series: 'cluster:virt_platform_nodes:sum{_id="id2", baseboard_manufacturer="Dell Inc.", baseboard_product_name="0216NK", prometheus="openshift-monitoring/k8s", system_manufacturer="Dell Inc.", system_product_name="PowerEdge R750", type="none"}'
+            values: '7'
+          - series: 'cluster:virt_platform_nodes:sum{_id="id2", baseboard_manufacturer="Dell Inc.", baseboard_product_name="0M7596", prometheus="openshift-monitoring/k8s", system_manufacturer="Dell Inc.", system_product_name="PowerEdge R750", type="none"}'
+            values: '13'
+          - series: 'cluster:virt_platform_nodes:sum{_id="id2", baseboard_manufacturer="HPE", baseboard_product_name="ProLiant DL380 Gen10 Plus", prometheus="openshift-monitoring/k8s", system_manufacturer="HPE", system_product_name="ProLiant DL380 Gen10 Plus", type="none"}'
+            values: '182'
+      promql_expr_test:
+          - expr: id_primary_host_type
+            eval_time: 0
+            exp_samples:
+                - labels: 'id_primary_host_type{_id="id2",host_type="metal"}'
+                  value: 0
+    # Mixed virtualized and baremetal nodes with virtual nodes > baremetal.
+    - input_series:
+          - series: 'cluster:virt_platform_nodes:sum{_id="id3",baseboard_manufacturer="Dell Inc.",baseboard_product_name="0MMP29",system_manufacturer="Dell Inc.",system_product_name="PowerEdge XE9780",type="none"}'
+            values: '2'
+          - series: 'cluster:virt_platform_nodes:sum{_id="id3",baseboard_manufacturer="Lenovo",baseboard_product_name="SB27B24796",system_manufacturer="Lenovo",system_product_name="ThinkSystem SR675 V3",type="none"}'
+            values: '4'
+          - series: 'cluster:virt_platform_nodes:sum{_id="id3",baseboard_manufacturer="Lenovo",baseboard_product_name="SB27B71097",system_manufacturer="Lenovo",system_product_name="ThinkSystem SR850 V3",type="none"}'
+            values: '4'
+          - series: 'cluster:virt_platform_nodes:sum{_id="id3",type="vmware"}'
+            values: '12'
+      promql_expr_test:
+          - expr: id_primary_host_type
+            eval_time: 0
+            exp_samples:
+                - labels: 'id_primary_host_type{_id="id3",host_type="vmware"}'
+                  value: 0
+    # Mixed virtualized and baremetal nodes with virtual nodes < baremetal.
+    # TODO(simonpasquier): fix the recording rule as it should report id_primary_host_type{host_type="metal"}
+    - input_series:
+          - series: 'cluster:virt_platform_nodes:sum{_id="id3",baseboard_manufacturer="Dell Inc.",baseboard_product_name="0MMP29",system_manufacturer="Dell Inc.",system_product_name="PowerEdge XE9780",type="none"}'
+            values: '8'
+          - series: 'cluster:virt_platform_nodes:sum{_id="id3",baseboard_manufacturer="Lenovo",baseboard_product_name="SB27B24796",system_manufacturer="Lenovo",system_product_name="ThinkSystem SR675 V3",type="none"}'
+            values: '4'
+          - series: 'cluster:virt_platform_nodes:sum{_id="id3",baseboard_manufacturer="Lenovo",baseboard_product_name="SB27B71097",system_manufacturer="Lenovo",system_product_name="ThinkSystem SR850 V3",type="none"}'
+            values: '4'
+          - series: 'cluster:virt_platform_nodes:sum{_id="id3",type="vmware"}'
+            values: '12'
+      promql_expr_test:
+          - expr: id_primary_host_type
+            eval_time: 0
+            exp_samples:
+                - labels: 'id_primary_host_type{_id="id3",host_type="vmware"}'
+                  value: 0
+    # IBM-based nodes wins the majority.
+    - input_series:
+          - series: 'cluster:virt_platform_nodes:sum{_id="id4",baseboard_manufacturer="GIGABYTE",baseboard_product_name="MP32-AR2-00",system_manufacturer="GIGABYTE",system_product_name="G242-P33-00",type="none"}'
+            values: '1'
+          - series: 'cluster:virt_platform_nodes:sum{_id="id4",type="ibm_systemz"}'
+            values: '6'
+          - series: 'cluster:virt_platform_nodes:sum{_id="id4",type="ibm_systemz-kvm"}'
+            values: '3'
+          - series: 'cluster:virt_platform_nodes:sum{_id="id4",type="ibm_systemz-lpar"}'
+            values: '3'
+          - series: 'cluster:virt_platform_nodes:sum{_id="id4",type="kvm"}'
+            values: '5'
+          - series: 'cluster:virt_platform_nodes:sum{_id="id4",type="redhat"}'
+            values: '5'
+      promql_expr_test:
+          - expr: id_primary_host_type
+            eval_time: 0
+            exp_samples:
+                - labels: 'id_primary_host_type{_id="id4",host_type="ibm-systemz"}'
+                  value: 0
