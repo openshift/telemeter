@@ -1,0 +1,71 @@
+rule_files:
+    - ../../tmp/rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+    # acm:managed_cluster_worker_cores:self_managed:sum tests
+    - input_series:
+          # manged ROSA and ARO clusters running two different ACM hubs (and connected to themselves)
+          - series: 'acm_managed_cluster_info{product="ROSA", _id="hub_cluster", hub_cluster_id="hub_cluster", managed_cluster_id="hub_cluster"}'
+            values: '1'
+          - series: 'acm_managed_cluster_info{product="ARO", _id="another_hub_cluster", hub_cluster_id="another_hub_cluster", managed_cluster_id="another_hub_cluster"}'
+            values: '1'
+          - series: 'acm_managed_cluster_worker_cores:max{_id="hub_cluster", hub_cluster_id="hub_cluster", managed_cluster_id="hub_cluster"}'
+            values: '16'
+          - series: 'acm_managed_cluster_worker_cores:max{_id="another_hub_cluster", hub_cluster_id="another_hub_cluster", managed_cluster_id="another_hub_cluster"}'
+            values: '16'
+          # self-managed OCP clusters connected to the two ACM hubs above
+          - series: 'acm_managed_cluster_info{product="OpenShift", _id="hub_cluster", hub_cluster_id="hub_cluster", managed_cluster_id="self_managed_ocp1"}'
+            values: '1'
+          - series: 'acm_managed_cluster_info{product="OpenShift", _id="another_hub_cluster", hub_cluster_id="another_hub_cluster", managed_cluster_id="self_managed_ocp2"}'
+            values: '1'
+          - series: 'acm_managed_cluster_worker_cores:max{_id="hub_cluster", hub_cluster_id="hub_cluster", managed_cluster_id="self_managed_ocp1"}'
+            values: '32'
+          - series: 'acm_managed_cluster_worker_cores:max{_id="another_hub_cluster", hub_cluster_id="another_hub_cluster", managed_cluster_id="self_managed_ocp2"}'
+            values: '64'
+          # self-managed Microshift cluster connected to the ACM hub running on ROSA
+          - series: 'acm_managed_cluster_info{product="MicroShift", _id="hub_cluster", hub_cluster_id="hub_cluster", managed_cluster_id="self_managed_microshift1"}'
+            values: '1'
+          - series: 'acm_managed_cluster_worker_cores:max{_id="hub_cluster", hub_cluster_id="hub_cluster", managed_cluster_id="self_managed_microshift1"}'
+            values: '4'
+          # two managed ROSA clusters
+          - series: 'acm_managed_cluster_info{product="ROSA", _id="hub_cluster", hub_cluster_id="hub_cluster", managed_cluster_id="managed_rosa1"}'
+            values: '1'
+          - series: 'acm_managed_cluster_info{product="ROSA", _id="another_hub_cluster", hub_cluster_id="another_hub_cluster", managed_cluster_id="managed_rosa2"}'
+            values: '1'
+          - series: 'acm_managed_cluster_worker_cores:max{_id="hub_cluster", hub_cluster_id="hub_cluster", managed_cluster_id="managed_rosa1"}'
+            values: '24'
+          - series: 'acm_managed_cluster_worker_cores:max{_id="another_hub_cluster", hub_cluster_id="another_hub_cluster", managed_cluster_id="managed_rosa2"}'
+            values: '32'
+          # managed ARO clusters
+          - series: 'acm_managed_cluster_info{product="ARO", _id="hub_cluster", hub_cluster_id="hub_cluster", managed_cluster_id="managed_aro1"}'
+            values: '1'
+          - series: 'acm_managed_cluster_info{product="ARO", _id="another_hub_cluster", hub_cluster_id="another_hub_cluster", managed_cluster_id="managed_aro2"}'
+            values: '1'
+          - series: 'acm_managed_cluster_worker_cores:max{_id="hub_cluster", hub_cluster_id="hub_cluster", managed_cluster_id="managed_aro1"}'
+            values: '24'
+          - series: 'acm_managed_cluster_worker_cores:max{_id="another_hub_cluster", hub_cluster_id="another_hub_cluster", managed_cluster_id="managed_aro2"}'
+            values: '32'
+          # an undefined product ("Other") cluster connected to the first hub that is expected to be counted in the "managed" category
+          - series: 'acm_managed_cluster_info{product="Other", _id="hub_cluster", hub_cluster_id="hub_cluster", managed_cluster_id="other_cluster"}'
+            values: '1'
+          - series: 'acm_managed_cluster_worker_cores:max{_id="hub_cluster", hub_cluster_id="hub_cluster", managed_cluster_id="other_cluster"}'
+            values: '8'
+      promql_expr_test:
+          # only self-managed connected capacity for both hubs
+          - expr: acm:managed_cluster_worker_cores:self_managed:sum
+            eval_time: 0
+            exp_samples:
+                - labels: 'acm:managed_cluster_worker_cores:self_managed:sum{_id="hub_cluster"}'
+                  value: 36
+                - labels: 'acm:managed_cluster_worker_cores:self_managed:sum{_id="another_hub_cluster"}'
+                  value: 64
+          # only managed connected capacity for both hubs
+          - expr: acm:managed_cluster_worker_cores:managed:sum
+            eval_time: 0
+            exp_samples:
+                - labels: 'acm:managed_cluster_worker_cores:managed:sum{_id="hub_cluster"}'
+                  value: 72
+                - labels: 'acm:managed_cluster_worker_cores:managed:sum{_id="another_hub_cluster"}'
+                  value: 80
