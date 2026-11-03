@@ -46,86 +46,88 @@
                 bottomk by (_id) (1, max by (_id, version) (0 * cluster_version{type="failure"}) or max by (_id, version) (1 + 0 * cluster_version{type="current"}))
               |||,
             },
+            // For each cluster, cluster:nodes_host_type:sum returns the total
+            // number of nodes per "host_type".
+            //
+            // The host_type values are:
+            // - "aws"
+            // - "gcp"
+            // - "kvm-unknown"
+            // - "hyperv"
+            // - "ibm-systemz"
+            // - "ibm-power"
+            // - "metal"
+            // - "nutanix_ahv"
+            // - "openstack"
+            // - "ovirt"
+            // - "rhev"
+            // - "virt-unknown"
+            // - "vmware"
+            // - "xen-unknown"
+            //
+            // The metric is derived from the cluster:virt_platform_nodes:sum
+            // metric which reports the number of nodes per (detected)
+            // virtualization platform. Underneath
+            // cluster:virt_platform_nodes:sum is based on the virt_platform
+            // metric exposed by node_exporter. The exporter leverages the
+            // virt-what command which uses several heuristics and can return
+            // several entries for a particular virtualized node (for example,
+            // "kvm" and "redhat").
             {
-              record: 'id_version_ebs_account_internal:cluster_subscribed',
+              record: 'cluster:nodes_host_type:sum',
               expr: |||
-                topk by (_id) (
-                  1,
-                          max by (_id, managed, ebs_account, internal) (
-                            label_replace(
-                              label_replace(
-                                (ocm_subscription{support=~"Standard|Premium|Layered"} * 0 + 1) or ocm_subscription * 0,
-                                "internal",
-                                "true",
-                                "email_domain",
-                                "redhat.com|(.*\\.|^)ibm.com"
-                              ),
-                              "managed",
-                              "",
-                              "managed",
-                              "false"
-                            )
-                          )
-                        + on (_id) group_left (version)
-                          (topk by (_id) (1, id_version * 0))
-                      + on (_id) group_left (install_type)
-                        (topk by (_id) (1, id_install_type * 0))
-                    + on (_id) group_left (host_type)
-                      (topk by (_id) (1, id_primary_host_type * 0))
-                  + on (_id) group_left (provider)
-                    (topk by (_id) (1, id_provider * 0))
-                )
-              |||,
-            },
-            {
-              record: 'id_primary_host_type',
-              expr: |||
-                0 * (
-                    max by (_id, host_type) (
-                      topk by (_id) (
-                        1,
+                max by (_id, host_type) (
+                    label_replace(
+                      label_replace(
                         label_replace(
                           label_replace(
                             label_replace(
-                              label_replace(
-                                label_replace(
-                                  label_replace(
-                                    cluster:virt_platform_nodes:sum,
-                                    "host_type",
-                                    "$1",
-                                    "type",
-                                    "(aws|ibm_.*|ovirt|none|rhev|gcp|openstack|hyperv|vmware|nutanix.*)"
-                                  ),
-                                  "host_type",
-                                  "virt-unknown",
-                                  "host_type",
-                                  ""
-                                ),
-                                "host_type",
-                                "kvm-unknown",
-                                "type",
-                                "kvm"
-                              ),
+                              cluster:virt_platform_nodes:sum{type!="none"},
                               "host_type",
-                              "xen-unknown",
+                              "$1",
                               "type",
-                              "xen.*"
+                              "(aws|ibm_.*|ovirt|none|rhev|gcp|openstack|hyperv|vmware|nutanix.*)"
                             ),
                             "host_type",
-                            "metal",
+                            "virt-unknown",
                             "host_type",
-                            "none"
+                            ""
                           ),
                           "host_type",
-                          "ibm-$1",
-                          "host_type",
-                          "ibm[_-](power|systemz).*"
-                        )
-                      )
+                          "kvm-unknown",
+                          "type",
+                          "kvm"
+                        ),
+                        "host_type",
+                        "xen-unknown",
+                        "type",
+                        "xen.*"
+                      ),
+                      "host_type",
+                      "ibm-$1",
+                      "host_type",
+                      "ibm[_-](power|systemz).*"
                     )
-                  or on (_id)
-                    max by (_id) (cluster_version{type="current"})
-                )
+                  )
+                or
+                  (
+                    sum by (_id, host_type) (
+                      label_replace(cluster:virt_platform_nodes:sum{type="none"}, "host_type", "metal", "type", "none")
+                    )
+                  )
+              |||,
+            },
+            // For each cluster _id, id_primary_host_type returns the host_type
+            // with the highest count of nodes. The value is always zero.
+            //
+            // It is a legacy metric which isn't useful when a cluster has mixed
+            // types of nodes (e.g. baremetal and virtualized).
+            {
+              record: 'id_primary_host_type',
+              expr: |||
+                0 * (max by (_id, host_type) (topk by (_id) (1, cluster:nodes_host_type:sum))
+                     or on (_id)
+                     max by (_id) (cluster_version{type="current"}))
               |||,
             },
             {
@@ -293,6 +295,37 @@
                       "redhat.com|(.*\\.|^)ibm.com"
                     )
                   )
+                )
+              |||,
+            },
+            {
+              record: 'id_version_ebs_account_internal:cluster_subscribed',
+              expr: |||
+                topk by (_id) (
+                  1,
+                          max by (_id, managed, ebs_account, internal) (
+                            label_replace(
+                              label_replace(
+                                (ocm_subscription{support=~"Standard|Premium|Layered"} * 0 + 1) or ocm_subscription * 0,
+                                "internal",
+                                "true",
+                                "email_domain",
+                                "redhat.com|(.*\\.|^)ibm.com"
+                              ),
+                              "managed",
+                              "",
+                              "managed",
+                              "false"
+                            )
+                          )
+                        + on (_id) group_left (version)
+                          (topk by (_id) (1, id_version * 0))
+                      + on (_id) group_left (install_type)
+                        (topk by (_id) (1, id_install_type * 0))
+                    + on (_id) group_left (host_type)
+                      (topk by (_id) (1, id_primary_host_type * 0))
+                  + on (_id) group_left (provider)
+                    (topk by (_id) (1, id_provider * 0))
                 )
               |||,
             },

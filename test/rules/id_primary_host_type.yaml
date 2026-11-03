@@ -11,6 +11,13 @@ tests:
           - series: 'cluster:virt_platform_nodes:sum{_id="id1",prometheus="openshift-monitoring/k8s",receive="true",type="redhat"}'
             values: '2'
       promql_expr_test:
+          - expr: cluster:nodes_host_type:sum
+            eval_time: 0
+            exp_samples:
+                - labels: 'cluster:nodes_host_type:sum{_id="id1",host_type="kvm-unknown"}'
+                  value: 3
+                - labels: 'cluster:nodes_host_type:sum{_id="id1",host_type="virt-unknown"}'
+                  value: 2
           - expr: id_primary_host_type
             eval_time: 0
             exp_samples:
@@ -27,6 +34,11 @@ tests:
           - series: 'cluster:virt_platform_nodes:sum{_id="id2", baseboard_manufacturer="HPE", baseboard_product_name="ProLiant DL380 Gen10 Plus", prometheus="openshift-monitoring/k8s", system_manufacturer="HPE", system_product_name="ProLiant DL380 Gen10 Plus", type="none"}'
             values: '182'
       promql_expr_test:
+          - expr: cluster:nodes_host_type:sum
+            eval_time: 0
+            exp_samples:
+                - labels: 'cluster:nodes_host_type:sum{_id="id2",host_type="metal"}'
+                  value: 246
           - expr: id_primary_host_type
             eval_time: 0
             exp_samples:
@@ -43,13 +55,19 @@ tests:
           - series: 'cluster:virt_platform_nodes:sum{_id="id3",type="vmware"}'
             values: '12'
       promql_expr_test:
+          - expr: cluster:nodes_host_type:sum
+            eval_time: 0
+            exp_samples:
+                - labels: 'cluster:nodes_host_type:sum{_id="id3",host_type="metal"}'
+                  value: 10
+                - labels: 'cluster:nodes_host_type:sum{_id="id3",host_type="vmware"}'
+                  value: 12
           - expr: id_primary_host_type
             eval_time: 0
             exp_samples:
                 - labels: 'id_primary_host_type{_id="id3",host_type="vmware"}'
                   value: 0
     # Mixed virtualized and baremetal nodes with virtual nodes < baremetal.
-    # TODO(simonpasquier): fix the recording rule as it should report id_primary_host_type{host_type="metal"}
     - input_series:
           - series: 'cluster:virt_platform_nodes:sum{_id="id3",baseboard_manufacturer="Dell Inc.",baseboard_product_name="0MMP29",system_manufacturer="Dell Inc.",system_product_name="PowerEdge XE9780",type="none"}'
             values: '8'
@@ -60,10 +78,17 @@ tests:
           - series: 'cluster:virt_platform_nodes:sum{_id="id3",type="vmware"}'
             values: '12'
       promql_expr_test:
+          - expr: cluster:nodes_host_type:sum
+            eval_time: 0
+            exp_samples:
+                - labels: 'cluster:nodes_host_type:sum{_id="id3",host_type="metal"}'
+                  value: 16
+                - labels: 'cluster:nodes_host_type:sum{_id="id3",host_type="vmware"}'
+                  value: 12
           - expr: id_primary_host_type
             eval_time: 0
             exp_samples:
-                - labels: 'id_primary_host_type{_id="id3",host_type="vmware"}'
+                - labels: 'id_primary_host_type{_id="id3",host_type="metal"}'
                   value: 0
     # IBM-based nodes wins the majority.
     - input_series:
@@ -80,8 +105,32 @@ tests:
           - series: 'cluster:virt_platform_nodes:sum{_id="id4",type="redhat"}'
             values: '5'
       promql_expr_test:
+          - expr: cluster:nodes_host_type:sum
+            eval_time: 0
+            exp_samples:
+                - labels: 'cluster:nodes_host_type:sum{_id="id4",host_type="ibm-systemz"}'
+                  value: 6
+                - labels: 'cluster:nodes_host_type:sum{_id="id4",host_type="metal"}'
+                  value: 1
+                - labels: 'cluster:nodes_host_type:sum{_id="id4",host_type="kvm-unknown"}'
+                  value: 5
+                - labels: 'cluster:nodes_host_type:sum{_id="id4",host_type="virt-unknown"}'
+                  value: 5
           - expr: id_primary_host_type
             eval_time: 0
             exp_samples:
                 - labels: 'id_primary_host_type{_id="id4",host_type="ibm-systemz"}'
+                  value: 0
+    # Missing cluster:virt_platform_nodes:sum metric for a cluster.
+    - input_series:
+          - series: 'cluster_version{_id="id5",type="current"}'
+            values: '1'
+      promql_expr_test:
+          - expr: cluster:nodes_host_type:sum
+            eval_time: 0
+            exp_samples: []
+          - expr: id_primary_host_type
+            eval_time: 0
+            exp_samples:
+                - labels: 'id_primary_host_type{_id="id5"}'
                   value: 0
