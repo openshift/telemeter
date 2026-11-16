@@ -19,6 +19,8 @@ local internalPort = 8081;
       oidcIssuer: '',
       clientSecret: '',
       clientID: '',
+      clientInfoPSK: '',
+      clientInfoPSKs: [],
       whitelist: [],
       elideLabels: [],
       resourceLimits: {},
@@ -130,6 +132,7 @@ local internalPort = 8081;
     clientInfoSecret:
       local cInfo = {
         secret: $._config.rhelemeterServer.clientInfoPSK,
+        secrets: $._config.rhelemeterServer.clientInfoPSKs,
         config: {
           secret_header: 'x-rh-rhelemeter-gateway-secret',
           common_name_header: 'x-rh-certauth-cn',

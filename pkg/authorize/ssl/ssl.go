@@ -2,6 +2,7 @@ package ssl
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"net/http"
@@ -17,8 +18,10 @@ type CommonNameContextKey struct{}
 
 // ClientCertConfig allows middleware to extract client information from the request
 type ClientCertConfig struct {
-	// Secret is used to validate the pre-shared key in clientCertInfo.SecretHeader
+	// Secret is accepted alongside Secrets for backwards compatibility.
 	Secret string `json:"secret,omitempty"`
+	// Secrets holds accepted pre-shared keys, allowing overlap during rotation.
+	Secrets []string `json:"secrets,omitempty"`
 	// Config holds the configuration that tells the server how to extract the client information from the request
 	Config ClientCertInfo `json:"config,omitempty"`
 }
@@ -38,8 +41,13 @@ func (conf ClientCertConfig) Validate() error {
 	if conf.Config.SecretHeader == "" {
 		return errors.New("secret_header must be set")
 	}
-	if conf.Secret == "" {
-		return errors.New("secret must be set")
+	if conf.Secret == "" && len(conf.Secrets) == 0 {
+		return errors.New("secret or secrets must be set")
+	}
+	for _, secret := range conf.Secrets {
+		if secret == "" {
+			return errors.New("secrets must not contain empty values")
+		}
 	}
 	if conf.Config.CommonNameHeader == "" {
 		return errors.New("common_name_header must be set")
@@ -60,7 +68,11 @@ func ClientCertInfoAsHeaders(config ClientCertConfig, logger log.Logger) func(ht
 					config.Config.SecretHeader), http.StatusForbidden)
 				return
 			}
-			if secret != config.Secret {
+			valid := subtle.ConstantTimeCompare([]byte(secret), []byte(config.Secret))
+			for _, accepted := range config.Secrets {
+				valid |= subtle.ConstantTimeCompare([]byte(secret), []byte(accepted))
+			}
+			if valid != 1 {
 				http.Error(w, "invalid secret", http.StatusForbidden)
 				return
 			}

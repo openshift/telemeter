@@ -59,6 +59,29 @@ and forwards the request to the upstream as configured.
 
 The `client-info-data-file` flag is used to specify the header names used to extract client info data.
 
+The file accepts multiple pre-shared keys so the gateway key can be rotated with an overlap:
+
+```json
+{
+  "secrets": ["old-key-placeholder", "new-key-placeholder"],
+  "config": {
+    "secret_header": "x-rh-rhelemeter-gateway-secret",
+    "common_name_header": "x-rh-certauth-cn",
+    "issuer_header": "x-rh-certauth-issuer"
+  }
+}
+```
+
+The existing `secret` string remains supported. If both `secret` and `secrets` are set,
+the server accepts a match from either. At least one key is required, and empty entries
+in `secrets` are rejected. Each request still sends a single key in the configured header.
+
+To rotate, deploy the configuration with both keys and roll out all rhelemeter replicas.
+Then switch the gateway to the new key. Once all gateway instances use the new key,
+remove the old key and roll out rhelemeter again. The file is read only at startup.
+
+The Jsonnet deployment exposes the list as `_config.rhelemeterServer.clientInfoPSKs`.
+The existing `clientInfoPSK` setting remains supported and is accepted alongside the list.
 
 Optionally, the `client-info-subject-label` flag can be used to specify a label name to store the client subject.
 If present, the labels value on each time series much match the common name as forwarded by the proxy.
