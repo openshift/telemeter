@@ -275,6 +275,34 @@ func TestServerRhelWithClientInfoFromHeaders(t *testing.T) {
 			expectStatus: http.StatusOK,
 		},
 		{
+			name: "Test client info from headers with old PSK during rotation",
+			extraOpts: func(opts *Options) {
+				opts.ClientInfoFromRequestConfigFile = "testdata/client-info-multiple-secrets.json"
+				opts.TLSKeyPath = "testdata/server-private-key.pem"
+				opts.TLSCertificatePath = "testdata/server-cert.pem"
+				opts.TLSCACertificatePath = "testdata/ca-cert.pem"
+				opts.ClientInfoSubjectLabel = "_id"
+			},
+			makeRequest:  buildRequest,
+			expectStatus: http.StatusOK,
+		},
+		{
+			name: "Test client info from headers with new PSK during rotation",
+			extraOpts: func(opts *Options) {
+				opts.ClientInfoFromRequestConfigFile = "testdata/client-info-multiple-secrets.json"
+				opts.TLSKeyPath = "testdata/server-private-key.pem"
+				opts.TLSCertificatePath = "testdata/server-cert.pem"
+				opts.TLSCACertificatePath = "testdata/ca-cert.pem"
+				opts.ClientInfoSubjectLabel = "_id"
+			},
+			makeRequest: func(url string, withBody io.Reader) *http.Request {
+				req := buildRequest(url, withBody)
+				req.Header.Set(xSecret, "rotated-secret")
+				return req
+			},
+			expectStatus: http.StatusOK,
+		},
+		{
 			name: "Test client info from headers with correct PSK and incorrect label validation",
 			extraOpts: func(opts *Options) {
 				opts.ClientInfoFromRequestConfigFile = "testdata/client-info.json"
